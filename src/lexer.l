@@ -30,7 +30,7 @@
 #include <string.h>
 
 #include "ast.h"
-#include "parser.h"
+#include "rd-parser.h"
 
 void yyerror(const char *s); // Fehler beim Lexen/Parsen
 
@@ -169,104 +169,24 @@ false {
 	return NAME;
 }
 
+[-+*/%^|&<>!~] {
+	// binary operator
+	return yytext[0];
+}
+
 [[:blank:]]+ // Eat whitespace
 
 <<EOF>> {
         yy_delete_buffer( YY_CURRENT_BUFFER );
         yyterminate();
 }
-%%
-
-
-/*
-":=" {
-	DLEX_PRINTTOKEN("Assignment operator");
-	return ASSIGNMENT_TOKEN;
-}
-
-"<-" {
-	DLEX_PRINTTOKEN("Strict assignment operator");
-	return STRICT_ASSIGNMENT_TOKEN;
-}
-
-
-"==" {
-	DLEX_PRINTTOKEN("Equality predicate");
-	return EQUAL_TOKEN;
-}
-
-
-"<=" {
-	DLEX_PRINTTOKEN("Less-Than predicate");
-	return LTEQUAL_TOKEN;
-}
-
-
-">=" {
-	DLEX_PRINTTOKEN("Greater-Than predicate");
-	return GTEQUAL_TOKEN;
-}
-
-
-"->" {
-	DLEX_PRINTTOKEN("Implication arrow");
-}
-
-
-"&&" {
-	DLEX_PRINTTOKEN("Boolean AND");
-	return AND_TOKEN;
-}
-
-
-"||" {
-	DLEX_PRINTTOKEN("Boolean OR");
-	return OR_TOKEN;
-}
-
-
-"^^" {
-	DLEX_PRINTTOKEN("Boolean XOR");
-}
-
-
-">>" {
-	DLEX_PRINTTOKEN("Shift-RIGHT");
-}
-
-
-"<<" {
-	DLEX_PRINTTOKEN("Shift-LEFT");
-}
-
-"\\" {
-	DLEX_PRINTTOKEN("Lambda");
-	return LAMBDA_TOKEN;
-}
-
-
-"$" {
-	DLEX_PRINTTOKEN("Call-by-name prefix operator");
-}
-
-"#".+$ {
-	DLEX_PRINTTOKEN("Comment");
-}
-
-
-
-
-
-<<EOF>> {
-        yy_delete_buffer( YY_CURRENT_BUFFER );
-        yyterminate();
-}
-
 
 <*>.|\n {
-	printf("Invalid input token: '%s'\n", yytext);
+	fprintf(stderr, "Invalid input token: '%s'\n", yytext);
+	yyerror("File format error");
 }
-*/
+
+%%
 
 static char
 unescape_char(char c)

@@ -152,3 +152,27 @@ expect_n(int token_type, node_t **node_ptr)
 //            | mul-expr
 // mul-expr ::= mul-expr MULOP mul-expr
 //            | constant
+
+static node_t *
+expr()
+{
+}
+
+static node_t *
+literal()
+{
+	node_t *node;
+
+	switch (peek()) {
+	case STRING:
+	case INT:
+	case UINT:
+	case BOOL:
+	case CHAR:
+	case REAL:
+		next_n(&node);
+		return node;
+	default:
+		return NULL;
+	}
+}

@@ -37,19 +37,14 @@
 #define TYPE_MASK		0xff	// Nur die ersten 8 Bits speichern AST-Knotentypen
 #define AST_ILLEGAL		0x00
 #define AST_VALUE_INT		0x01
-#define AST_VALUE_UINT		0x02
-#define AST_VALUE_BOOL		0x03
 #define AST_VALUE_REAL		0x04
-#define AST_VALUE_CHAR		0x05
 #define AST_VALUE_STRING	0x06
 #define AST_VALUE_NAME		0x07	// identifier stored as `s'
 #define AST_VALUE_BUILTIN	0x08	// reference to builtin entity; encoded as `ident'
 
 #define AST_VALUE_MAX		AST_VALUE_BUILTIN
 
-#define AST_NODE_NAME		0x10	// qualified name, expressed as array of AST_VALUE_NAME entities
 #define AST_NODE_FUNAPP		0x11	// [0] is function ref, [1] is argument
-/* #define AST_NODE_PACKAGE	0x12	// [0] is name, [1] is SET of declarations */
 #define AST_NODE_SET		0x20	// something in curly braces.  [0] is car, [1] is cdr (may be NULL).
 #define AST_NODE_SEQ		0x21	// something in brackets.  [0] is car, [1] is cdr (may be NULL).
 #define AST_NODE_TUPLE		0x22	// array-style
@@ -57,8 +52,6 @@
 #define AST_NODE_ASSIGN		0x40	// [0] is lvalue, [1] is accumulating builtin or NULL, [2] is rhs/rvalue
 #define AST_NODE_PREFIXOP	0x41	// [0] is lvalue, [1] is accumulating builtin.  Other operand is implicitly 1.
 #define AST_NODE_POSTFIXOP	0x42	// [0] is lvalue, [1] is accumulating builtin.  Other operand is implicitly 1.
-#define AST_NODE_OR		0x43	// short-circuit `or'
-#define AST_NODE_AND		0x44	// short-circuit `and'
 #define AST_NODE_WHILE		0x45	// [0] is cond, [1] is body
 #define AST_NODE_DOWHILE	0x46	// [0] is cond, [1] is body
 #define AST_NODE_FOR		0x47	// [0,1,2] are inits [3] is body

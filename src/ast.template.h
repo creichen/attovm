@@ -79,6 +79,8 @@ typedef struct {
 ast_node_t *
 ast_node_alloc_generic(int type, int children_nr, ...);
 ast_node_t *
+ast_node_alloc_generic_without_init(int type, int children_nr);
+ast_node_t *
 value_node_alloc_generic(int type, ast_value_union_t value);
 
 /**

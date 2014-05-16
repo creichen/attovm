@@ -31,7 +31,7 @@
 #include <assert.h>
 
 ast_node_t *
-ast_node_alloc_generic(int type, int children_nr, ...)
+ast_node_alloc_generic_without_init(int type, int children_nr)
 {
 	assert(type > AST_VALUE_MAX);
 
@@ -41,6 +41,14 @@ ast_node_alloc_generic(int type, int children_nr, ...)
 	retval->type = type;
 	retval->annotations = NULL;
 	retval->children_nr = children_nr;
+	return retval;
+}
+
+
+ast_node_t *
+ast_node_alloc_generic(int type, int children_nr, ...)
+{
+	ast_node_t *retval = ast_node_alloc_generic_without_init(type, children_nr);
 
 	va_list va;
 	va_start(va, children_nr);

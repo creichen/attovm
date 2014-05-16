@@ -76,6 +76,19 @@ free_vector(node_vector_t *nv)
 	free(nv);
 }
 
+ast_node_t *
+vector_to_node(int type, node_vector_t *nv)
+{
+	const int size = nv->nodes_nr;
+	ast_node_t *n = ast_node_alloc_generic_without_init(type, size);
+	for (int i = 0; i < size; i++) {
+		n->children[i] = nv->nodes[i];
+	}
+	free_vector(nv);
+
+	return n;
+}
+
 
 // Stapel für backtracking
 typedef struct {

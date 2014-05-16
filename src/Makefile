@@ -1,4 +1,4 @@
-CFLAGS=-O0 -g -Wall -Wno-unused-function -D_POSIX_C_SOURCE=200809 -std=c11
+CFLAGS=-O0 -g -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200809 -std=c11
 PYTHON=python
 LEX=flex
 

@@ -57,6 +57,7 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 $$RULES$$
 
 [[:blank:]]+ // Eat whitespace
+\n // Eat whitespace
 
 <<EOF>> {
         yy_delete_buffer( YY_CURRENT_BUFFER );

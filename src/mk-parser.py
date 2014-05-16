@@ -426,17 +426,30 @@ def TmpVar():
 class Repeat(ASTGen):
     '''
     Repeats a potentially infinite repetition of a nonterminal.
+
+    WARNING: This may only ever be used ONCE in a given rule, and MUST be resolved with a `Repetition' construction.
     '''
 
     def __init__(self, nt, separator=None):
         self.nt = nt
         self.separator = separator
+        if type(self.separator) is str:
+            self.separator = StringTerm(self.separator)
 
     def __str__(self):
         return 'repeat_' + str(self.nt)
 
-    def storesResult(self):
-        return 'ast_node_t **'
+    def __eq__(self, other):
+        return type(other) is Repeat
+
+    def __hash__(self):
+        return 0
+
+    def resultStorage(self):
+        return 'node_vector_t'
+
+    def resultStorageInit(self):
+        return 'make_vector()'
 
     def freeResultStorage(self):
         return 'free_vector'
@@ -444,11 +457,11 @@ class Repeat(ASTGen):
     def recognise(self, resultvar):
         tmpvar = TmpVar()
         stmts = [
-            'ast_node_t *tmp_' + tmpvar + ';',
+            'ast_node_t *' + tmpvar + ';',
             'while (%s) {' % self.nt.recognise(tmpvar)[1],
             '\tadd_to_vector(%s, %s);' % (ResultVarRef(resultvar), tmpvar)]
         if (self.separator):
-            stmts.append('\tif (!%s) {;' % self.separator.recognise(None)[1])
+            stmts.append('\tif (!%s) {' % self.separator.recognise(None)[1])
             stmts.append('\t\tbreak;')
             stmts.append('\t}')
         stmts.append('}')
@@ -465,6 +478,7 @@ class Repeat(ASTGen):
 # AddAttribute(n, attr)		Adds attribute `attr' to node n
 # Update(n0, index, n1)		Updates the specified channel index of `n0' to value `n1', returns updated `n0'
 # Cons('name', [ns])		Constructs the specified AST node together with the specified channels (see below) as children,
+# Repetition('name')		Use the sole `Repeat()' construction
 # n				Directly return the specified node
 #
 # Nodes `n' are constructor references to the lhs of a rule.
@@ -642,6 +656,15 @@ class AddAttribute(ASTCons):
         return 'node_add_attribute(%s, %s)' % (self.baseobj.generateASTGen(genVar),
                                                self.attr.generateASTGen(genVar))
 
+class Repetition(Cons):
+    def __init__(self, name):
+        Cons.__init__(self, name, [])
+        self.name = name
+
+    def generateASTGen(self, genVar):
+        return 'vector_to_node(%s, &%s)' % (self.getASTFullName(), genVar(Repeat(None), 0))
+
+
 ########################################
 # Rule object
 
@@ -652,6 +675,10 @@ class Rule(object):
         self.nt = nt
         self.rhs = rhs
         self.astgen = astgen
+
+        if type(astgen) is Repetition:
+            assert len(rhs) == 1, 'Repetition() only permitted with a single rule rhs (which must be Repeat)'
+            assert type(rhs[0]) is Repeat, 'Repetition() must be used with Repeat()'
 
         if nt in Rule.all:
             Rule.all[nt].append(self)
@@ -728,7 +755,7 @@ rules = [
     Rule(TY,	['int'],					Attr('INT')),
     Rule(TY,	['real'],					Attr('REAL')),
 
-    Rule(STMT,[EXPR, ';'],EXPR), # just for testing
+    Rule(STMT,[Repeat(EXPR, ',')], Repetition('SEQ')), # just for testing
 
     # Rule(STMT,	[VARDEF, ';'],					VARDEF),
     # Rule(STMT,	[VARDEF, Opt("oe", ['=', EXPR]), ';'],		Update(VARDEF, 2, P("oe"))),
@@ -749,6 +776,7 @@ rules = [
     Rule(EXPR2,	   [VALEXPR],					VALEXPR),
 
     Rule(VALEXPR, ['[', EXPR, ':', TY , ']'], AddAttribute(EXPR, TY)),
+    Rule(VALEXPR, ['{', STMT , '}'], STMT),
     
     Rule(VALEXPR,  [INT],					INT),
     Rule(VALEXPR,  [STRING],					STRING),
@@ -1151,9 +1179,13 @@ def buildParseRules(rules):
 
             end(None)
             if repeatrule:
-                (prepare_stmts, cond) = key.recognise(getEnv(key))
+                (rrule, _) = repeatrule
+                (prepare_stmts, cond) = rrule.rhs[0].recognise(getEnv(rrule.rhs[0], 0))
                 for s in prepare_stmts:
                     p(s)
+                p('*result = %s;' % rrule.astgen.generateASTGen(getEnv))
+                p('return 1;')
+
             if endrule:
                 buildAST(endrule, [env[k] for k in previously_on_path if k in env], p, getEnv)
                 p('return 1;')

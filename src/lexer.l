@@ -75,6 +75,10 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 	return T_L_VAR;
 }
 
+"," {
+	return ',';
+}
+
 "\(" {
 	return '(';
 }
@@ -93,6 +97,10 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 
 ":" {
 	return ':';
+}
+
+"{" {
+	return '{';
 }
 
 "obj" {
@@ -121,6 +129,10 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 
 ">=" {
 	return T_L_GTEQ;
+}
+
+"}" {
+	return '}';
 }
 
 "\+" {
@@ -164,6 +176,7 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 
 
 [[:blank:]]+ // Eat whitespace
+\n // Eat whitespace
 
 <<EOF>> {
         yy_delete_buffer( YY_CURRENT_BUFFER );

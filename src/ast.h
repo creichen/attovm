@@ -44,6 +44,7 @@
 #define AST_VALUE_NAME   0x05
 #define AST_VALUE_MAX    0x05
 #define AST_NODE_FUNAPP  0x06
+#define AST_NODE_SEQ     0x07
 
 #define NODE_TY(n) ((n)->type & AST_NODE_MASK)
 #define IS_VALUE_NODE(n) (NODE_TY(n) <= AST_VALUE_MAX)
@@ -106,6 +107,8 @@ typedef struct {
  */
 ast_node_t *
 ast_node_alloc_generic(int type, int children_nr, ...);
+ast_node_t *
+ast_node_alloc_generic_without_init(int type, int children_nr);
 ast_node_t *
 value_node_alloc_generic(int type, ast_value_union_t value);
 

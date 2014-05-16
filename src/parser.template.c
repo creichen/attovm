@@ -136,7 +136,7 @@ accept(int expected, ast_node_t **node_ptr)
 	} else {
 		push_back(ty, *node_ptr);
 		*node_ptr = NULL;
-		return ;
+		return 0;
 	}
 }
 
@@ -160,7 +160,7 @@ static void
 clear_parse_error(int until_token)
 {
 	ast_node_t *node;
-	error_status - 0;
+	error_status = 0;
 	int token;
 	do {
 		node = NULL;

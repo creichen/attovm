@@ -50,7 +50,7 @@ class TemplateFile(object):
             hole_keys.remove(k)
 
         assert len(hole_keys) == 0, ('Not all holes plugged: %s missing' % hole_keys)
-        print '// AUTOMATICALLY GENERATED.  DO NOT MODIFY.'
+        print '/* ** AUTOMATICALLY GENERATED.  DO NOT MODIFY. ** */'
         for line in lines:
             print line
 
@@ -269,6 +269,12 @@ class Term(ASTGen):
 used_names = set()
 
 def StringTerm(strt):
+    must_escape = "()*+.|[]?'\\"
+
+    def escape(s):
+        return ''.join(['\\' + c if c in must_escape else c
+                        for c in s])
+
     if strt in Term.stringterms:
         return Term.stringterms[strt]
     if len(strt) == 1:
@@ -313,7 +319,7 @@ def StringTerm(strt):
         retval.token_id = "'" + strt + "'"
     else:
         retval.token_id = 'T_L' + name
-    retval.addRegexp("'" + strt.replace('\\', '\\\\').replace("'","\\'") + "'", None, None)
+    retval.addRegexp("'" + escape(strt) + "'", None, None)
     retval.setIsStringterm()
     retval.setErrorName("'%s'" % strt)
     Term.stringterms[strt] = retval
@@ -813,6 +819,7 @@ def printASTHeader():
             node_ty_nr[0] += 1
         node_ty_decls.append('#define ' + nodety + (' ' * (max_astname_len - len(nodety))) + ' 0x%02x' % number)
 
+    addNodeTyDecl('AST_ILLEGAL') # 0
     addNodeTyDecl('AST_NODE_MASK', 0xff)
     for n in value_nty_names:
         addNodeTyDecl(n)
@@ -1120,6 +1127,7 @@ def printParser():
 def printUnparser():
     value_ntys = set()
     nonvalue_ntys = set()
+    builtin_names = set()
     builtins = set()
 
     for rules in Rule.all.itervalues():
@@ -1136,13 +1144,16 @@ def printUnparser():
                         addset.add(astgen)
 
                 if astgen.getBuiltinName() is not None:
-                    builtins.add(astgen)
+                    if astgen.getASTName() not in builtin_names:
+                        # eliminate dupes
+                        builtin_names.add(astgen.getASTName())
+                        builtins.add(astgen)
 
     def printID(n):
-        return '\tcase %s:\n\t\tfputs(file, "%s");\n\t\tbreak;' % (n.getBuiltinFullName(), n.getBuiltinName())
+        return '\tcase %s:\n\t\tfputs("%s", file);\n\t\tbreak;' % (n.getBuiltinFullName(), n.getBuiltinName())
 
     def printTag(n):
-        return '\tcase %s:\n\t\tfputs(file, "%s");\n\t\tbreak;' % (n.getASTFullName(), n.getASTName())
+        return '\tcase %s:\n\t\tfputs("%s", file);\n\t\tbreak;' % (n.getASTFullName(), n.getASTName())
 
     def printVNode(n):
         return '\tcase %s:\n\t\tfprintf(file, "%s", node->v.%s);\n\t\tbreak;' % (
@@ -1151,7 +1162,7 @@ def printUnparser():
             n.varname
         )
 
-    parser_template = TemplateFile('unparse.template.c')
+    parser_template = TemplateFile('unparser.template.c')
     parser_template.printFile({
         'PRINT_TAGS': '\n'.join(printTag(n) for n in value_ntys.union(nonvalue_ntys)),
         'PRINT_IDS': '\n'.join(printID(n) for n in builtins),

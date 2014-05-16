@@ -1,16 +1,16 @@
-CFLAGS=-O3 -Wall
+CFLAGS=-O3 -Wall -Wno-unused-function -D_POSIX_C_SOURCE=200809 -std=c11
 PYTHON=python
 LEX=flex
 
-FRONTEND_HEADERS = parser.h ast.h
+FRONTEND_HEADERS = parser.h ast.h chash.h
 FRONTEND_GENSRC = parser.c lexer.l lexer.c ast.c unparser.c
-FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o
-FRONTEND: $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
+FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o
+FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
 BACKEND_HEADERS = assembler.h
 BACKEND_GENSRC = assembler.c
 BACKEND_OBJS = assembler.o
-BACKEND: $(BACKEND_HEADERS) $(BACKEND_OBJS) 
+BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS) 
 
 .PHONY: clean
 
@@ -49,6 +49,6 @@ parser.h: mk-parser.py parser.template.h
 	${PYTHON} mk-parser.py parser.h > parser.h
 
 unparser.c: mk-parser.py unparser.template.c
-	${PYTHON} mk-parser.py unparser.template.c > unparser.c
+	${PYTHON} mk-parser.py unparser.c > unparser.c
 
 

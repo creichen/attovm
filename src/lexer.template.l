@@ -158,16 +158,16 @@ static hashtable_t *name_map = NULL;
 static char* mk_unique_string(char *id)
 {
 	if (!name_map) {
-		name_map = hashtable_alloc(string_hash, strcmp, 5);
+		name_map = hashtable_alloc(string_hash, (int (*)(const void *, const void *)) strcmp, 5);
 	}
-	char **retval_ptr = hashtable_access(name_map, id, NULL);
+	char **retval_ptr = (char **) hashtable_access(name_map, id, NULL);
 
 	if (retval_ptr) {
 		// already know this one
 		return *retval_ptr;
 	}
 	// otherwise:  add new entry
-	char *unique_id = strdup(text);
+	char *unique_id = strdup(id);
 	hashtable_access(name_map, id, unique_id);
 	return unique_id;
 }

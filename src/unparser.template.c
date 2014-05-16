@@ -33,7 +33,7 @@
 static void
 print_id_string(FILE *file, int id)
 {
-	switch (tag) {
+	switch (id) {
 $$PRINT_IDS$$
 	default:
 		fprintf(file, "<unknown id: %d>", id);
@@ -55,7 +55,7 @@ print_value_node(FILE *file, ast_value_node_t *node)
 {
 	switch (node->type & AST_NODE_MASK) {
 	case AST_VALUE_ID:
-		print_id_string(file, node->ident);
+		print_id_string(file, AV_ID(node));
 		return;
 $$PRINT_VNODES$$
 	default:
@@ -67,36 +67,36 @@ static void
 dump_recursively(FILE *file, int indent, ast_node_t *node, int recursive)
 {
 	if (!node) {
-		fputs(file, "<null>");
+		fputs("<null>", file);
 		return;
 	}
 
 	int type = node->type & AST_NODE_MASK;
 	if (type <= AST_VALUE_MAX) {
 		print_value_node(file, (ast_value_node_t *) node);
-		fputs(file, ":");
-		print_tag_string(FILE, type);
+		fputs(":", file);
+		print_tag_string(file, type);
 		return;
 	}
 
-	for (int d = 0; d < indent; i++) { fputs(FILE, "  "); }
-	fputs(FILE, "(");
-	print_tag_string(FILE, type);
+	for (int d = 0; d < indent; d++) { fputs("  ", file); }
+	fputs("(", file);
+	print_tag_string(file, type);
 	if (node->children_nr) {
-		fputs(FILE, "\n");
+		fputs("\n", file);
 	}
 
 	for (int i = 0; i < node->children_nr; i++) {
 		if (recursive) {
 			dump_recursively(file, indent + 1, node->children[i], recursive);
 		} else {
-			fputs(file, " #");
+			fputs(" #", file);
 		}
 	}
 	if (node->children_nr) {
-		for (int d = 0; d < indent; i++) { fputs(FILE, "  "); }
+		for (int d = 0; d < indent; d++) { fputs("  ", file); }
 	}
-	fputs(FILE, ")\n");
+	fputs(")\n", file);
 }
 
 void

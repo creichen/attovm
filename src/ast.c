@@ -26,6 +26,7 @@
 ***************************************************************************/
 
 #include "ast.h"
+#include <string.h>
 #include <stdarg.h>
 #include <assert.h>
 
@@ -99,7 +100,7 @@ ast_node_clone(ast_node_t *node)
 		const ast_value_node_t *vn = (ast_value_node_t *) node;
 		retval = value_node_alloc_generic(vn->type, vn->v);
 		if (retval->type == AST_VALUE_STRING) {
-			retval->v.str = strdup(retval->v.str);
+			AV_STRING(retval) = strdup(AV_STRING(retval));
 		}
 	} else {
 		retval = ast_node_alloc_generic(node->type, node->children_nr);

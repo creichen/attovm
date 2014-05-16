@@ -1,4 +1,4 @@
-// AUTOMATICALLY GENERATED.  DO NOT MODIFY.
+/* ** AUTOMATICALLY GENERATED.  DO NOT MODIFY. ** */
 /***************************************************************************
   Copyright (C) 2013 Christoph Reichenbach
 
@@ -35,14 +35,15 @@
 /* Abstrakter Syntaxbaum (AST).  Repräsentiert Programme nach dem Parsen. */
 
 // AST-Knotentypen
+#define AST_ILLEGAL      0x00
 #define AST_NODE_MASK    0xff
-#define AST_VALUE_INT    0x00
-#define AST_VALUE_STRING 0x01
-#define AST_VALUE_REAL   0x02
-#define AST_VALUE_ID     0x03
+#define AST_VALUE_INT    0x01
+#define AST_VALUE_STRING 0x02
+#define AST_VALUE_REAL   0x03
 #define AST_VALUE_NAME   0x04
-#define AST_VALUE_MAX    0x05
-#define AST_NODE_FUNAPP  0x05
+#define AST_VALUE_ID     0x05
+#define AST_VALUE_MAX    0x06
+#define AST_NODE_FUNAPP  0x06
 
 #define IS_VALUE_NODE(n) ((n)->type <= AST_VALUE_MAX)
 

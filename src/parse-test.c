@@ -25,9 +25,11 @@
 
 ***************************************************************************/
 
-#include<stdio.h>
-#include<ast.h>
-#include<parser.h>
+#include <stdio.h>
+#include "ast.h"
+#include "parser.h"
+
+extern FILE *yyin; // lexer
 
 int
 main(int argc, char **argv)
@@ -41,7 +43,7 @@ main(int argc, char **argv)
 	}
 
 	ast_node_dump(stdout, n, 1);
-	ast_node_free(n);
+	ast_node_free(n, 1);
 
 	return 0;
 }

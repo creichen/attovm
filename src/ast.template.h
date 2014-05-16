@@ -36,12 +36,13 @@
 // AST-Knotentypen
 $$NODE_TYPES$$
 
-#define IS_VALUE_NODE(n) ((n)->type <= AST_VALUE_MAX)
+#define NODE_TY(n) ((n)->type & AST_NODE_MASK)
+#define IS_VALUE_NODE(n) (NODE_TY(n) <= AST_VALUE_MAX)
 
 $$AV_VALUE_GETTERS$$
 
-// AST-Tags (Zusatzinformationen)
-$$AV_TAGS$$
+// AST-Flags (Zusatzinformationen)
+$$AV_FLAGS$$
 // Ende der AST-Tags
 
 // Eingebaute Bezeichner.  NAME: nicht aufgeloester Name, ID: aufgeloester Name
@@ -50,7 +51,7 @@ $$BUILTIN_IDS$$
 typedef struct ast_node {
 	unsigned short type;
 	unsigned short children_nr;
-	void *annotations; // Optional annotations (name analysis, type analysis etc.)
+	void *annotations; // Optionale Annotationen (Namensanalyse, Typanalyse usw.)
 	struct ast_node * children[0]; // Kindknoten
 } ast_node_t;
 
@@ -65,6 +66,7 @@ typedef struct {
 	void *annotations;
 	ast_value_union_t v;
 } ast_value_node_t;
+
 
 /**
  * Allocates a single AST node.
@@ -110,14 +112,18 @@ ast_node_clone(ast_node_t *node);
 void
 ast_node_print(FILE *file, ast_node_t *node, int recursive);
 
+#define AST_NODE_DUMP_NONRECURSIVELY	0x01 /* Nicht rekursiv */
+#define AST_NODE_DUMP_FORMATTED		0x02 /* Mit Einrückung */
+#define AST_NODE_DUMP_FLAGS		0x04 /* Flags mit ausgeben */
+
 /**
  * Dumps AST nodes (no pretty-printing, raw AST).
  *
  * @param file The output stream to print to
  * @param node The node to print out
- * @param recursive Whether to print recursively
+ * @param flags AST_DUMP_* (may be ORed together)
  */
 void
-ast_node_dump(FILE *file, ast_node_t *node, int recursive);
+ast_node_dump(FILE *file, ast_node_t *node, int flags);
 
 #endif // !defined(_CMINOR_SRC_AST_H)

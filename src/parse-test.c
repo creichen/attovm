@@ -38,11 +38,11 @@ main(int argc, char **argv)
 
 	ast_node_t *n = NULL;
 	if (!parse_expr(&n)) {
-		fprintf(stderr, "Parse error");
+		fprintf(stderr, "Parse error\n");
 		return 1;
 	}
 
-	ast_node_dump(stdout, n, 1);
+	ast_node_dump(stdout, n, AST_NODE_DUMP_FLAGS);
 	ast_node_free(n, 1);
 
 	return 0;

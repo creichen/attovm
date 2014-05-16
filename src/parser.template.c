@@ -89,6 +89,7 @@ static int node_stack_size = 0;
 
 
 static int error_status = 0;
+static int yydone = 0;
 #define PARSE_ERROR -1
 
 static int
@@ -102,7 +103,13 @@ next_token(ast_node_t **node_ptr)
 		*node_ptr = e->node;
 		return e->ty;
 	}
+	if (yydone) {
+		return 0;
+	}
 	int token_t = yylex();
+	if (!token_t) {
+		yydone = 1;
+	}
 
 	switch (token_t) {
 $$VALUE_TOKEN_DECODING$$
@@ -125,17 +132,24 @@ push_back(int ty, ast_node_t * node)
 	}
 	node_stack[node_stack_pos].ty = ty;
 	node_stack[node_stack_pos].node = node;
+	++node_stack_pos;
 }
 
 static int
 accept(int expected, ast_node_t **node_ptr)
 {
-	int ty = next_token(node_ptr);
+	ast_node_t *n;
+	int ty = next_token(&n);
 	if (expected == ty) {
+		if (node_ptr) {
+			*node_ptr = n;
+		}
 		return 1;
 	} else {
-		push_back(ty, *node_ptr);
-		*node_ptr = NULL;
+		push_back(ty, n);
+		if (node_ptr) {
+			*node_ptr = NULL;
+		}
 		return 0;
 	}
 }
@@ -170,6 +184,34 @@ clear_parse_error(int until_token)
 		}
 	} while (token && token != until_token);
 	// until EOF or `terminator token'
+}
+
+static ast_node_t*
+node_update(ast_node_t *n, int channel, ast_node_t *newchild)
+{
+	if (n == NULL) {
+		return NULL;
+	}
+
+	if (channel >= n->children_nr) {
+		return n;
+	}
+
+	if (n->children[channel]) {
+		ast_node_free(n->children[channel], 1);
+	}
+
+	n->children[channel] = newchild;
+	return n;
+}
+
+static ast_node_t*
+node_add_attribute(ast_node_t *n, int attr)
+{
+	if (n) {
+		n->type |= attr;
+	}
+	return n;
 }
 
 $$PARSING$$

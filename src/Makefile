@@ -1,9 +1,9 @@
-CFLAGS=-O3 -Wall -Wno-unused-function -D_POSIX_C_SOURCE=200809 -std=c11
+CFLAGS=-O0 -g -Wall -Wno-unused-function -D_POSIX_C_SOURCE=200809 -std=c11
 PYTHON=python
 LEX=flex
 
 FRONTEND_HEADERS = parser.h ast.h chash.h
-FRONTEND_GENSRC = parser.c lexer.l lexer.c ast.c unparser.c
+FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c
 FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
@@ -22,7 +22,7 @@ clean:
 	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) $(FRONTEND_GENSRC) $(BACKEND_GENSRC)
 
 parse-test: $(FRONTEND) parse-test.o
-	$(CC) $(CFLAGS) $(FRONTEND) parse-test.o -o parse-test
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) parse-test.o -o parse-test
 
 # ========================================
 # Generated code

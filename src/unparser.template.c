@@ -31,6 +31,12 @@
 #include <assert.h>
 
 static void
+print_flags(FILE *file, int ty)
+{
+$$PRINT_FLAGS$$
+}
+
+static void
 print_id_string(FILE *file, int id)
 {
 	switch (id) {
@@ -44,6 +50,8 @@ static void
 print_tag_string(FILE *file, int tag)
 {
 	switch (tag & AST_NODE_MASK) {
+	case AST_VALUE_ID:
+		return;
 $$PRINT_TAGS$$
 	default:
 		fprintf(file, "<unknown tag: %d>", tag & AST_NODE_MASK);
@@ -64,45 +72,63 @@ $$PRINT_VNODES$$
 }
 
 static void
-dump_recursively(FILE *file, int indent, ast_node_t *node, int recursive)
+dump_recursively(FILE *file, int indent, ast_node_t *node, int flags)
 {
 	if (!node) {
-		fputs("<null>", file);
+		fputs("null", file);
 		return;
 	}
 
 	int type = node->type & AST_NODE_MASK;
 	if (type <= AST_VALUE_MAX) {
 		print_value_node(file, (ast_value_node_t *) node);
-		fputs(":", file);
+		if (node->type != AST_VALUE_ID) {
+			fputs(":", file);
+		}
 		print_tag_string(file, type);
+		if (flags & AST_NODE_DUMP_FLAGS) {
+			print_flags(file, node->type);
+		}
 		return;
 	}
 
-	for (int d = 0; d < indent; d++) { fputs("  ", file); }
 	fputs("(", file);
 	print_tag_string(file, type);
-	if (node->children_nr) {
+	if (flags & AST_NODE_DUMP_FLAGS) {
+		print_flags(file, node->type);
+	}
+	const int long_format = (flags & AST_NODE_DUMP_FORMATTED) && node->children_nr;
+	if (long_format) {
 		fputs("\n", file);
 	}
 
 	for (int i = 0; i < node->children_nr; i++) {
-		if (recursive) {
-			dump_recursively(file, indent + 1, node->children[i], recursive);
+		if (!(flags & AST_NODE_DUMP_NONRECURSIVELY)) {
+			if (long_format) {
+				for (int d = 0; d <= indent; d++) {
+					fputs("  ", file);
+				}
+			} else {
+				fputs(" ", file);
+			}
+			dump_recursively(file, indent + 1, node->children[i], flags);
+			if (long_format) {
+				fputs("\n", file);
+			}
 		} else {
 			fputs(" #", file);
 		}
 	}
-	if (node->children_nr) {
+	if (long_format) {
 		for (int d = 0; d < indent; d++) { fputs("  ", file); }
 	}
-	fputs(")\n", file);
+	fputs(")", file);
 }
 
 void
-ast_node_dump(FILE *file, ast_node_t *node, int recursive)
+ast_node_dump(FILE *file, ast_node_t *node, int flags)
 {
-	dump_recursively(file, 0, node, recursive);
+	dump_recursively(file, 0, node, flags);
 }
 
 

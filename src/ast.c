@@ -71,8 +71,7 @@ ast_node_free(ast_node_t *node, int recursive)
 
 	if (IS_VALUE_NODE(node)) {
 		// Value-Knoten mit Strings/Bezeichnern zeigen auf separat allozierten Speicher
-		if (node->type == AST_VALUE_STRING
-		    || node->type == AST_VALUE_NAME) {
+		if (node->type == AST_VALUE_STRING) {
 			free(AV_STRING(node));
 		}
 	} else {

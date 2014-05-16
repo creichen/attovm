@@ -149,7 +149,7 @@ class Term(ASTGen):
     '''
     Represents a terminal given by regexps and a means for handling the regexps.
     '''
-    def __init__(self, name, varname, c_type = None):
+    def __init__(self, name, varname, c_type = None, token_id = None):
         ASTGen.__init__(self)
         self.name = name # may be None for single-char terminals without any processing
         self.c_type = c_type
@@ -159,9 +159,12 @@ class Term(ASTGen):
         self.format_string = 'ERROR'
         self.is_stringterm = False
         self.error_name = None
-        if self.name is not None:
-            self.token_id = 'T__' + self.name
-        self.token_id = self.name
+        if token_id is None:
+            if self.name is not None:
+                self.token_id = 'T__' + self.name
+            #self.token_id = self.name
+        else:
+            self.token_id = token_id
         Term.all.add(self)
 
     def __hash__(self):
@@ -314,12 +317,12 @@ def StringTerm(strt):
                 i += 1
             name = name + str(i)
         used_names.add(name)
-    retval = Term(name, None)
     if name is None:
-        retval.token_id = "'" + strt + "'"
+        token_id = "'" + strt + "'"
     else:
-        retval.token_id = 'T_L' + name
-    retval.addRegexp("'" + escape(strt) + "'", None, None)
+        token_id = 'T_L_' + name
+    retval = Term(name, None, token_id = token_id)
+    retval.addRegexp('"' + escape(strt) + '"', None, None)
     retval.setIsStringterm()
     retval.setErrorName("'%s'" % strt)
     Term.stringterms[strt] = retval
@@ -359,10 +362,14 @@ class NT(ASTGen):
         return self.name
 
     def resultStorage(self):
-        return 'ast_node_t *'
+        #return 'ast_node_t *'
+        if self not in Rule.all:
+            return None
+        return Rule.all[self][0].resultStorage()
 
     def resultStorageInit(self):
-        return 'NULL'
+        #return 'NULL'
+        return Rule.all[self][0].resultStorageInit()
 
     def parseFunctionName(self):
         return 'parse_' + str(self)
@@ -380,7 +387,7 @@ class NT(ASTGen):
         '''Emit code for handling a failed rule parse'''
         if self.fail_handler is not None:
             p('clear_parse_error(%s);' % self.fail_handler)
-            p('%s(%s);' % (self.parseFunctionName(), 'result'))
+            p('return %s(%s);' % (self.parseFunctionName(), 'result'))
         else:
             p('return 0;')
 
@@ -455,16 +462,15 @@ class Repeat(ASTGen):
 # constructions are permissible:
 #
 # Attr('s')			Generates an attribute of the specified string, encoded as a bit mask
-# Update(chan, index, v)	Updates the specified channel index of `nt' to value v, returns updated `nt'
-# Cons('name', [chans], [attr])	Constructs the specified AST node together with the specified channels (see below) as children,
-#                               and attributes
-# channel			Directly return the specified channel
+# AddAttribute(n, attr)		Adds attribute `attr' to node n
+# Update(n0, index, n1)		Updates the specified channel index of `n0' to value `n1', returns updated `n0'
+# Cons('name', [ns])		Constructs the specified AST node together with the specified channels (see below) as children,
+# n				Directly return the specified node
 #
-# Channels are constructor references to the lhs of a rule.
-# They can be of three kinds:
+# Nodes `n' are constructor references to the lhs of a rule.
+# They can be of the following kinds:
 #  - NT    (meaning that there's a reference to the single NT)
 #  - NT(i) (meaning a reference to the ith NT)
-#  - "str" (meaning a reference to a labelled channel, introduced by `Repeat'
 
 
 class ASTCons(ASTGen):
@@ -485,6 +491,13 @@ class ASTCons(ASTGen):
         '''
         raise Exception('Unsupported ASTCons in %s' % type(self))
 
+    def resultStorage(self):
+        return 'ast_node_t *'
+
+    def resultStorageInit(self):
+        return 'NULL'
+
+
 
 class NULL(ASTCons):
     def __init__(self):
@@ -495,11 +508,13 @@ class NULL(ASTCons):
 
 NULL = NULL()
 
-
 class Cons(ASTCons):
+    cons_names = set()
+
     def __init__(self, cons, channels, attrs = []):
         ASTCons.__init__(self)
         self.consname = cons
+        Cons.cons_names.add(cons)
         self.channels = channels
         self.attrs = attrs
 
@@ -559,13 +574,38 @@ class Builtin(ASTCons):
         return 'value_node_alloc_generic(AST_VALUE_ID, (ast_value_union_t) { .ident = %s })' % self.getBuiltinFullName()
 
 
-class Attr(ASTCons):
+class _Attr(ASTCons):
+    attr_map = {}
+
     '''
     AST attribute construction: constructs a value to be encoded into the cons' attribute set
     '''
     def __init__(self, attrname):
         ASTCons.__init__(self)
         self.attrname = attrname
+        self.attr_bit = -1
+        _Attr.attr_map[attrname] = self
+
+    def getTagName(self):
+        return self.attrname
+
+    def getFullTagName(self):
+        return 'AST_FLAG_%s' % self.getTagName()
+
+    def generateASTGen(self, genVar):
+        return self.getFullTagName()
+
+    def resultStorage(self):
+        return 'unsigned int'
+
+    def resultStorageInit(self):
+        return '0';
+
+
+def Attr(attrname):
+    if not attrname in _Attr.attr_map:
+        _Attr.attr_map[attrname] = _Attr(attrname)
+    return _Attr.attr_map[attrname]
 
 
 class Update(ASTCons):
@@ -581,6 +621,26 @@ class Update(ASTCons):
     def sub(self):
         return self.baseobj.sub()
 
+    def generateASTGen(self, genVar):
+        return 'node_update(%s, %d, %s)' % (self.baseobj.generateASTGen(genVar),
+                                            self.index,
+                                            self.channel.generateASTGen(genVar))
+
+class AddAttribute(ASTCons):
+    '''
+    Add attribute tags to node
+    '''
+    def __init__(self, baseobj, attr):
+        ASTCons.__init__(self)
+        self.baseobj = baseobj
+        self.attr = attr
+
+    def sub(self):
+        return self.baseobj.sub()
+
+    def generateASTGen(self, genVar):
+        return 'node_add_attribute(%s, %s)' % (self.baseobj.generateASTGen(genVar),
+                                               self.attr.generateASTGen(genVar))
 
 ########################################
 # Rule object
@@ -592,13 +652,25 @@ class Rule(object):
         self.nt = nt
         self.rhs = rhs
         self.astgen = astgen
+
         if nt in Rule.all:
             Rule.all[nt].append(self)
+
+            def tyMatch(a, b):
+                return a is None or b is None or a == b
+
+            assert tyMatch(Rule.all[nt][0].resultStorage(), self.resultStorage()), 'Rules for nonterminal %s disagree about result type' % nt
         else:
             Rule.all[nt] = [self]
         for i in range(0, len(rhs)):
             if type(rhs[i]) is str:
                 rhs[i] = StringTerm(rhs[i])
+
+    def resultStorage(self):
+        return self.astgen.resultStorage()
+
+    def resultStorageInit(self):
+        return self.astgen.resultStorageInit()
 
 
 ########################################
@@ -616,7 +688,7 @@ INT = Term('INT', 'num', 'signed long int').setErrorName('integer').setFormatStr
 INT.addRegexp('0x{HEXDIGIT}+',
               'strtol(yytext + 2, NULL, 16)', 'HEX_REPR')
 INT.addRegexp('{DIGIT}+',
-              'strtol(yytext + 2, NULL, 10)', 'HEX_REPR')
+              'strtol(yytext, NULL, 10)')
 
 
 STRING = Term('STRING', 'str', 'char *').setErrorName('string').setFormatString('\\"%s\\"')
@@ -651,10 +723,10 @@ TY = NT('ty', 'type specifier')
 #   In other words, backtracking is limited.
 
 rules = [
-    # Rule(TY,	['var'],					Attr('VAR')),
-    # Rule(TY,	['obj'],					Attr('OBJ')),
-    # Rule(TY,	['int'],					Attr('INT')),
-    # Rule(TY,	['real'],					Attr('REAL')),
+    Rule(TY,	['var'],					Attr('VAR')),
+    Rule(TY,	['obj'],					Attr('OBJ')),
+    Rule(TY,	['int'],					Attr('INT')),
+    Rule(TY,	['real'],					Attr('REAL')),
 
     Rule(STMT,[EXPR, ';'],EXPR), # just for testing
 
@@ -675,14 +747,26 @@ rules = [
     Rule(EXPR2,    [VALEXPR, '*', EXPR2],			Cons('FUNAPP', [Builtin('MUL'), VALEXPR, EXPR2])),
     Rule(EXPR2,    [VALEXPR, '/', EXPR2],			Cons('FUNAPP', [Builtin('DIV'), VALEXPR, EXPR2])),
     Rule(EXPR2,	   [VALEXPR],					VALEXPR),
+
+    Rule(VALEXPR, ['[', EXPR, ':', TY , ']'], AddAttribute(EXPR, TY)),
     
-    Rule(VALEXPR,  ['dummy', EXPR],				NULL),
     Rule(VALEXPR,  [INT],					INT),
     Rule(VALEXPR,  [STRING],					STRING),
     Rule(VALEXPR,  [REAL],					REAL),
     Rule(VALEXPR,  [ID],					ID),
     Rule(VALEXPR,  ['(', EXPR, ')'],				EXPR),
 ]
+
+BITS_FOR_NODE_TYPE_TOTAL = 16
+TOTAL_AST_NODE_TYPES = len(Cons.cons_names) + len(Term.all) + 2 # 2 for identifiers and `invalid'
+BITS_FOR_FLAGS = BITS_FOR_NODE_TYPE_TOTAL - TOTAL_AST_NODE_TYPES.bit_length()
+AST_NODE_MASK = 0xffff >> BITS_FOR_FLAGS
+assert BITS_FOR_FLAGS > len(_Attr.attr_map), "Not enough bits left to store all attributes (need %d, have %d)" % (len(_Attr.attr_map), BITS_FOR_FLAGS)
+
+i = TOTAL_AST_NODE_TYPES.bit_length()
+for attr in _Attr.attr_map.itervalues():
+    attr.attr_bit = i
+    i += 1
 
 exported_nonterminals = [EXPR]
 
@@ -697,7 +781,7 @@ lexer_header_template = TemplateFile('parser.template.h')
 # -> lexer.l
 lexer_template = TemplateFile('lexer.template.l')
 
-# NODE_TYPES, AV_VALUE_GETTERS (extract value from value node), AV_TAGS, VALUE_UNION, BUILTIN_IDS
+# NODE_TYPES, AV_VALUE_GETTERS (extract value from value node), AV_FLAGS, VALUE_UNION, BUILTIN_IDS
 # -> ast.h
 ast_header_template = TemplateFile('ast.template.h')
 
@@ -820,10 +904,10 @@ def printASTHeader():
         node_ty_decls.append('#define ' + nodety + (' ' * (max_astname_len - len(nodety))) + ' 0x%02x' % number)
 
     addNodeTyDecl('AST_ILLEGAL') # 0
-    addNodeTyDecl('AST_NODE_MASK', 0xff)
+    addNodeTyDecl('AST_NODE_MASK', AST_NODE_MASK)
     for n in value_nty_names:
         addNodeTyDecl(n)
-    addNodeTyDecl('AST_VALUE_MAX', node_ty_nr[0]);
+    addNodeTyDecl('AST_VALUE_MAX', node_ty_nr[0] - 1);
     for n in nonvalue_nty_names:
         addNodeTyDecl(n)
         
@@ -840,11 +924,19 @@ def printASTHeader():
     for n in builtin_names:
         addBuiltinName(n)
 
+    attrmap = {}
+    attr_name_len = 0
+    for attr in _Attr.attr_map.itervalues():
+        name = attr.getFullTagName()
+        if len(name) > attr_name_len:
+            attr_name_len = len(name)
+        attrmap[name] = "0x%04x" % (1 << attr.attr_bit);
+        
     ast_header_template.printFile({
         'BUILTIN_IDS'		: '\n'.join(builtin_id_decls) + '\n\n#define BUILTIN_OPS_NR ' + str(len(builtin_names)) + '\n',
         'NODE_TYPES'		: '\n'.join(node_ty_decls),
         'AV_VALUE_GETTERS'	: '\n'.join('#define AV_%s(n) (((ast_value_node_t *)(n))->v.%s)' % (idn, idv) for (idn, idv) in idgetter.iteritems()),
-        'AV_TAGS'		: '',
+        'AV_FLAGS'		: '\n'.join('#define %s %s %s' % (name, ' ' * (attr_name_len - len(name)), v) for (name, v) in attrmap.iteritems()),
         'VALUE_UNION'		: '\n'.join('\t' + cty + ' ' + cn + ';' for (cn, cty) in values.iteritems())
     })
 
@@ -1036,7 +1128,7 @@ def buildParseRules(rules):
 
                     gen(cont, subp, previously_on_path + [(key, kindex)])
 
-            if len(choices):
+            if len(choices) and not (repeatrule or endrule):
                 # error is a possibility?
                 p('} else {')
                 def pp(s):
@@ -1071,7 +1163,7 @@ def buildParseRules(rules):
         pprint('{')
 
         envctr = [0]
-        def allocvar(x, i):
+        def allocvar(x, i, rule):
             if x.resultStorage() is None:
                 return
             item = (x, i)
@@ -1086,7 +1178,7 @@ def buildParseRules(rules):
             #pprint(str(rule.rhs))
             for entry in rule.rhs:
                 counter = getIncCountMap(counters, entry)
-                allocvar(entry, counter)
+                allocvar(entry, counter, rule)
 
         def p(s):
             pprint('\t' + s)
@@ -1144,9 +1236,9 @@ def printUnparser():
                         addset.add(astgen)
 
                 if astgen.getBuiltinName() is not None:
-                    if astgen.getASTName() not in builtin_names:
+                    if astgen.getBuiltinName() not in builtin_names:
                         # eliminate dupes
-                        builtin_names.add(astgen.getASTName())
+                        builtin_names.add(astgen.getBuiltinName())
                         builtins.add(astgen)
 
     def printID(n):
@@ -1162,9 +1254,13 @@ def printUnparser():
             n.varname
         )
 
+    def printFlag(n):
+        return '\tif (ty & %s) fputs("@%s", file);\n' % (n.getFullTagName(), n.getTagName())
+
     parser_template = TemplateFile('unparser.template.c')
     parser_template.printFile({
         'PRINT_TAGS': '\n'.join(printTag(n) for n in value_ntys.union(nonvalue_ntys)),
+        'PRINT_FLAGS': '\n'.join(printFlag(n) for n in _Attr.attr_map.itervalues()),
         'PRINT_IDS': '\n'.join(printID(n) for n in builtins),
         'PRINT_VNODES': '\n'.join(printVNode(n) for n in value_ntys) })
 

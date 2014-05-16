@@ -55,86 +55,110 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 %option always-interactive
 %%
 
-'/' {
-	return '/';
-}
-
-'\+' {
-	return '+';
-}
-
-'\(' {
-	return '(';
-}
-
-'<=' {
-	return T_LLTEQ;
-}
-
-'>=' {
-	return T_LGTEQ;
-}
-
-'>' {
-	return '>';
-}
-
-'==' {
-	return T_LEQEQ;
-}
-
-'\*' {
-	return '*';
-}
-
-'-' {
-	return '-';
-}
-
-'<' {
-	return '<';
-}
-
-'\)' {
-	return ')';
-}
-
-'dummy' {
-	return T_LDUMMY;
-}
-
-';' {
+";" {
 	return ';';
 }
 
-((({DIGIT}*"."{DIGIT}+)|({DIGIT}+"."))([eE][+-]?{DIGIT}+)?)|({DIGIT}+[eE][+-]?{DIGIT}+) {
-	yylval.real = strtod(yytext, NULL);
-	return REAL;
+"<=" {
+	return T_L_LTEQ;
 }
 
-0x(({HEXDIGIT}*"."{HEXDIGIT}+)|({HEXDIGIT}+"."))([pP][+-]?{DIGIT}+) {
-	yylval.real = strtod(yytext, NULL);
-	return REAL;
+"\]" {
+	return ']';
+}
+
+"int" {
+	return T_L_INT;
+}
+
+"var" {
+	return T_L_VAR;
+}
+
+"\(" {
+	return '(';
+}
+
+"==" {
+	return T_L_EQEQ;
+}
+
+"\*" {
+	return '*';
+}
+
+">" {
+	return '>';
+}
+
+":" {
+	return ':';
+}
+
+"obj" {
+	return T_L_OBJ;
+}
+
+"real" {
+	return T_L_REAL;
+}
+
+"/" {
+	return '/';
+}
+
+"-" {
+	return '-';
+}
+
+"\[" {
+	return '[';
+}
+
+"\)" {
+	return ')';
+}
+
+">=" {
+	return T_L_GTEQ;
+}
+
+"\+" {
+	return '+';
+}
+
+"<" {
+	return '<';
 }
 
 \"(\\.|[^\"\\])*\" {
 	yylval.str = unescape_string(yytext);
-	return STRING;
+	return T__STRING;
+}
+
+((({DIGIT}*"."{DIGIT}+)|({DIGIT}+"."))([eE][+-]?{DIGIT}+)?)|({DIGIT}+[eE][+-]?{DIGIT}+) {
+	yylval.real = strtod(yytext, NULL);
+	return T__REAL;
+}
+
+0x(({HEXDIGIT}*"."{HEXDIGIT}+)|({HEXDIGIT}+"."))([pP][+-]?{DIGIT}+) {
+	yylval.real = strtod(yytext, NULL);
+	return T__REAL;
 }
 
 0x{HEXDIGIT}+ {
 	yylval.num = strtol(yytext + 2, NULL, 16);
-	return INT;
+	return T__INT;
 }
 
 {DIGIT}+ {
-	yylval.num = strtol(yytext + 2, NULL, 10);
-	return INT;
+	yylval.num = strtol(yytext, NULL, 10);
+	return T__INT;
 }
 
 {IDENTIFIER} {
 	yylval.str = mk_unique_string(yytext);
-	return NAME;
+	return T__NAME;
 }
 
 

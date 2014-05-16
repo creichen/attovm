@@ -36,16 +36,17 @@
 
 // AST-Knotentypen
 #define AST_ILLEGAL      0x00
-#define AST_NODE_MASK    0xff
+#define AST_NODE_MASK    0x1f
 #define AST_VALUE_INT    0x01
 #define AST_VALUE_STRING 0x02
 #define AST_VALUE_REAL   0x03
-#define AST_VALUE_NAME   0x04
-#define AST_VALUE_ID     0x05
-#define AST_VALUE_MAX    0x06
+#define AST_VALUE_ID     0x04
+#define AST_VALUE_NAME   0x05
+#define AST_VALUE_MAX    0x05
 #define AST_NODE_FUNAPP  0x06
 
-#define IS_VALUE_NODE(n) ((n)->type <= AST_VALUE_MAX)
+#define NODE_TY(n) ((n)->type & AST_NODE_MASK)
+#define IS_VALUE_NODE(n) (NODE_TY(n) <= AST_VALUE_MAX)
 
 #define AV_INT(n) (((ast_value_node_t *)(n))->v.num)
 #define AV_REAL(n) (((ast_value_node_t *)(n))->v.real)
@@ -53,8 +54,11 @@
 #define AV_ID(n) (((ast_value_node_t *)(n))->v.ident)
 #define AV_STRING(n) (((ast_value_node_t *)(n))->v.str)
 
-// AST-Tags (Zusatzinformationen)
-
+// AST-Flags (Zusatzinformationen)
+#define AST_FLAG_INT   0x0040
+#define AST_FLAG_VAR   0x0020
+#define AST_FLAG_REAL  0x0100
+#define AST_FLAG_OBJ   0x0080
 // Ende der AST-Tags
 
 // Eingebaute Bezeichner.  NAME: nicht aufgeloester Name, ID: aufgeloester Name
@@ -72,7 +76,7 @@
 typedef struct ast_node {
 	unsigned short type;
 	unsigned short children_nr;
-	void *annotations; // Optional annotations (name analysis, type analysis etc.)
+	void *annotations; // Optionale Annotationen (Namensanalyse, Typanalyse usw.)
 	struct ast_node * children[0]; // Kindknoten
 } ast_node_t;
 
@@ -90,6 +94,7 @@ typedef struct {
 	void *annotations;
 	ast_value_union_t v;
 } ast_value_node_t;
+
 
 /**
  * Allocates a single AST node.
@@ -135,14 +140,18 @@ ast_node_clone(ast_node_t *node);
 void
 ast_node_print(FILE *file, ast_node_t *node, int recursive);
 
+#define AST_NODE_DUMP_NONRECURSIVELY	0x01 /* Nicht rekursiv */
+#define AST_NODE_DUMP_FORMATTED		0x02 /* Mit Einrückung */
+#define AST_NODE_DUMP_FLAGS		0x04 /* Flags mit ausgeben */
+
 /**
  * Dumps AST nodes (no pretty-printing, raw AST).
  *
  * @param file The output stream to print to
  * @param node The node to print out
- * @param recursive Whether to print recursively
+ * @param flags AST_DUMP_* (may be ORed together)
  */
 void
-ast_node_dump(FILE *file, ast_node_t *node, int recursive);
+ast_node_dump(FILE *file, ast_node_t *node, int flags);
 
 #endif // !defined(_CMINOR_SRC_AST_H)

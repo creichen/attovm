@@ -36,21 +36,16 @@
 
 // Konstanten für Terminale
 enum {
-  STRING = 0x102,
-  NAME,
-  UINT,
-  INT,
-  REAL,
-  BOOL,
-  CHAR,
+	STRING = 0x102,
+	NAME,
+	INT,
+	REAL
 };
 
 typedef union {
 	ast_node_t *node;
-	unsigned long long ull;
-	signed long long sll;
+	signed long int sll;
 	double real;
-	char c;
 	char *str;
 } yylval_t;
 

@@ -1,4 +1,3 @@
-// AUTOMATICALLY GENERATED.  DO NOT MODIFY.
 /***************************************************************************
   Copyright (C) 2013 Christoph Reichenbach
 
@@ -35,38 +34,18 @@
 /* Abstrakter Syntaxbaum (AST).  Repräsentiert Programme nach dem Parsen. */
 
 // AST-Knotentypen
-#define AST_NODE_MASK    0xff
-#define AST_VALUE_INT    0x00
-#define AST_VALUE_STRING 0x01
-#define AST_VALUE_REAL   0x02
-#define AST_VALUE_ID     0x03
-#define AST_VALUE_NAME   0x04
-#define AST_VALUE_MAX    0x05
-#define AST_NODE_FUNAPP  0x05
+$$NODE_TYPES$$
 
 #define IS_VALUE_NODE(n) ((n)->type <= AST_VALUE_MAX)
 
-#define AV_INT(n) (((ast_value_node_t *)(n))->v.num)
-#define AV_REAL(n) (((ast_value_node_t *)(n))->v.real)
-#define AV_NAME(n) (((ast_value_node_t *)(n))->v.str)
-#define AV_ID(n) (((ast_value_node_t *)(n))->v.ident)
-#define AV_STRING(n) (((ast_value_node_t *)(n))->v.str)
+$$AV_VALUE_GETTERS$$
 
 // AST-Tags (Zusatzinformationen)
-
+$$AV_TAGS$$
 // Ende der AST-Tags
 
 // Eingebaute Bezeichner.  NAME: nicht aufgeloester Name, ID: aufgeloester Name
-#define BUILTIN_OP_ADD     -1
-#define BUILTIN_OP_DIV     -2
-#define BUILTIN_OP_MUL     -3
-#define BUILTIN_OP_SUB     -4
-#define BUILTIN_OP_TEST_EQ -5
-#define BUILTIN_OP_TEST_LE -6
-#define BUILTIN_OP_TEST_LT -7
-
-#define BUILTIN_OPS_NR 7
-
+$$BUILTIN_IDS$$
 
 typedef struct ast_node {
 	unsigned short type;
@@ -76,10 +55,7 @@ typedef struct ast_node {
 } ast_node_t;
 
 typedef union {
-	double real;
-	int ident;
-	signed long int num;
-	char * str;
+$$VALUE_UNION$$
 } ast_value_union_t;
 
 // Wert-Knoten; hat gleiche Struktur wie AST-Knoten (bis auf Kinder)

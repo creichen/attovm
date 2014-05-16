@@ -1,4 +1,3 @@
-// AUTOMATICALLY GENERATED.  DO NOT MODIFY.
 /***************************************************************************
  dlexer.l Copyright (C) 2013 Christoph Reichenbach
 
@@ -36,7 +35,7 @@
 
 void yyerror(const char *s); // Fehler beim Lexen/Parsen
 
-// Bilde `n' auf `\n' etc.  ab.
+// Bilde `n' auf `\n' etc.  ab. 
 // Bei Fehler:  gibt '0' zurück.
 static char unescape_char(char c);
 
@@ -55,89 +54,7 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 %option always-interactive
 %%
 
-'/' {
-	return '/';
-}
-
-'+' {
-	return '+';
-}
-
-'(' {
-	return '(';
-}
-
-'<=' {
-	return T_LLTEQ;
-}
-
-'>=' {
-	return T_LGTEQ;
-}
-
-'>' {
-	return '>';
-}
-
-'==' {
-	return T_LEQEQ;
-}
-
-'*' {
-	return '*';
-}
-
-'-' {
-	return '-';
-}
-
-'<' {
-	return '<';
-}
-
-')' {
-	return ')';
-}
-
-'dummy' {
-	return T_LDUMMY;
-}
-
-';' {
-	return ';';
-}
-
-((({DIGIT}*"."{DIGIT}+)|({DIGIT}+"."))([eE][+-]?{DIGIT}+)?)|({DIGIT}+[eE][+-]?{DIGIT}+) {
-	yylval.real = strtod(yytext, NULL);
-	return REAL;
-}
-
-0x(({HEXDIGIT}*"."{HEXDIGIT}+)|({HEXDIGIT}+"."))([pP][+-]?{DIGIT}+) {
-	yylval.real = strtod(yytext, NULL);
-	return REAL;
-}
-
-\"(\\.|[^\"\\])*\" {
-	yylval.str = unescape_string(yytext);
-	return STRING;
-}
-
-0x{HEXDIGIT}+ {
-	yylval.num = strtol(yytext + 2, NULL, 16);
-	return INT;
-}
-
-{DIGIT}+ {
-	yylval.num = strtol(yytext + 2, NULL, 10);
-	return INT;
-}
-
-{IDENTIFIER} {
-	yylval.str = mk_unique_string(yytext);
-	return NAME;
-}
-
-
+$$RULES$$
 
 [[:blank:]]+ // Eat whitespace
 
@@ -185,7 +102,7 @@ unescape_string(char *text)
 	// folgenden Speicherblöcke weiter nach vorne in den Speicher verschieben.
 	char *escaped = strchr(result, '\\');
 	char *dest = escaped; // Block-Verschiebeziel
-	size_t aggregate_skip = 0; //
+	size_t aggregate_skip = 0; // 
 
 	// Falls ein Zeichen mit '\' escaped wurde, wechseln wir in einen langsameren Übersetzungsmodus:
 

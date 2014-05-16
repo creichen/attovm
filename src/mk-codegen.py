@@ -20,7 +20,6 @@
 # The author can be reached as "creichen" at the usual gmail server.
 
 # assume 16 registers total
-register_bits = 4
 
 import sys
 

@@ -87,14 +87,25 @@ ast_node_free(ast_node_t *node, int recursive)
 	free(node);
 }
 
-void
-ast_node_print(FILE *file, ast_node_t *node, int recursive)
+ast_node_t *
+ast_node_clone(ast_node_t *node)
 {
-	// FIXME
-}
+	if (node == NULL) {
+		return NULL;
+	}
 
-void
-ast_node_dump(FILE *file, ast_node_t *node, int recursive)
-{
-	// FIXME
+	ast_node_t *retval;
+	if (IS_VALUE_NODE(node)) {
+		const ast_value_node_t *vn = (ast_value_node_t *) node;
+		retval = value_node_alloc_generic(vn->type, vn->v);
+		if (retval->type == AST_VALUE_STRING) {
+			retval->v.str = strdup(retval->v.str);
+		}
+	} else {
+		retval = ast_node_alloc_generic(node->type, node->children_nr);
+		for (int i = 0; i < node->children_nr; i++) {
+			retval->children[i] = ast_node_clone(node->children[i]);
+		}
+	}
+	return retval;
 }

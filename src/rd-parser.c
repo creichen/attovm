@@ -69,13 +69,10 @@ obtain_next_node_from_lexer(ast_node_t **node_ptr)
 		*node_ptr = value_node_alloc_generic(AST_VALUE_INT, (ast_value_union_t) { .i = yylval.sll });
 		break;
 	case UINT:
-		*node_ptr = value_node_alloc_generic(AST_VALUE_UINT | yy_xflag, (ast_value_union_t) { .u = yylval.ull });
+		*node_ptr = value_node_alloc_generic(AST_VALUE_INT | yy_xflag, (ast_value_union_t) { .i = yylval.ull });
 		break;
 	case BOOL:
 		*node_ptr = value_node_alloc_generic(AST_VALUE_BOOL, (ast_value_union_t) { .i = yylval.c });
-		break;
-	case CHAR:
-		*node_ptr = value_node_alloc_generic(AST_VALUE_CHAR | yy_xflag, (ast_value_union_t) { .i = yylval.c });
 		break;
 	case REAL:
 		*node_ptr = value_node_alloc_generic(AST_VALUE_REAL | yy_xflag, (ast_value_union_t) { .r = yylval.real });

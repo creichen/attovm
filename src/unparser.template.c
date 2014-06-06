@@ -30,8 +30,8 @@
 #include <stdarg.h>
 #include <assert.h>
 
-static void
-print_flags(FILE *file, int ty)
+void
+ast_print_flags(FILE *file, int ty)
 {
 $$PRINT_FLAGS$$
 }
@@ -87,15 +87,18 @@ dump_recursively(FILE *file, int indent, ast_node_t *node, int flags)
 		}
 		print_tag_string(file, type);
 		if (flags & AST_NODE_DUMP_FLAGS) {
-			print_flags(file, node->type);
+			ast_print_flags(file, node->type);
 		}
 		return;
 	}
 
 	fputs("(", file);
 	print_tag_string(file, type);
+	if (flags & AST_NODE_DUMP_ADDRESS) {
+		fprintf(file, "%p", node);
+	}
 	if (flags & AST_NODE_DUMP_FLAGS) {
-		print_flags(file, node->type);
+		ast_print_flags(file, node->type);
 	}
 	const int long_format = (flags & AST_NODE_DUMP_FORMATTED) && node->children_nr;
 	if (long_format) {

@@ -51,7 +51,6 @@ $$BUILTIN_IDS$$
 typedef struct ast_node {
 	unsigned short type;
 	unsigned short children_nr;
-	void *annotations; // Optionale Annotationen (Namensanalyse, Typanalyse usw.)
 	struct ast_node * children[0]; // Kindknoten
 } ast_node_t;
 
@@ -63,7 +62,6 @@ $$VALUE_UNION$$
 typedef struct {
 	unsigned short type;
 	unsigned short _reserved;
-	void *annotations;
 	ast_value_union_t v;
 } ast_value_node_t;
 
@@ -117,6 +115,7 @@ ast_node_print(FILE *file, ast_node_t *node, int recursive);
 #define AST_NODE_DUMP_NONRECURSIVELY	0x01 /* Nicht rekursiv */
 #define AST_NODE_DUMP_FORMATTED		0x02 /* Mit Einrückung */
 #define AST_NODE_DUMP_FLAGS		0x04 /* Flags mit ausgeben */
+#define AST_NODE_DUMP_ADDRESS		0x08 /* Speicheradresse mit ausgeben */
 
 /**
  * Dumps AST nodes (no pretty-printing, raw AST).
@@ -127,5 +126,14 @@ ast_node_print(FILE *file, ast_node_t *node, int recursive);
  */
 void
 ast_node_dump(FILE *file, ast_node_t *node, int flags);
+
+/**
+ * Pretty-prints AST flags.
+ *
+ * @param file The output stream to print to
+ * @param flags The flags to decode
+ */
+void
+ast_print_flags((FILE *file, int flags);
 
 #endif // !defined(_CMINOR_SRC_AST_H)

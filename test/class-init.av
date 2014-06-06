@@ -1,0 +1,10 @@
+class Record(var x, var y) {
+      var x = x;
+      int y = y;
+      int both = x * y;
+}
+
+var r = Record(2, 3);
+print(t.both);
+print(t.x);
+print(t.y);

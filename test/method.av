@@ -1,0 +1,12 @@
+class A() {
+    int v = 0;
+    var set(int v2)
+    {
+        v := v2;
+    }
+
+    int get()
+    {
+        return v;
+    }
+}

@@ -1,0 +1,37 @@
+if (3 < 3) {
+   print("Error0");
+} else {
+   print("OK0");
+}
+if (3 <= 3) {
+   print("OK1");
+} else {
+   print("Error1");
+}
+if (3 >= 3) {
+   print("OK2");
+} else {
+   print("Error2");
+}
+if (3 > 3) {
+   print("Error4");
+} else {
+   print("OK4");
+}
+if (3 == 3) {
+   print("OK5");
+} else {
+   print("Error5");
+}
+
+if (3 != 3) {
+   print("Error6");
+} else {
+   print("OK6");
+}
+
+if (not 3 == 3) {
+   print("Error7");
+} else {
+   print("OK7");
+}

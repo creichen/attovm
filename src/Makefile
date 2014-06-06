@@ -2,9 +2,9 @@ CFLAGS=-O0 -g -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200
 PYTHON=python
 LEX=flex
 
-FRONTEND_HEADERS = parser.h ast.h chash.h
-FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c
-FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o
+FRONTEND_HEADERS = parser.h ast.h chash.h symbol-table.h name-analysis.h
+FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c symbol-table.c name-analysis.c
+FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o symbol-table.o name-analysis.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
 BACKEND_HEADERS = assembler.h
@@ -16,13 +16,16 @@ BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 # ========================================
 
-all: parse-test
+all: print-ast
 
 clean:
 	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) $(FRONTEND_GENSRC) $(BACKEND_GENSRC)
 
-parse-test: $(FRONTEND) parse-test.o
-	$(CC) $(CFLAGS) $(FRONTEND_OBJS) parse-test.o -o parse-test
+av-dump: $(FRONTEND) av-dump.o
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) print-ast.o -o print-ast
+
+test: all
+	(cd ../test ; ./test.sh)
 
 # ========================================
 # Generated code

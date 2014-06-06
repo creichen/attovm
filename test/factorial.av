@@ -1,0 +1,10 @@
+int fact(int v) {
+    if (v < 1)
+        return 1;
+    else
+        return v * fact(v - 1);
+}
+
+print(fact(7));
+var x = fact(7) + 1;
+print(x);

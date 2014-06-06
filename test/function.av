@@ -1,0 +1,6 @@
+var f(var x) {
+    return x + 1;
+}
+
+var z = f(2);
+print(z);

@@ -1,0 +1,66 @@
+class Matrix(int height, int width) {
+    const int height = height;
+    const int width = width;
+    const obj array = [/ height * width];
+
+    int index(int y, int x) {
+    	assert(y >= 0);
+	assert(y < height);
+    	assert(x >= 0);
+	assert(x < width);
+	return y * width + x;
+    }
+
+    real get(int y, int x) {
+        return array[index(y, x)];
+    }
+
+    var put(int y, int x, real v) {
+    	array[index(y, x)] := v;
+    }
+
+    obj multiply(obj other) {
+        assert(other.height == width);
+	obj result = Matrix(height, other.width);
+
+	real sum = 0.0;
+
+	int y = 0;
+	while (y < height) {
+	    int x = 0;
+	    while (x < other.width) {
+	    	int k = 0;
+		while (k < width) {
+		    sum := sum + get(y, k) * other.get(k, x);
+		    k := k + 1;
+		}
+		result.put(y, x, sum);
+		x := x + 1;
+	    }
+	    y := y + 1;
+	}
+	return result;
+    }
+}
+
+
+obj a = Matrix(10, 10);
+obj b = Matrix(10, 10);
+
+int y = 0;
+while (y < 10) {
+    int x = 0;
+    while (x < 10) {
+    	a.put(y, x, (x + y) * 0.00022);
+    	b.put(y, x, x * y * 0.0001);
+	x := x + 1;
+    }
+    y := y + 1;
+}
+
+int y = 0;
+while (y < 1000) {
+    b := a.multiply(b);
+    y := y + 1;
+}
+print(b);

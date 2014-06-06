@@ -1,0 +1,6 @@
+var f(int x, int y, int z, int a, int b, int c, int d, int e)
+{
+    return x + y + z + a + b + c + d + e;
+}
+
+print(f(1, 2, 3, 4, 5, 6, 7, 8));

@@ -35,11 +35,12 @@ typedef ast_node_t node_t;
 int yylex();
 yylval_t yylval;
 extern int yy_xflag;
+extern int yy_line_nr;
 
 void
 yyerror(const char *str)
 {
-	fprintf(stderr, "parse error: %s", str);
+	fprintf(stderr, "[line %d] parse error: %s\n", yy_line_nr, str);
 }
 
 typedef struct {
@@ -73,7 +74,7 @@ add_to_vector(node_vector_t *nv, ast_node_t *n)
 static void
 free_vector(node_vector_t *nv)
 {
-	free(nv);
+	free(nv->nodes);
 }
 
 ast_node_t *
@@ -151,7 +152,7 @@ push_back(int ty, ast_node_t * node)
 static int
 accept(int expected, ast_node_t **node_ptr)
 {
-	ast_node_t *n;
+	ast_node_t *n = NULL;
 	int ty = next_token(&n);
 	if (expected == ty) {
 		if (node_ptr) {
@@ -170,7 +171,7 @@ accept(int expected, ast_node_t **node_ptr)
 static int
 peek()
 {
-	ast_node_t *ptr;
+	ast_node_t *ptr = NULL;
 	int t = next_token(&ptr);
 	push_back(t, ptr);
 	return t;
@@ -186,7 +187,7 @@ parse_error(char *message)
 static void
 clear_parse_error(int until_token)
 {
-	ast_node_t *node;
+	ast_node_t *node = NULL;
 	error_status = 0;
 	int token;
 	do {

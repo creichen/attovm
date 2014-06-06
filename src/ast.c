@@ -75,6 +75,10 @@ value_node_alloc_generic(int type, ast_value_union_t value)
 void
 ast_node_free(ast_node_t *node, int recursive)
 {
+	if (!node) {
+		return;
+	}
+
 	int children_nr = 0;
 
 	if (IS_VALUE_NODE(node)) {

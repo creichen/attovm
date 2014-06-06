@@ -25,25 +25,21 @@
 
 ***************************************************************************/
 
-#include <stdio.h>
+#ifndef _ATTOL_NAME_ANALYSIS_H
+#define _ATTOL_NAME_ANALYSIS_H
+
 #include "ast.h"
-#include "parser.h"
 
-extern FILE *yyin; // lexer
+/**
+ * Ersetzt alle AST_VALUE_NAME-Knoten durch AST_VALUE_ID-Knoten
+ */
+void
+name_analysis(ast_node_t *);
 
+/**
+ * Anzahl der bei der Namensanalyse beobachteten Fehler
+ */
 int
-main(int argc, char **argv)
-{
-	yyin = stdin;
+name_analysis_errors(void);
 
-	ast_node_t *n = NULL;
-	if (!parse_expr(&n)) {
-		fprintf(stderr, "Parse error\n");
-		return 1;
-	}
-
-	ast_node_dump(stdout, n, AST_NODE_DUMP_FLAGS);
-	ast_node_free(n, 1);
-
-	return 0;
-}
+#endif 

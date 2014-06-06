@@ -43,6 +43,7 @@ static char* unescape_string(char *text);
 
 static char* mk_unique_string(char *text);
 
+int yy_line_nr = 1;
 
 int yy_xflag = 0; // Erweiterungsflag: TAG_AST_*
 %}
@@ -57,11 +58,17 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 $$RULES$$
 
 [[:blank:]]+ // Eat whitespace
-\n // Eat whitespace
+\n	{ // Eat whitespace
+	++yy_line_nr;
+}
 
 <<EOF>> {
         yy_delete_buffer( YY_CURRENT_BUFFER );
         yyterminate();
+}
+
+"//"[^\n]*\n {
+	++yy_line_nr;
 }
 
 <*>.|\n {
@@ -159,7 +166,7 @@ static hashtable_t *name_map = NULL;
 static char* mk_unique_string(char *id)
 {
 	if (!name_map) {
-		name_map = hashtable_alloc(string_hash, (int (*)(const void *, const void *)) strcmp, 5);
+		name_map = hashtable_alloc(hashtable_string_hash, (int (*)(const void *, const void *)) strcmp, 5);
 	}
 	char **retval_ptr = (char **) hashtable_access(name_map, id, NULL);
 

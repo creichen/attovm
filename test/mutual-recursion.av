@@ -1,0 +1,19 @@
+var even(int x) {
+    if (x == 0) {
+        return 1; // even
+    } else {
+        return not odd(x - 1);
+    }   
+}
+var odd(int x) {
+    if (x == 0) {
+        return 0; // not odd
+    } else {
+        return not even(x - 1);
+    }   
+}
+
+print(even(3));
+print(even(4));
+print(even(1024));
+print(even(4095));

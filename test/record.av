@@ -1,0 +1,13 @@
+class Record() {
+      var x = 0;
+      int y = 1;
+}
+
+var r = Record();
+var r2 = Record();
+r.x := 17;
+r2.y := 23;
+print(r.x);
+print(r.y);
+print(r2.x);
+print(r2.y);

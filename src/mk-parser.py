@@ -21,6 +21,20 @@
 
 
 import sys
+import inspect
+
+# enable special fprintfs during parse time
+gen_debugparse = False
+
+def gendebug(p, msg):
+    if gen_debugparse:
+        p('fprintf(stderr, "%s\\n");' % msg)
+
+def perr(s):
+    sf = inspect.getframeinfo(inspect.currentframe().f_back)
+    line = sf[1]
+    fun = sf[2]
+    sys.stderr.write('[%s:%s] %s\n' % (fun, line, s))
 
 class TemplateFile(object):
     def __init__(self, file_name):
@@ -72,7 +86,10 @@ class ASTGen(object):
         return []
 
     def selfAndSub(self):
-        return [self] + self.sub()
+        result = [self]
+        for s in self.sub():
+            result += s.selfAndSub()
+        return result
 
     def valueNode(self):
         '''Returns either None or a pair (ctype, fieldname) to represent values'''
@@ -97,6 +114,19 @@ class ASTGen(object):
     def hasASTRepresentation(self):
         '''Is there a valid unique AST node type and and ASTFullName reserved for this paticular entity?'''
         return False
+
+    def subst(self, x, y):
+        if self is x:
+            return y
+        return self
+
+    def generateFreeVariable(self, p, varname):
+        '''Generate code via p to deallocate a variable name for this construction'''
+        pass
+
+    def generateCloneVariable(self, varname):
+        '''String that describes computation to clone a variable of this type'''
+        return varname
 
 
 ########################################
@@ -338,6 +368,12 @@ class NT(ASTGen):
         self.name = name
         self.error_description_name = error_description_name
         self.fail_handler = None
+        self.primed_nt = None # set iff the rules for this were rewritten
+
+    def subst(self, a, b):
+        if type(a) is NT and a.name == self.name:
+            return b
+        return self
 
     def __call__(self, index):
         '''
@@ -353,6 +389,8 @@ class NT(ASTGen):
         '''
         Designates this nonterminal as being able to recover from parse errors by ignoring everything until the next `term'
         '''
+        if type(term) is str:
+            term = StringTerm(term)
         self.fail_handler = term.getTokenID()
 
     def __repr__(self):
@@ -389,6 +427,7 @@ class NT(ASTGen):
             p('clear_parse_error(%s);' % self.fail_handler)
             p('return %s(%s);' % (self.parseFunctionName(), 'result'))
         else:
+            gendebug(p, 'failed %s' % self)
             p('return 0;')
 
     def recognise(self, resultvar):
@@ -397,6 +436,14 @@ class NT(ASTGen):
     def generateASTGen(self, genVar):
         return genVar(self.getNT(), self.getIndex())
 
+    def generateFreeVariable(self, p, varname):
+        for rule in Rule.all[self]:
+            rule.astgen.generateFreeVariable(p, varname)
+            return
+
+    def generateCloneVariable(self, varname):
+        for rule in Rule.all[self]:
+            return rule.astgen.generateCloneVariable(varname)
 
 
 class NTSub(NT):
@@ -416,6 +463,11 @@ class NTSub(NT):
 
     def __call__(self, index):
         raise Exception("Can't sub-index NTSub")
+
+    def subst(self, a, b):
+        if type(a) is NTSub and a.name == self.name and a.index == self.index:
+            return b
+        return self
 
 
 tmp_count = 0
@@ -467,6 +519,11 @@ class Repeat(ASTGen):
         stmts.append('}')
         return (stmts, None)
 
+    def subst(self, a, b):
+        if a == self:
+            return b
+        return Repeat(self.nt.subst(a, b), self.separator.subst(a, b))
+
 
 ########################################
 # Construction specifications
@@ -480,6 +537,7 @@ class Repeat(ASTGen):
 # Cons('name', [ns])		Constructs the specified AST node together with the specified channels (see below) as children,
 # Repetition('name')		Use the sole `Repeat()' construction
 # n				Directly return the specified node
+#
 #
 # Nodes `n' are constructor references to the lhs of a rule.
 # They can be of the following kinds:
@@ -511,6 +569,12 @@ class ASTCons(ASTGen):
     def resultStorageInit(self):
         return 'NULL'
 
+    def generateFreeVariable(self, p, varname):
+        '''Generate code via p to deallocate a variable name for this construction'''
+        p('ast_node_free(%s, 1);' % varname)
+
+    def generateCloneVariable(self, varname):
+        return 'ast_node_clone(%s)' % varname
 
 
 class NULL(ASTCons):
@@ -518,6 +582,9 @@ class NULL(ASTCons):
         ASTCons.__init__(self)
 
     def generateASTGen(self, genVar):
+        return 'NULL'
+
+    def __str__(self):
         return 'NULL'
 
 NULL = NULL()
@@ -531,6 +598,8 @@ class Cons(ASTCons):
         Cons.cons_names.add(cons)
         self.channels = channels
         self.attrs = attrs
+        if type(self.channels) is not list:
+            self.channels = [channels]
 
     def __hash__(self):
         return hash(self.consname)
@@ -552,6 +621,13 @@ class Cons(ASTCons):
     def hasASTRepresentation(self):
         return True
 
+    def subst(self, a, b):
+        if a == self:
+            return b
+        return Cons(self.consname,
+                    [c.subst(a, b) for c in self.channels],
+                    self.attrs)
+
     def generateASTGen(self, genVar):
 
         args = ''
@@ -562,6 +638,10 @@ class Cons(ASTCons):
                 % (self.getASTFullName(),
                    len(self.channels),
                    args))
+
+    def __str__(self):
+        return 'Cons(%s, %s, %s)' % (self.consname, [str(c) for c in self.channels], [str(a) for a in self.attrs])
+
 
 
 class Builtin(ASTCons):
@@ -586,6 +666,12 @@ class Builtin(ASTCons):
 
     def generateASTGen(self, genVar):
         return 'value_node_alloc_generic(AST_VALUE_ID, (ast_value_union_t) { .ident = %s })' % self.getBuiltinFullName()
+
+    def generateFreeVariable(self, p, varname):
+        pass
+
+    def __str__(self):
+        return 'Builtin(%s)' % (self.name)
 
 
 class _Attr(ASTCons):
@@ -615,12 +701,35 @@ class _Attr(ASTCons):
     def resultStorageInit(self):
         return '0';
 
+    def generateFreeVariable(self, p, varname):
+        pass
+
+    def __str__(self):
+        return 'Attr(%s, %x)' % (self.attrname, self.attr_bit)
+
+
 
 def Attr(attrname):
     if not attrname in _Attr.attr_map:
         _Attr.attr_map[attrname] = _Attr(attrname)
     return _Attr.attr_map[attrname]
 
+
+class NoAttr(ASTCons):
+    def generateASTGen(self, genVar):
+        return '0'
+
+    def resultStorage(self):
+        return 'unsigned int'
+
+    def resultStorageInit(self):
+        return '0';
+
+    def __str__(self):
+        return 'NoAttr'
+    
+
+NoAttr = NoAttr()
 
 class Update(ASTCons):
     '''
@@ -635,10 +744,20 @@ class Update(ASTCons):
     def sub(self):
         return self.baseobj.sub()
 
+    def subst(self, a, b):
+        if a == self:
+            return b
+        return Update(self.baseobj.subst(a, b),
+                      self.index,
+                      self.channel.subst(a, b))
+
     def generateASTGen(self, genVar):
         return 'node_update(%s, %d, %s)' % (self.baseobj.generateASTGen(genVar),
                                             self.index,
                                             self.channel.generateASTGen(genVar))
+
+    def __str__(self):
+        return 'Update(%s, %s, %s)' % (str(self.baseobj), str(self.index), str(self.channel))
 
 class AddAttribute(ASTCons):
     '''
@@ -650,11 +769,21 @@ class AddAttribute(ASTCons):
         self.attr = attr
 
     def sub(self):
-        return self.baseobj.sub()
+        return [self.baseobj] + self.baseobj.sub()
+
+    def subst(self, a, b):
+        if a == self:
+            return b
+        return AddAttribute(self.baseobj.subst(a, b),
+                            self.attr.subst(a, b))
 
     def generateASTGen(self, genVar):
         return 'node_add_attribute(%s, %s)' % (self.baseobj.generateASTGen(genVar),
                                                self.attr.generateASTGen(genVar))
+
+    def __str__(self):
+        return 'AddAttr(%s, %s)' % (str(self.baseobj), str(self.attr))
+
 
 class Repetition(Cons):
     def __init__(self, name):
@@ -663,6 +792,9 @@ class Repetition(Cons):
 
     def generateASTGen(self, genVar):
         return 'vector_to_node(%s, &%s)' % (self.getASTFullName(), genVar(Repeat(None), 0))
+
+    def __str__(self):
+        return 'Repetition(%s)' % (self.name)
 
 
 ########################################
@@ -675,9 +807,10 @@ class Rule(object):
         self.nt = nt
         self.rhs = rhs
         self.astgen = astgen
+        self.self_recursive = False
 
         if type(astgen) is Repetition:
-            assert len(rhs) == 1, 'Repetition() only permitted with a single rule rhs (which must be Repeat)'
+            assert len(rhs) == 1, 'Repetition() only permitted with a single rule rhs (which must be Repeat), but had %s' % rhs
             assert type(rhs[0]) is Repeat, 'Repetition() must be used with Repeat()'
 
         if nt in Rule.all:
@@ -693,11 +826,30 @@ class Rule(object):
             if type(rhs[i]) is str:
                 rhs[i] = StringTerm(rhs[i])
 
+        indexed_rhs = []
+        rhs_index = {}
+        for r in rhs:
+            if r in rhs_index:
+                index = rhs_index[r]
+            else:
+                index = 0
+            rhs_index[r] = index + 1
+            indexed_rhs.append((r, index))
+        self.indexed_rhs = indexed_rhs # same as rhs, plus index number to tell us the how manyeth entry this is
+
+
+
     def resultStorage(self):
         return self.astgen.resultStorage()
 
     def resultStorageInit(self):
         return self.astgen.resultStorageInit()
+
+    def __str__(self):
+        return str(self.nt) + ' ::= ' + ' '.join(str(r) for r in self.rhs)
+
+    def __repr__(self):
+        return str(self)
 
 
 ########################################
@@ -728,17 +880,38 @@ ID.addRegexp('{IDENTIFIER}', 'mk_unique_string(yytext)')
 
 
 # Nonterminals
+PROGRAM = NT('program', 'program')
+BLOCK = NT('block', 'block')
+#BLOCK.setFailHandlerUntil('}')
+INBLOCK = NT('iblock', 'inner block')
 STMT = NT('stmt', 'statement')
-STMT.setFailHandlerUntil(StringTerm(';'))
+VARDECL = NT('vardecl', 'variable declaration')
+MAYBECONST = NT('maybe_const', 'optional const specifier')
+#STMT.setFailHandlerUntil(';')
 EXPR = NT('expr', 'expression')
+EXPR0 = NT('expr0', 'expression')
 EXPR1 = NT('expr1', 'expression')
 EXPR2 = NT('expr2', 'expression')
 EXPR3 = NT('expr3', 'expression')
+REFEXPR = NT('refexpr', 'reference expression')
 VALEXPR = NT('valexpr', 'value')
 TY = NT('ty', 'type specifier')
+FORMAL = NT('formal', 'formal argument')
+FORMALSLIST_X = NT('formal_list_x', 'formal argument list')
+FORMALSLIST = NT('formal_list', 'formal argument list')
+#FORMALSLIST.setFailHandlerUntil(StringTerm(')'))
+ACTUALSLIST_X = NT('actual_list_x', 'function parameters')
+ACTUALSLIST = NT('actual_list', 'function parameters')
+#ACTUALSLIST.setFailHandlerUntil(StringTerm(')'))
+OPTELSE = NT('opt_else', 'optional \'else\' branch')
+OPTINIT = NT('opt_init', 'optional variable initialisation')
+
+ARRAYVAL = NT('arrayval', 'array value')
+ARRAYITEMS = NT('arrayitems', 'array items')
+
 
 # LIMITATIONS:
-# - no left recursion (direct or indirect; feel free to add the standard transformation algorithm, though)
+# - no indirect left recursion (feel free to add the standard transformation algorithm, though)
 # - no disambiguation across sub-rules:
 #     A ::= B | C | D
 #     B ::= E '+' A
@@ -748,42 +921,115 @@ TY = NT('ty', 'type specifier')
 #   this will NOT work correctly:  If you have "1 - 2", the parser will issue a syntax error, because
 #   when it backtracks from B, it will have already converted the D to an E, which the C can't parse.
 #   In other words, backtracking is limited.
+#
+# TODO: rewrite epsilons; instead, dupe the relevant rules suitably
+
+
+def ast_funapp(f, arglist):
+    assert type(arglist) is list
+    return Cons('FUNAPP', [f, Cons('ACTUALS', arglist)])
+
+def ast_not(s):
+    return ast_funapp(Builtin('NOT'), [s])
 
 rules = [
-    Rule(TY,	['var'],					Attr('VAR')),
-    Rule(TY,	['obj'],					Attr('OBJ')),
-    Rule(TY,	['int'],					Attr('INT')),
-    Rule(TY,	['real'],					Attr('REAL')),
 
-    Rule(STMT,[Repeat(EXPR, ',')], Repetition('SEQ')), # just for testing
+    Rule(PROGRAM,	[ INBLOCK ],					INBLOCK),
 
-    # Rule(STMT,	[VARDEF, ';'],					VARDEF),
-    # Rule(STMT,	[VARDEF, Opt("oe", ['=', EXPR]), ';'],		Update(VARDEF, 2, P("oe"))),
+    Rule(BLOCK,		['{', INBLOCK, '}'],				INBLOCK),
+    Rule(INBLOCK,	[ Repeat(STMT) ],				Repetition('BLOCK')),
 
-    Rule(EXPR,     [EXPR1, '==', EXPR1],			Cons('FUNAPP', [Builtin('TEST_EQ'), EXPR1(0), EXPR1(1)])),
-    Rule(EXPR,     [EXPR1, '<', EXPR1],				Cons('FUNAPP', [Builtin('TEST_LT'), EXPR1(0), EXPR1(1)])),
-    Rule(EXPR,     [EXPR1, '<=', EXPR1],			Cons('FUNAPP', [Builtin('TEST_LE'), EXPR1(0), EXPR1(1)])),
-    Rule(EXPR,     [EXPR1, '>', EXPR1],				Cons('FUNAPP', [Builtin('TEST_LE'), EXPR1(1), EXPR1(0)])),
-    Rule(EXPR,     [EXPR1, '>=', EXPR1],			Cons('FUNAPP', [Builtin('TEST_LT'), EXPR1(1), EXPR1(0)])),
-    Rule(EXPR,	   [EXPR1],					EXPR1),
+    Rule(TY,		['var'],					Attr('VAR')),
+    Rule(TY,		['obj'],					Attr('OBJ')),
+    Rule(TY,		['int'],					Attr('INT')),
+    Rule(TY,		['real'],					Attr('REAL')),
 
-    Rule(EXPR1,    [EXPR2, '+', EXPR1],				Cons('FUNAPP', [Builtin('ADD'), EXPR2, EXPR1])),
-    Rule(EXPR1,    [EXPR2, '-', EXPR1],				Cons('FUNAPP', [Builtin('SUB'), EXPR2, EXPR1])),
-    Rule(EXPR1,	   [EXPR2],					EXPR2),
+    Rule(VARDECL,	[ MAYBECONST, TY, ID ],				AddAttribute(AddAttribute(Cons('VARDECL', [ID, NULL]), TY), MAYBECONST)),
 
-    Rule(EXPR2,    [VALEXPR, '*', EXPR2],			Cons('FUNAPP', [Builtin('MUL'), VALEXPR, EXPR2])),
-    Rule(EXPR2,    [VALEXPR, '/', EXPR2],			Cons('FUNAPP', [Builtin('DIV'), VALEXPR, EXPR2])),
-    Rule(EXPR2,	   [VALEXPR],					VALEXPR),
+    Rule(MAYBECONST,	[],						NoAttr),
+    Rule(MAYBECONST,	['const'],					Attr('CONST')),
 
-    Rule(VALEXPR, ['[', EXPR, ':', TY , ']'], AddAttribute(EXPR, TY)),
-    Rule(VALEXPR, ['{', STMT , '}'], STMT),
-    
-    Rule(VALEXPR,  [INT],					INT),
-    Rule(VALEXPR,  [STRING],					STRING),
-    Rule(VALEXPR,  [REAL],					REAL),
-    Rule(VALEXPR,  [ID],					ID),
-    Rule(VALEXPR,  ['(', EXPR, ')'],				EXPR),
+    Rule(FORMAL,	[ MAYBECONST, TY, ID ],				AddAttribute(AddAttribute(Cons('VARDECL', [ID, NULL]), TY), MAYBECONST)),
+    Rule(FORMALSLIST_X,	[ Repeat(FORMAL, ',') ],			Repetition('FORMALS')),
+    Rule(FORMALSLIST,	[ '(', FORMALSLIST_X, ')' ],			FORMALSLIST_X),
+
+    Rule(ACTUALSLIST_X,	[ Repeat(EXPR, ',') ],				Repetition('ACTUALS')),
+    Rule(ACTUALSLIST,	[ '(', ACTUALSLIST_X, ')' ],			ACTUALSLIST_X),
+
+    Rule(OPTELSE,	[],						NULL),
+    Rule(OPTELSE,	[ 'else', STMT],				STMT),
+
+    Rule(OPTINIT,	[],						NULL),
+    Rule(OPTINIT,	[ '=', EXPR],					EXPR),
+
+    Rule(STMT,		[ VARDECL, ';' ],				VARDECL),
+    Rule(STMT,		[ VARDECL, '=', EXPR, ';' ],			Update(VARDECL, 1, EXPR)),
+    Rule(STMT,		[ MAYBECONST, TY, ID, OPTINIT, ';' ],		Update(AddAttribute(AddAttribute(Cons('VARDECL', [ID, NULL]), TY), MAYBECONST), 1, OPTINIT)),
+    # Compromise: semantic analysis must disallow the constness here
+    Rule(STMT,		[ MAYBECONST, TY, ID, FORMALSLIST, BLOCK ],	AddAttribute(AddAttribute(Cons('FUNDEF', [ID, FORMALSLIST, BLOCK]), TY), MAYBECONST)),
+    # # Compromise: semantic analysis must ensure that we have only lvalues
+    Rule(STMT,		[ 'class', ID, FORMALSLIST, BLOCK ],		Cons('CLASSDEF', [ID, FORMALSLIST, BLOCK])),
+    Rule(STMT,		[ EXPR, ':=', EXPR, ';' ],			Cons('ASSIGN', [EXPR(0), EXPR(1)])),
+    Rule(STMT,		[ ';' ],					Cons('SKIP', [])),
+    Rule(STMT,		[ EXPR, ';' ],					EXPR),
+    Rule(STMT,		[ BLOCK ],					BLOCK),
+    Rule(STMT,		[ 'if', EXPR, STMT, OPTELSE ],			Cons('IF', [EXPR, STMT, OPTELSE])),
+    Rule(STMT,		[ 'while', '(', EXPR,')', STMT ],		Cons('WHILE', [EXPR, STMT])),
+    Rule(STMT,		[ 'do', STMT, 'while', EXPR, ';' ],		Cons('BLOCK', [STMT, Cons('WHILE', [EXPR, STMT])])),
+    Rule(STMT,		[ 'break', ';' ],				Cons('BREAK', [])),
+    Rule(STMT,		[ 'continue', ';' ],				Cons('CONTINUE', [])),
+    Rule(STMT,		[ 'return', ';' ],				Cons('RETURN', NULL)),
+    Rule(STMT,		[ 'return', EXPR, ';' ],			Cons('RETURN', EXPR)),
+
+    Rule(EXPR,		[EXPR0],					EXPR0),
+    Rule(EXPR,		['not', EXPR0],					ast_not(EXPR0)),
+
+    Rule(EXPR0,		[EXPR1, '==', EXPR1],				ast_funapp(Builtin('TEST_EQ'), [EXPR1(0), EXPR1(1)])),
+    Rule(EXPR0,		[EXPR1, '!=', EXPR1],				ast_not(ast_funapp(Builtin('TEST_EQ'), [EXPR1(0), EXPR1(1)]))),
+    Rule(EXPR0,		[EXPR1, '<', EXPR1],				ast_funapp(Builtin('TEST_LT'), [EXPR1(0), EXPR1(1)])),
+    Rule(EXPR0,		[EXPR1, '<=', EXPR1],				ast_funapp(Builtin('TEST_LE'), [EXPR1(0), EXPR1(1)])),
+    Rule(EXPR0,		[EXPR1, '>', EXPR1],				ast_funapp(Builtin('TEST_LT'), [EXPR1(1), EXPR1(0)])),
+    Rule(EXPR0,		[EXPR1, '>=', EXPR1],				ast_funapp(Builtin('TEST_LE'), [EXPR1(1), EXPR1(0)])),
+    Rule(EXPR0,		[EXPR1, 'is', ID],				Cons('ISINSTANCE', [EXPR1, ID])),
+    Rule(EXPR0,		[EXPR1, 'is', TY],				Cons('ISPRIMTY', [EXPR1, TY])),
+    Rule(EXPR0,		[EXPR1],					EXPR1),
+
+    Rule(EXPR1,		[EXPR1, '+', EXPR2],				Cons('FUNAPP', [Builtin('ADD'), Cons('ACTUALS', [EXPR1, EXPR2])])),
+    Rule(EXPR1,		[EXPR1, '-', EXPR2],				Cons('FUNAPP', [Builtin('SUB'), Cons('ACTUALS', [EXPR1, EXPR2])])),
+    Rule(EXPR1,		[EXPR2],					EXPR2),
+
+    Rule(EXPR2,		[EXPR2, '*', REFEXPR],				Cons('FUNAPP', [Builtin('MUL'), Cons('ACTUALS', [EXPR2, REFEXPR])])),
+    Rule(EXPR2,		[EXPR2, '/', REFEXPR],				Cons('FUNAPP', [Builtin('DIV'), Cons('ACTUALS', [EXPR2, REFEXPR])])),
+    Rule(EXPR2,		[REFEXPR],					REFEXPR),
+
+    Rule(REFEXPR,	[VALEXPR],					VALEXPR),
+    Rule(REFEXPR,	[REFEXPR, '.', ID],				Cons('MEMBER', [REFEXPR, ID])),
+    Rule(REFEXPR,	[REFEXPR, ACTUALSLIST],				Cons('FUNAPP', [REFEXPR, ACTUALSLIST])),
+    Rule(REFEXPR,	[REFEXPR, '[', EXPR, ']'],			Cons('ARRAYSUB', [REFEXPR, EXPR])),
+
+    Rule(ARRAYITEMS,	[Repeat(EXPR, ',')],				Repetition('ARRAYLIST')),
+
+    Rule(ARRAYVAL,	['[', ARRAYITEMS, ']'],				Cons('ARRAYVAL', [ARRAYITEMS, NULL])),
+    # Compromise: semantic analysis must ensure that we have no [,* 2] here
+    Rule(ARRAYVAL,	['[', ARRAYITEMS, '/', EXPR, ']' ],		Cons('ARRAYVAL', [ARRAYITEMS, EXPR])),
+
+    Rule(VALEXPR,	[ARRAYVAL],					ARRAYVAL),
+    Rule(VALEXPR,	[INT],						INT),
+    Rule(VALEXPR,	[STRING],					STRING),
+    Rule(VALEXPR,	[REAL],						REAL),
+    Rule(VALEXPR,	[ID],						ID),
+    Rule(VALEXPR,	['(', EXPR, ')'],				EXPR),
+
+    # -- debug only
+    # Rule(VALEXPR,	[INT],						INT),
+    # Rule(EXPR,		[EXPR, '+', VALEXPR],				Cons('ADD', [EXPR, VALEXPR])),
+    # Rule(EXPR,		[EXPR, '-', VALEXPR],				Cons('ADD', [EXPR, VALEXPR])),
+    # Rule(EXPR,		[VALEXPR],					VALEXPR),
 ]
+
+
+# TODO:
+# - test that we correctly parse `1 + "foo"' with `A ::= B + STRING    B ::= INT + INT', otherwise fix
 
 BITS_FOR_NODE_TYPE_TOTAL = 16
 TOTAL_AST_NODE_TYPES = len(Cons.cons_names) + len(Term.all) + 2 # 2 for identifiers and `invalid'
@@ -796,7 +1042,8 @@ for attr in _Attr.attr_map.itervalues():
     attr.attr_bit = i
     i += 1
 
-exported_nonterminals = [EXPR]
+exported_nonterminals = [EXPR, STMT, PROGRAM]
+#exported_nonterminals = [EXPR]
 
 ########################################
 # Processing
@@ -825,7 +1072,7 @@ def printLexerParserHeader():
     tokens = []
     values = { 'node' : 'ast_node_t*' }
 
-    i = 102
+    i = 0x102
     for t in sorted(list(Term.all)):
         if t.varname is not None:
             if t.varname in values:
@@ -835,7 +1082,7 @@ def printLexerParserHeader():
                 values[t.varname] = t.c_type
 
         if t.hasSymbolicTokenID():
-            tokens.append(t.getTokenID() + ' = ' + str(i))
+            tokens.append(t.getTokenID() + ' = 0x%x' % i)
             i += 1
 
         vlist = []
@@ -996,17 +1243,17 @@ def getIncCountMap(m, key):
 
 def decisionTree(base_nt, depth, ruleprods, dtmap):
     '''
-    Takes in rule/production pairs.
+    Takes in rule/indexed-production pairs.
     Returns pairs of tree = (completed-rule, repeat-rule, { (recogniser, resultindex) : tree })
     where:
       - completed-rule and repeat-rule are mutually exclusive (the other must be Null)
       - resultindex is a zero-based index counting the occurrence of the given (non)terminal
     '''
-    var_index_counter_map = {} #local cache of dtmap: ensures that if we see nt for multiple subrules, they get the same index
-    def getIndex(key):
-        if key not in var_index_counter_map:
-            var_index_counter_map[key] = (key, getIncCountMap(dtmap, key))
-        return var_index_counter_map[key]
+    # var_index_counter_map = {} #local cache of dtmap: ensures that if we see nt for multiple subrules, they get the same index
+    # def getIndex(key):
+    #     if key not in var_index_counter_map:
+    #         var_index_counter_map[key] = (key, getIncCountMap(dtmap, key))
+    #     return var_index_counter_map[key]
 
     final_result = None
     repeat_handler = None
@@ -1019,8 +1266,11 @@ def decisionTree(base_nt, depth, ruleprods, dtmap):
                 raise Exception('Multiple seemingly equivalent rules of size %d for nonterminal %s' % (depth, base_nt))
         else:
             cont = (rule, prod[1:])
-            index = getIndex(prod[0])
-            if issubclass(type(prod[0]), Repeat):
+            #index = getIndex(prod[0])
+            index = prod[0]#[1]
+            #localprod = prod[0][0]
+            localprod = index[0]
+            if issubclass(type(localprod), Repeat):
                 if repeat_handler is None:
                     repeat_handler = cont
                 else:
@@ -1057,34 +1307,44 @@ def printRuleHeader(lhs, p, suffix=''):
     p('%s(%s *result)%s' % (lhs.parseFunctionName(), lhs.resultStorage(), suffix))
 
 
-def buildAST(endrule, bound_variables, p, getEnv):
-    bound_variables = set(bound_variables)
+def buildAST(endrule, bound_variables_list, p, getEnv):
+    # bound_variables: pairs of varobjects, vars
+    bound_variables = dict()
+    bound_varset = set()
+    for var, vname in bound_variables_list:
+        bound_varset.add(vname)
+        bound_variables[vname] = var
+
     def getVar(k, index):
         n = getEnv(k, index)
         if n is None:
             raise Exception('Unknown/unsupported reference to previous parse result for nonterminal %s.%d' %(k, index))
-        if n in bound_variables:
-            bound_variables.remove(n)
+        if n in bound_varset:
+            bound_varset.remove(n)
             return n
         else:
             # Used more than once
-            return 'ast_node_clone(%s)' % n
+            if n not in bound_variables:
+                perr('FATAL: Trying to access unknown var "%s"' % n)
+                perr('bound_vars: %s' % bound_variables)
+                perr('bound_varset: %s' % bound_varset)
+                perr('bound_var_list: %s' % bound_variables_list)
+                perr('rule = %s' % endrule)
+                perr('rule.astgen = %s' % str(endrule.astgen))
+            return bound_variables[n][0].generateCloneVariable(n)
 
     p('*result = %s;' % endrule.astgen.generateASTGen(getVar));
     # Free all unused parse results
-    for n in bound_variables:
-        p('ast_node_free(%s, 1);' % n)
+    for n in bound_varset:
+        var = bound_variables[n]
+        var[0].generateFreeVariable(p, n)
 
 
-def buildParseRules(rules):
-    results = []
-    def pprint(s):
-        results.append(s)
-
+def findRuleImmediateRecursions(rules):
+    """Detect immediate left recursions among the rules.  Ghech your lhses in your rules."""
     recursions = {}
 
     for lhs, rulelist in rules.iteritems():
-        printRuleHeader(lhs, pprint, ';')
         for rule in rulelist:
             if len(rule.rhs):
                 nt = rule.rhs[0].getNT()
@@ -1093,6 +1353,18 @@ def buildParseRules(rules):
                         recursions[lhs].add(nt)
                     else:
                         recursions[lhs] = set([nt])
+
+    return recursions
+
+def buildParseRules(rules):
+    results = []
+    def pprint(s):
+        results.append(s)
+
+    recursions = findRuleImmediateRecursions(rules)
+
+    for lhs, rulelist in rules.iteritems():
+        printRuleHeader(lhs, pprint, ';')
 
     pprint('')
 
@@ -1103,7 +1375,7 @@ def buildParseRules(rules):
             left_recursions.add("%s in %s" % (k, v))
     
 
-    assert len(left_recursions) == 0, 'Left recursion detected: %s' % left_recursions
+    assert len(left_recursions) == 0, 'Unresolvable left recursion detected: %s' % left_recursions
         
     headers = []
     implementations = []
@@ -1114,11 +1386,14 @@ def buildParseRules(rules):
 
         stmts = []
 
-        dt = decisionTree(lhs, 0, [(rule, rule.rhs) for rule in rulelist], {})
+        dt = decisionTree(lhs, 0, [(rule, rule.indexed_rhs) for rule in rulelist], {})
 
         #pprint("// DECISION TREE for %s =%s" % (lhs.parseFunctionName(), dt))
 
         error_label = lhs.parseFunctionName() + '_fail';
+        loop_label = lhs.parseFunctionName() + '_loop';
+
+
 
         def gen(dt, p, previously_on_path=[]):
             '''
@@ -1141,7 +1416,7 @@ def buildParseRules(rules):
                     return None
 
             for (key, kindex), cont in choices.iteritems():
-                #pprint("// expecting: %s from %s is %s" % ((key, kindex), env, getEnv(key, kindex)))
+                #perr("// expecting: %s from %s is %s" % ((key, kindex), env, getEnv(key, kindex)))
                 (prepare_stmts, cond) = key.recognise(getEnv(key, kindex))
                 for s in prepare_stmts:
                     p(s)
@@ -1154,6 +1429,8 @@ def buildParseRules(rules):
                     cont_else = True
                     end = lambda _: p('}')
 
+                    if type(key) is NT and lhs.primed_nt is key:
+                        pprint('%s:' % loop_label);
                     gen(cont, subp, previously_on_path + [(key, kindex)])
 
             if len(choices) and not (repeatrule or endrule):
@@ -1184,15 +1461,27 @@ def buildParseRules(rules):
                 for s in prepare_stmts:
                     p(s)
                 p('*result = %s;' % rrule.astgen.generateASTGen(getEnv))
+                gendebug(p, "Matched %s" % rrule);
                 p('return 1;')
 
             if endrule:
-                buildAST(endrule, [env[k] for k in previously_on_path if k in env], p, getEnv)
-                p('return 1;')
+                # generate code for setting result
+                bound_vars = [(k, env[k]) for k in previously_on_path if k in env]
+                buildAST(endrule, bound_vars, p, getEnv)
+                
+                if lhs.primed_nt is not None and len(previously_on_path) > 1:
+                    # special case handler for rewritten simple-left-recursive rules
+                    p('%s = *result;' % getEnv(lhs.primed_nt, 0))
+                    gendebug(p, 'Repeating left-recursive %s' % endrule)
+                    p('goto %s;' % loop_label)
+                else:
+                    gendebug(p, 'Matched %s' % endrule)
+                    p('return 1;')
                     
 
         printRuleHeader(lhs, pprint)
         pprint('{')
+        gendebug(lambda x : pprint('\t' + x), 'Trying %s' % lhs)
 
         envctr = [0]
         def allocvar(x, i, rule):
@@ -1287,7 +1576,7 @@ def printUnparser():
         )
 
     def printFlag(n):
-        return '\tif (ty & %s) fputs("@%s", file);\n' % (n.getFullTagName(), n.getTagName())
+        return '\tif (ty & %s) fputs("#%s", file);\n' % (n.getFullTagName(), n.getTagName())
 
     parser_template = TemplateFile('unparser.template.c')
     parser_template.printFile({
@@ -1295,6 +1584,104 @@ def printUnparser():
         'PRINT_FLAGS': '\n'.join(printFlag(n) for n in _Attr.attr_map.itervalues()),
         'PRINT_IDS': '\n'.join(printID(n) for n in builtins),
         'PRINT_VNODES': '\n'.join(printVNode(n) for n in value_ntys) })
+
+
+########################################
+# Pre-processing
+
+def deleteRule(r):
+    rules.remove(r)
+    Rule.all[r.nt].remove(r)
+
+
+def resolveSimpleLeftRecursions():
+    lrecs = findRuleImmediateRecursions(Rule.all)
+
+    # for r in rules:
+    #     print(str(r))
+
+    for lhs, rulelist in dict(Rule.all).iteritems():
+        if lhs in lrecs and lhs in lrecs[lhs]:
+            # Need to re-structure:
+            #   A ::= A + B | C
+            #
+            # becomes
+            #   A  ::= (A' + B) | A'
+            #   A' ::= C
+
+            lhs_prime = NT(lhs.name + '__prime', lhs.error_description_name)
+            lhs_prime.fail_handler = lhs.fail_handler
+            lhs.primed_nt = lhs_prime
+
+            for r in list(rulelist):
+                deleteRule(r)
+
+                if len(r.rhs) and r.rhs[0] == lhs:
+                    # self-recursive one?
+                    newrule = Rule(lhs, [lhs_prime] + r.rhs[1:], r.astgen.subst(lhs, lhs_prime).subst(lhs(0), lhs_prime))
+                    newrule.self_recursive = True
+                    rules.append(newrule)
+                else:
+                    newrule = Rule(lhs_prime, r.rhs, r.astgen)
+                    rules.append(newrule)
+
+            # Finally, add the `defer to child' rule
+            rules.append(Rule(lhs, [lhs_prime], lhs_prime))
+
+    # for r in rules:
+    #     print(str(r))
+
+
+def removeEpsilonRules():
+    epsilon_alternatives = {}
+
+    # perr('----------------------------------------')
+    # for r in rules:
+    #     perr(str(r))
+
+    for lhs, rulelist in dict(Rule.all).iteritems():
+        for r in rulelist:
+            if r.rhs == []:
+                deleteRule(r)
+                epsilon_alternatives[r.nt] = r.astgen
+
+    for rule in list(rules):
+        def genSubst(rule, rhs_left, rhs_right, astgen, previously_processed_epsilons):
+            if rhs_right == []:
+                return
+
+            current = rhs_right[0]
+            tail = rhs_right[1:]
+
+            current_at_index = current  # sub-indexed in case we have multiple occurrences
+
+            if current in epsilon_alternatives:
+                # must consider case in which this nt was removed
+                index = 0
+                if current in previously_processed_epsilons:
+                    index = 1 + previously_processed_epsilons[current]
+                    current_at_index = current(index)
+                previously_processed_epsilons = dict(previously_processed_epsilons)
+                previously_processed_epsilons[current] = index
+
+            # recurse first with that epsilon rule
+            genSubst(rule, rhs_left + [current],  tail, astgen, previously_processed_epsilons)
+
+            if current in epsilon_alternatives:
+                alt_astgen = astgen.subst(current_at_index, epsilon_alternatives[current])
+                new_rule = Rule(rule.nt, rhs_left + tail, alt_astgen)
+                rules.append(new_rule)
+
+                # recurse again, this time without the epsilon rule
+                genSubst(rule, rhs_left, tail, alt_astgen, previously_processed_epsilons)
+        genSubst(rule, [], rule.rhs, rule.astgen, {})
+
+    # perr('----------------------------------------')
+    # for r in rules:
+    #     perr(str(r))
+
+resolveSimpleLeftRecursions()
+removeEpsilonRules()
 
 ########################################
 # Frontend

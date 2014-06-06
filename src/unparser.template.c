@@ -25,10 +25,12 @@
 
 ***************************************************************************/
 
-#include "ast.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <assert.h>
+
+#include "ast.h"
+#include "symbol-table.h"
 
 void
 ast_print_flags(FILE *file, int ty)
@@ -41,8 +43,16 @@ print_id_string(FILE *file, int id)
 {
 	switch (id) {
 $$PRINT_IDS$$
-	default:
-		fprintf(file, "<unknown id: %d>", id);
+	default: {
+		symtab_entry_t *e = symtab_lookup(id);
+		if (!e) {
+			fprintf(file, "(UNKNOWN-SYM[%d])", id);
+		} else {
+			fprintf(file, "(SYM[%d] ", id);
+			symtab_entry_name_dump(file, e);
+			fprintf(file, ")");
+		}
+	}
 	}
 }
 

@@ -1,0 +1,33 @@
+(BLOCK
+  (IF
+    (FUNAPP
+      TEST_LT
+      (ACTUALS
+        2:INT
+        3:INT
+      )
+    )
+    (BLOCK
+      (FUNAPP
+        print:NAME
+        (ACTUALS
+          "A":STRING
+        )
+      )
+      (FUNAPP
+        print:NAME
+        (ACTUALS
+          "B":STRING
+        )
+      )
+    )
+    (BLOCK
+      (FUNAPP
+        print:NAME
+        (ACTUALS
+          "error":STRING
+        )
+      )
+    )
+  )
+)

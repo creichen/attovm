@@ -1,0 +1,36 @@
+(BLOCK
+  (CLASSDEF
+    A:NAME
+    (FORMALS)
+    (BLOCK
+      (VARDECL@INT
+        v:NAME
+        0:INT
+      )
+      (FUNDEF@VAR
+        set:NAME
+        (FORMALS
+          (VARDECL@INT
+            v2:NAME
+            null
+          )
+        )
+        (BLOCK
+          (ASSIGN
+            v:NAME
+            v2:NAME
+          )
+        )
+      )
+      (FUNDEF@INT
+        get:NAME
+        (FORMALS)
+        (BLOCK
+          (RETURN
+            v:NAME
+          )
+        )
+      )
+    )
+  )
+)

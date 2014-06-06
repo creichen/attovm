@@ -1,0 +1,8 @@
+(BLOCK
+  (FUNAPP
+    print:NAME
+    (ACTUALS
+      "Hello, World!":STRING
+    )
+  )
+)

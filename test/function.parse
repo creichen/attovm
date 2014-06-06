@@ -1,0 +1,37 @@
+(BLOCK
+  (FUNDEF@VAR
+    f:NAME
+    (FORMALS
+      (VARDECL@VAR
+        x:NAME
+        null
+      )
+    )
+    (BLOCK
+      (RETURN
+        (FUNAPP
+          ADD
+          (ACTUALS
+            x:NAME
+            1:INT
+          )
+        )
+      )
+    )
+  )
+  (VARDECL@VAR
+    z:NAME
+    (FUNAPP
+      f:NAME
+      (ACTUALS
+        2:INT
+      )
+    )
+  )
+  (FUNAPP
+    print:NAME
+    (ACTUALS
+      z:NAME
+    )
+  )
+)

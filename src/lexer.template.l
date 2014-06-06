@@ -41,7 +41,7 @@ static char unescape_char(char c);
 
 static char* unescape_string(char *text);
 
-static char* mk_unique_string(char *text);
+char* mk_unique_string(char *text);
 
 int yy_line_nr = 1;
 
@@ -163,19 +163,20 @@ yywrap(void)
 
 static hashtable_t *name_map = NULL;
 
-static char* mk_unique_string(char *id)
+char* mk_unique_string(char *id)
 {
 	if (!name_map) {
 		name_map = hashtable_alloc(hashtable_string_hash, (int (*)(const void *, const void *)) strcmp, 5);
 	}
-	char **retval_ptr = (char **) hashtable_access(name_map, id, NULL);
+	char * retval = (char *) hashtable_get(name_map, id);
 
-	if (retval_ptr) {
-		// already know this one
-		return *retval_ptr;
+	if (retval) {
+		// Name schon bekannt
+		return retval;
 	}
-	// otherwise:  add new entry
+	// Ansonsten:  Neuer Eintrag
 	char *unique_id = strdup(id);
-	hashtable_access(name_map, id, unique_id);
+	hashtable_put(name_map, unique_id, unique_id, NULL);
+
 	return unique_id;
 }

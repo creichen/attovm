@@ -1,0 +1,23 @@
+class A(var x) {
+    var x = x;
+    obj p(obj y) {
+        print("A:");
+        print(x);
+	print(": ");
+	print(y);
+    }
+}
+
+class B() {
+    obj p(obj y) {
+	print("B: ");
+	print(y);
+    }
+}
+
+var a0 = A("a0");
+var a1 = A("a1");
+var b = B();
+a0.p("test-a0");
+a1.p("test-a1");
+b.p("test-b");

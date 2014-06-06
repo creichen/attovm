@@ -33,8 +33,8 @@
 #define NF_SPECIAL_CHILD_FLAGS	0xf000
 #define NF_SELECTOR		0x1000
 
-int selectors_nr = 1;
-hashtable_t *selectors_table;
+extern int symtab_selectors_nr; // from symbol-table.c
+hashtable_t *selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufruge!)
 
 static int error_count = 0;
 
@@ -45,9 +45,9 @@ name_analysis_errors()
 }
 
 static void
-error(ast_node_t *node, char *message)
+error(const ast_node_t *node, char *message)
 {
-	fprintf(stder, "Name error for `%s': %s\n", AV_NAME(name), message);
+	fprintf(stderr, "Name error for `%s': %s\n", AV_NAME(node), message);
 	++error_count;
 }
 
@@ -57,11 +57,11 @@ fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *parent, int ch
 static void
 fixnames_recursive(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_flags)
 {
-	if (!node) {
+	if (!node || IS_VALUE_NODE(node)) {
 		return;
 	}
 	for (int i = 0; i < node->children_nr; i++) {
-		fixnames(node->children[i], env);
+		fixnames(node->children[i], env, parent, child_flags);
 	}
 }
 
@@ -75,13 +75,13 @@ get_selector(ast_node_t *node, int child_flags)
 
 	// Alloziere neuen Selektor
 	lookup = symtab_new(node->type & ~AST_NODE_MASK,
-			    SYMTAB_TY_SELECTOR (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
+			    SYMTAB_SELECTOR | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
 			    AV_NAME(node),
 			    NULL /* Selektoren werden nicht deklariert */);
-	lookup->selector = selectors_nr;
+	lookup->selector = symtab_selectors_nr;
 
-	hashtable_put(selectors_table, selectors_nr, lookup);
-	++selectors_nr;
+	hashtable_put(selectors_table, AV_NAME(node), lookup, NULL);
+	++symtab_selectors_nr;
 
 	return lookup;
 }
@@ -96,14 +96,14 @@ resolve_node(ast_node_t *node, symtab_entry_t *symtab)
 }
 
 static void
-fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *env, int child_flags)
+fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_flags)
 {
 	symtab_entry_t *lookup;
 	if (!node) {
 		return;
 	}
 
-	switch (NODE_TY(node->type)) {
+	switch (NODE_TY(node)) {
 	case AST_VALUE_NAME:
 		if (child_flags & NF_SELECTOR) {
 			lookup = get_selector(node, child_flags);
@@ -119,21 +119,21 @@ fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *env, int child
 
 	case AST_NODE_FUNDEF:
 		// Definitionen werden in AST_NODE_BLOCK gemanaged
-		fixnames_recursive(node->children[2], env, node->annotation, (child_flags & ~SYMTAB_MEMBER));
+		fixnames_recursive(node->children[2], env, (symtab_entry_t *) node->annotations, (child_flags & ~SYMTAB_MEMBER));
 		return;
 	case AST_NODE_CLASSDEF:
 		// Definitionen werden in AST_NODE_BLOCK gemanaged
-		fixnames_recursive(node->children[2], env, node->annotation, child_flags | SYMTAB_MEMBER);
+		fixnames_recursive(node->children[2], env, (symtab_entry_t *) node->annotations, child_flags | SYMTAB_MEMBER);
 		break;
 
 	case AST_NODE_FORMALS:
-		fixnames_recursive(node, env, parent, child_flags | NF_PARAM);
+		fixnames_recursive(node, env, parent, child_flags | SYMTAB_PARAM);
 		break;
 
 	case AST_NODE_VARDECL: {
 		// Definition ist in der Initialisierung noch nicht sichtbar, also erst hierhin:
 		fixnames(node->children[1], env, parent, child_flags);
-		ast_node_t *name_node->children[0];
+		ast_node_t *name_node = node->children[0];
 		int occurrence_count = 0;
 		lookup = hashtable_get(env, AV_NAME(name_node));
 		if (lookup) {
@@ -152,12 +152,13 @@ fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *env, int child
 		} else if (child_flags & SYMTAB_PARAM) {
 			lookup->offset = parent->parameters_nr++;
 		}
+		char *name = AV_NAME(name_node);
 		resolve_node(node->children[0], lookup);
-		hashtable_put(env, AV_NAME(name_node), lookup);
+		hashtable_put(env, name, lookup, NULL);
 		return;
 	}
 
-	case AST_NODE_ELEMENT:
+	case AST_NODE_MEMBER:
 		fixnames(node->children[0], env, parent, child_flags);
 		fixnames(node->children[1], env, parent, child_flags | NF_SELECTOR);
 		break;
@@ -168,16 +169,17 @@ fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *env, int child
 		return;
 
 
-	case AST_NODE_BLOCK:
+	case AST_NODE_BLOCK: {
 		// Separater erster Durchlauf, um gegenseitige Rekursion Klassen/Funktionen zu erlauben
+		hashtable_t *orig_env = env;
 		env = hashtable_clone(env, NULL, NULL);
 		for (int i = 0; i < node->children_nr; i++) {
-			node_t *cnode = node->children[i];
-			symtab_entry_t *syminfo;
+			ast_node_t *cnode = node->children[i];
+			symtab_entry_t *syminfo = NULL;
 
 			switch (NODE_TY(cnode)) {
-			case AST_NODE_FUNDEF:
-				const ast_node_t *name_node->children[0];
+			case AST_NODE_FUNDEF: {
+				ast_node_t *name_node = cnode->children[0];
 				if (parent && !(child_flags & SYMTAB_MEMBER)) {
 					error(name_node, "nested functions are not permitted");
 				}
@@ -191,9 +193,10 @@ fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *env, int child
 					syminfo->offset = parent->methods_nr++;
 				}
 				break;
+			}
 
-			case AST_NODE_CLASSDEF:
-				const ast_node_t *name_node->children[0];
+			case AST_NODE_CLASSDEF: {
+				ast_node_t *name_node = cnode->children[0];
 				if (parent) {
 					error(name_node, "nested classes are not permitted");
 				}
@@ -201,6 +204,7 @@ fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *env, int child
 						     SYMTAB_TY_CLASS | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
 						     AV_NAME(name_node),
 						     node);
+			}
 
 			default:
 				break;
@@ -208,26 +212,30 @@ fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *env, int child
 
 			if (syminfo) {
 				// CLASSDEF und FUNDEF haben analoge Struktur für Parameter:
-				const node_t *formals = node->children[1];
+				ast_node_t *formals = node->children[1];
 				fixnames_recursive(formals, env, syminfo, (child_flags & ~SYMTAB_MEMBER) | SYMTAB_PARAM);
 				// Setzt implizit parameters_nr korrekt
-				syminfo->parameter_types = malloc(sizeof(unsigned_short) * syminfo->parameters_nr);
+				syminfo->parameter_types = malloc(sizeof(unsigned short) * syminfo->parameters_nr);
 				for (int i = 0; i < syminfo->parameters_nr; i++) {
-					syminfo->parameter_types[i] = formals->children[i].type & ~AST_NODE_MASK;
+					ast_node_t *child = formals->children[i];
+					if (child != NULL) {
+						syminfo->parameter_types[i] = child->type & ~AST_NODE_MASK;
+					}
 				}
 
 
 				lookup = hashtable_get(env, syminfo->name);
-				if (lookup && lookup != hashtable.get(orig_env)) {
+				if (lookup && lookup != hashtable_get(orig_env, syminfo->name)) {
 					error(cnode->children[0], "multiple recursive definitions with identical name");
 				}
-				hashtable_put(env, syminfo->name, syminfo);
+				hashtable_put(env, syminfo->name, syminfo, NULL);
 				resolve_node(cnode, syminfo);
 			}
 		}
 		fixnames_recursive(node, env, parent, child_flags);
 		hashtable_free(env, NULL, NULL);
 		return;
+	}
 
 	default:
 		break;
@@ -240,12 +248,22 @@ fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *env, int child
 static void
 populate_initial_env(hashtable_t *env)
 {
+	for (int i = 1; i <= symtab_entries_builtin_nr; i++) {
+		symtab_entry_t *entry = symtab_lookup(-i);
+		if (! (entry->symtab_flags & SYMTAB_HIDDEN)) {
+			if (entry->symtab_flags == SYMTAB_SELECTOR) {
+				hashtable_put(selectors_table, entry->name, entry, NULL);
+			} else {
+				hashtable_put(env, entry->name, entry, NULL);
+			}
+		}
+	}
 }
 
 void
 name_analysis(ast_node_t *node)
 {
-	if (!selectors) {
+	if (!selectors_table) {
 		selectors_table = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 5);
 	}
 	hashtable_t *initial_env = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 5);

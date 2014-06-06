@@ -26,6 +26,8 @@
 ***************************************************************************/
 
 #include <stdlib.h>
+
+#include "ast.h"
 #include "symbol-table.h"
 
 #define INITIAL_SIZE 128
@@ -35,11 +37,13 @@ typedef symtab_entry_t *symbol_table_t;
 
 int symtab_entries_nr = 0;
 static int symtab_entries_size = 0;
-static symboL_table_t *symtab_user = NULL;
+static symbol_table_t *symtab_user = NULL;
 
-int symtab_entries_bultin_nr = 0;
-static int symtab_entries_bultin_size = 0;
-static symboL_table_t *symtab_builtin = NULL;
+int symtab_entries_builtin_nr = 0;
+static int symtab_entries_builtin_size = 0;
+static symbol_table_t *symtab_builtin = NULL;
+
+int symtab_selectors_nr = 1; // selector #0 ist reserviert (Fehler)
 
 
 #define BUILTIN_TABLE -1
@@ -50,12 +54,12 @@ symtab_get(int *id, int **ids_nr, int **alloc_size, symbol_table_t **symtab)
 {
 	if (*id < 0) {
 		*id = (-*id) - 1;
-		*ids_nr = &symtab_builtin;
+		*symtab = symtab_builtin;
 		*alloc_size = &symtab_entries_builtin_size;
 		*ids_nr = &symtab_entries_builtin_nr;
 	} else if (*id > 0) {
 		*id = *id - 1;
-		*ids_nr = &symtab_user;
+		*symtab = symtab_user;
 		*alloc_size = &symtab_entries_size;
 		*ids_nr = &symtab_entries_nr;
 	} else {
@@ -66,13 +70,17 @@ symtab_get(int *id, int **ids_nr, int **alloc_size, symbol_table_t **symtab)
 symtab_entry_t *
 symtab_lookup(int id)
 {
-	int ids_nr, alloc_size;
+	int *ids_nr, *alloc_size;
 	symbol_table_t *symtab;
 	if (!id) {
 		return NULL;
 	}
 	symtab_get(&id, &ids_nr, &alloc_size, &symtab);
-	if (id >= ids_nr) {
+	if (id >= *ids_nr) {
+		fprintf(stderr, "Looking up invalid symtab ID %d (post-convesion)", id);
+		return NULL;
+	}
+	if (id < 0) {
 		return NULL;
 	}
 	return symtab[id];
@@ -89,7 +97,7 @@ symtab_new(int ast_flags, int symtab_flags, char *name, ast_node_t *declaration)
 		symtab_user = realloc(symtab_user, sizeof (symtab_entry_t *) * symtab_entries_size);
 	}
 
-	symtab_entry_t *entry = calloc(sizeof(symtab_entry_t *), 1);
+	symtab_entry_t *entry = calloc(sizeof(symtab_entry_t), 1);
 	symtab_user[nr] = entry;
 	entry->id = id;
 	entry->ast_flags = ast_flags;
@@ -113,9 +121,9 @@ symtab_builtin_new(int id, int ast_flags, int symtab_flags, char *name)
 		symtab_entries_builtin_nr = nr + 1;
 	}
 
-	symtab_entry_t *entry = calloc(sizeof(symtab_entry_t *), 1);
+	symtab_entry_t *entry = calloc(sizeof(symtab_entry_t), 1);
 	symtab_builtin[nr] = entry;
-	entry->id = id;
+	entry->id = -nr - 1;
 	entry->ast_flags = ast_flags;
 	entry->symtab_flags = symtab_flags | SYMTAB_BUILTIN;
 	entry->name = name;
@@ -128,7 +136,7 @@ void
 symtab_entry_name_dump(FILE *file, symtab_entry_t *entry)
 {
 	if (entry->parent) {
-		symtab_entry_name_dump(entry->parent);
+		symtab_entry_name_dump(file, entry->parent);
 		fputs(".", file);
 	}
 	fputs(entry->name, file);
@@ -144,17 +152,17 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	int has_args = 0;
 	int is_class = 0;
 
-	fprintf("#%d:\t", entry->id);
+	fprintf(file, "#%d:\t", entry->id);
 	symtab_entry_name_dump(file, entry);
-	fprintf("\tFlags:\t");
+	fprintf(file, "\tFlags:\t");
 #define PRINT_SYMVAR(s)				\
-	if (entry->symtab_flags & SYMTAB_ # s)	\
-		fputs(" " ## s, file);
+	if (entry->symtab_flags & SYMTAB_ ## s)	\
+		fputs(" " # s, file);
 
 	PRINT_SYMVAR(MEMBER);
 	PRINT_SYMVAR(PARAM);
 
-	switch (param->symtab_flags & SYMTAB_TY_MASK) {
+	switch (SYMTAB_TY(entry)) {
 	case SYMTAB_TY_VAR:
 		fputs(" VAR", file);
 		break;
@@ -167,21 +175,25 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 		has_args = 1;
 		is_class = 1;
 		break;
-	case SYMTAB_TY_SELECTOR:
-		fputs(" SELECTOR", file);
+	default:
+		fprintf(file, " ?ty=%d", SYMTAB_TY(entry));
+		has_args = 1;
+		is_class = 1;
 		break;
 	}
+	PRINT_SYMVAR(SELECTOR);
 	PRINT_SYMVAR(OPT);
 	PRINT_SYMVAR(BUILTIN);
 	PRINT_SYMVAR(REGISTER);
 	PRINT_SYMVAR(LVALUE);
+	PRINT_SYMVAR(HIDDEN);
 #undef PRINT_SYMVAR
 	ast_print_flags(file, entry->ast_flags);
 	fputs("\n", file);
 
 	if (entry->astref) {
-		fprintf(file, "\AST:\t");
-		ast_node_dump(AST_NODE_DUMP_ADDRESS | AST_NODE_DUMP_NONRECURSIVELY);
+		fprintf(file, "\tAST:\t");
+		ast_node_dump(file, entry->astref, /*AST_NODE_DUMP_ADDRESS |*/ AST_NODE_DUMP_NONRECURSIVELY);
 		fputs("\n", file);
 	}
 
@@ -196,23 +208,76 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	}
 
 	if (is_class) {
-		fprintf(file, "\tMethNr:\t%d:\n", entry->methods_nr);
-		fprintf(file, "\tFldsNr:\t%d:\n", entry->fields_nr);
+		fprintf(file, "\tMethNr:\t%d\n", entry->methods_nr);
+		fprintf(file, "\tFldsNr:\t%d\n", entry->fields_nr);
 	}
 
 	if (entry->selector) {
-		fprintf(file, "\tSelect:\t%d:\n", entry->selector);		
+		fprintf(file, "\tSelect:\t%d\n", entry->selector);		
 	}
 
-	fprintf(file, "\tOffset:\t%d:\n", entry->offset);
+	fprintf(file, "\tOffset:\t%d\n", entry->offset);
 }
 
+struct builtin_ops {
+	int index; // filled in with selector ID for selectors ONLY
+	char *name;
+	int symtab_flags;
+	int ast_flags;
+	int args_nr;
+	unsigned short *args;
+};
+
+static unsigned short args_var_var[] = { AST_FLAG_VAR, AST_FLAG_VAR };
+static unsigned short args_int[] = { AST_FLAG_INT };
+static unsigned short args_obj[] = { AST_FLAG_INT };
+
+static struct builtin_ops builtin_ops[] = {
+	{ BUILTIN_OP_ADD, "+", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
+	{ BUILTIN_OP_MUL, "*", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
+	{ BUILTIN_OP_SUB, "-", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
+	{ BUILTIN_OP_DIV, "/", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
+	{ BUILTIN_OP_TEST_EQ, "==", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
+	{ BUILTIN_OP_TEST_LE, "<=", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
+	{ BUILTIN_OP_TEST_LT, "<", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
+	{ BUILTIN_OP_NOT, "not", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_INT, 1, args_int },
+	// not with a fixed position
+	{ 0, "print", SYMTAB_TY_FUNCTION, AST_FLAG_OBJ, 1, args_obj }
+};
+
+static struct builtin_ops builtin_selectors[] = {
+	{ 0, "size", SYMTAB_TY_FUNCTION | SYMTAB_SELECTOR, AST_FLAG_INT, 0, NULL }
+};
+
+// Die Namen für builtins, die hier verwendet werden, müssen auf die gleiche Speicherstelle zeigen
+// wie die im AST verwendeten Namen.  Dazu wird diese Normalisierungsfunktion verwendet:
+extern char* mk_unique_string(char *id);
+
+static void
+symtab_add_builtins(struct builtin_ops *builtins, int nr)
+{
+	for (int i = 0; i < nr; i++) {
+		struct builtin_ops *b = builtins + i;
+		symtab_entry_t *e = symtab_builtin_new(b->index, b->ast_flags, b->symtab_flags,
+						       mk_unique_string(b->name));
+		b->index = e->id;
+		if (e->symtab_flags & SYMTAB_SELECTOR) {
+			e->selector = b->index = symtab_selectors_nr++;
+		}
+		if (b->args != NULL) {
+			e->parameters_nr = b->args_nr;
+			e->parameter_types = b->args;
+		}
+	}
+}
+
+void
 symtab_init()
 {
 	symtab_user = calloc(sizeof(symtab_entry_t *), INITIAL_SIZE);
 	symtab_builtin = calloc(sizeof(symtab_entry_t *), INITIAL_SIZE);
 	symtab_entries_size = INITIAL_SIZE;
 	symtab_entries_builtin_size = INITIAL_SIZE;
+	symtab_add_builtins(builtin_ops, sizeof(builtin_ops) / sizeof(struct builtin_ops));
+	symtab_add_builtins(builtin_selectors, sizeof(builtin_selectors) / sizeof(struct builtin_ops));
 }
-
-#endif // !defined(_ATTOL_SYMBOL_TABLE_H)

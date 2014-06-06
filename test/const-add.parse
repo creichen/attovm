@@ -1,0 +1,18 @@
+(BLOCK
+  (VARDECL@INT@CONST
+    x:NAME
+    3:INT
+  )
+  (FUNAPP
+    print:NAME
+    (ACTUALS
+      (FUNAPP
+        ADD
+        (ACTUALS
+          x:NAME
+          2:INT
+        )
+      )
+    )
+  )
+)

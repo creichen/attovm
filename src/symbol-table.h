@@ -31,18 +31,25 @@
 
 #include "ast.h"
 
-#define SYMTAB_TY_MASK		0x0007
+/**
+ * SELECTOR-Einträge sind impräzise:  Aus Sicht außerhalb einer Klasse ist nur die `selector'-Nummer
+ * notwendigerweise korrekt.  Ein Zugriff auf ein SELECTOR-Symbol darf sich daher nur am Feld `selector' orientieren;
+ * alle andere Informationen sind zunächst bedeutungslos.
+ */
+
+#define SYMTAB_TY_MASK		0x0003
 #define SYMTAB_TY_VAR		0x0001
 #define SYMTAB_TY_FUNCTION	0x0002
 #define SYMTAB_TY_CLASS		0x0003
-#define SYMTAB_TY_SELECTOR	0x0004
 
+#define SYMTAB_SELECTOR		0x0004
 #define SYMTAB_PARAM		0x0008	// nur mit TY_VAR
 #define SYMTAB_MEMBER		0x0010	// Klassenelement, also Methode oder Feld (zusammen mit TY_FUNCTION oder TY_VAR)
 #define SYMTAB_OPT		0x0020	// Mit Optimierungen übersetzt
 #define SYMTAB_BUILTIN		0x0040
 #define SYMTAB_REGISTER		0x0080	// Wird in Register gespeichert
 #define SYMTAB_LVALUE		0x0100
+#define SYMTAB_HIDDEN		0x0200	// Name nicht explizit angegeben
 
 
 #define SYMTAB_TY(s)			(((s)->symtab_flags) & SYMTAB_TY_MASK)
@@ -113,7 +120,6 @@ symtab_builtin_new(int symtab_id, int ast_flags, int symtab_flags, char *name);
 void
 symtab_entry_name_dump(FILE *file, symtab_entry_t *entry);
 
-#define SYMTAB_ENTRY_DUMP
 
 /**
  * Ausgabe des Eintrags, für Debugzwecke
@@ -125,6 +131,7 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry);
 /**
  * Initialisiert die Symboltabelle und installiert die eingebauten Operationen
  */
+void
 symtab_init();
 
 #endif // !defined(_ATTOL_SYMBOL_TABLE_H)

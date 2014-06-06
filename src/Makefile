@@ -3,7 +3,7 @@ PYTHON=python
 LEX=flex
 
 FRONTEND_HEADERS = parser.h ast.h chash.h symbol-table.h name-analysis.h
-FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c symbol-table.c name-analysis.c
+FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c
 FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o symbol-table.o name-analysis.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
@@ -16,13 +16,13 @@ BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 # ========================================
 
-all: print-ast
+all: dump
 
 clean:
 	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) $(FRONTEND_GENSRC) $(BACKEND_GENSRC)
 
-av-dump: $(FRONTEND) av-dump.o
-	$(CC) $(CFLAGS) $(FRONTEND_OBJS) print-ast.o -o print-ast
+dump: $(FRONTEND) dump.o
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) dump.o -o dump
 
 test: all
 	(cd ../test ; ./test.sh)

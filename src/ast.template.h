@@ -51,6 +51,7 @@ $$BUILTIN_IDS$$
 typedef struct ast_node {
 	unsigned short type;
 	unsigned short children_nr;
+	void *annotations;
 	struct ast_node * children[0]; // Kindknoten
 } ast_node_t;
 
@@ -62,6 +63,7 @@ $$VALUE_UNION$$
 typedef struct {
 	unsigned short type;
 	unsigned short _reserved;
+	void *annotations;
 	ast_value_union_t v;
 } ast_value_node_t;
 
@@ -134,6 +136,6 @@ ast_node_dump(FILE *file, ast_node_t *node, int flags);
  * @param flags The flags to decode
  */
 void
-ast_print_flags((FILE *file, int flags);
+ast_print_flags(FILE *file, int flags);
 
 #endif // !defined(_CMINOR_SRC_AST_H)

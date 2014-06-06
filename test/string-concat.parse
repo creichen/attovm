@@ -1,0 +1,14 @@
+(BLOCK
+  (FUNAPP
+    print:NAME
+    (ACTUALS
+      (FUNAPP
+        ADD
+        (ACTUALS
+          "foo":STRING
+          "bar":STRING
+        )
+      )
+    )
+  )
+)

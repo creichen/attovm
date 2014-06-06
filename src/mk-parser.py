@@ -1196,7 +1196,7 @@ def printASTHeader():
             number = builtin_id_nr[0]
             builtin_id_nr[0] -= 1
         builtin_id_decls.append('#define ' + name + (' ' * (max_builtin_name_len - len(name))) + ' %d' % number)
-    for n in builtin_names:
+    for n in sorted(builtin_names):
         addBuiltinName(n)
 
     attrmap = {}

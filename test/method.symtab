@@ -1,0 +1,47 @@
+#1:	A
+	Flags:	 CLASS 
+	AST:	(BLOCK # # # # # #)
+	Args:	0: 
+	MethNr:	2
+	FldsNr:	1
+	Offset:	0
+
+#2:	A.set
+	Flags:	 MEMBER FUNCTION 
+	AST:	(BLOCK # # #)
+	Args:	1:  (#INT)
+	Select:	2
+	Offset:	0
+
+#3:	set
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	2
+	Offset:	0
+
+#4:	A.get
+	Flags:	 MEMBER FUNCTION 
+	AST:	(BLOCK # # #)
+	Args:	0: 
+	Select:	3
+	Offset:	1
+
+#5:	get
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	3
+	Offset:	0
+
+#6:	A.v
+	Flags:	 MEMBER VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#7:	A.set.v2
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#8:	a
+	Flags:	 VAR #OBJ
+	AST:	(VARDECL # #)
+	Offset:	0
+

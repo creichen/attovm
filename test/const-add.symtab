@@ -1,0 +1,5 @@
+#1:	x
+	Flags:	 VAR #INT#CONST
+	AST:	(VARDECL # #)
+	Offset:	0
+

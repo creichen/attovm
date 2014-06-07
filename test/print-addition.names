@@ -1,0 +1,14 @@
+(BLOCK
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        ADD
+        (ACTUALS
+          9:INT
+          4:INT
+        )
+      )
+    )
+  )
+)

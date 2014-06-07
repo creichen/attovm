@@ -1,0 +1,77 @@
+(BLOCK
+  (FUNDEF#INT
+    (SYM[1] fact)
+    (FORMALS
+      (VARDECL#INT
+        (SYM[2] fact.v)
+        null
+      )
+    )
+    (BLOCK
+      (IF
+        (FUNAPP
+          TEST_LT
+          (ACTUALS
+            (SYM[2] fact.v)
+            1:INT
+          )
+        )
+        (RETURN
+          1:INT
+        )
+        (RETURN
+          (FUNAPP
+            MUL
+            (ACTUALS
+              (SYM[2] fact.v)
+              (FUNAPP
+                (SYM[1] fact)
+                (ACTUALS
+                  (FUNAPP
+                    SUB
+                    (ACTUALS
+                      (SYM[2] fact.v)
+                      1:INT
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (SYM[1] fact)
+        (ACTUALS
+          7:INT
+        )
+      )
+    )
+  )
+  (VARDECL#VAR
+    (SYM[3] x)
+    (FUNAPP
+      ADD
+      (ACTUALS
+        (FUNAPP
+          (SYM[1] fact)
+          (ACTUALS
+            7:INT
+          )
+        )
+        1:INT
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (SYM[3] x)
+    )
+  )
+)

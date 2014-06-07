@@ -1,0 +1,500 @@
+(BLOCK
+  (CLASSDEF
+    (SYM[1] Matrix)
+    (FORMALS
+      (VARDECL#INT
+        (SYM[2] Matrix.height)
+        null
+      )
+      (VARDECL#INT
+        (SYM[3] Matrix.width)
+        null
+      )
+    )
+    (BLOCK
+      (VARDECL#INT#CONST
+        (SYM[12] Matrix.height$1)
+        (SYM[2] Matrix.height)
+      )
+      (VARDECL#INT#CONST
+        (SYM[13] Matrix.width$1)
+        (SYM[3] Matrix.width)
+      )
+      (VARDECL#CONST#OBJ
+        (SYM[14] Matrix.array)
+        (ARRAYVAL
+          (ARRAYLIST)
+          (FUNAPP
+            MUL
+            (ACTUALS
+              (SYM[12] Matrix.height$1)
+              (SYM[13] Matrix.width$1)
+            )
+          )
+        )
+      )
+      (FUNDEF#INT
+        (SYM[4] Matrix.index)
+        (FORMALS
+          (VARDECL#INT
+            (SYM[15] Matrix.index.y)
+            null
+          )
+          (VARDECL#INT
+            (SYM[16] Matrix.index.x)
+            null
+          )
+        )
+        (BLOCK
+          (FUNAPP
+            (SYM[-] assert)
+            (ACTUALS
+              (FUNAPP
+                TEST_LE
+                (ACTUALS
+                  0:INT
+                  (SYM[15] Matrix.index.y)
+                )
+              )
+            )
+          )
+          (FUNAPP
+            (SYM[-] assert)
+            (ACTUALS
+              (FUNAPP
+                TEST_LT
+                (ACTUALS
+                  (SYM[15] Matrix.index.y)
+                  (SYM[12] Matrix.height$1)
+                )
+              )
+            )
+          )
+          (FUNAPP
+            (SYM[-] assert)
+            (ACTUALS
+              (FUNAPP
+                TEST_LE
+                (ACTUALS
+                  0:INT
+                  (SYM[16] Matrix.index.x)
+                )
+              )
+            )
+          )
+          (FUNAPP
+            (SYM[-] assert)
+            (ACTUALS
+              (FUNAPP
+                TEST_LT
+                (ACTUALS
+                  (SYM[16] Matrix.index.x)
+                  (SYM[13] Matrix.width$1)
+                )
+              )
+            )
+          )
+          (RETURN
+            (FUNAPP
+              ADD
+              (ACTUALS
+                (FUNAPP
+                  MUL
+                  (ACTUALS
+                    (SYM[15] Matrix.index.y)
+                    (SYM[13] Matrix.width$1)
+                  )
+                )
+                (SYM[16] Matrix.index.x)
+              )
+            )
+          )
+        )
+      )
+      (FUNDEF#REAL
+        (SYM[6] Matrix.get)
+        (FORMALS
+          (VARDECL#INT
+            (SYM[17] Matrix.get.y)
+            null
+          )
+          (VARDECL#INT
+            (SYM[18] Matrix.get.x)
+            null
+          )
+        )
+        (BLOCK
+          (RETURN
+            (ARRAYSUB
+              (SYM[14] Matrix.array)
+              (FUNAPP
+                (SYM[4] Matrix.index)
+                (ACTUALS
+                  (SYM[17] Matrix.get.y)
+                  (SYM[18] Matrix.get.x)
+                )
+              )
+            )
+          )
+        )
+      )
+      (FUNDEF#VAR
+        (SYM[8] Matrix.put)
+        (FORMALS
+          (VARDECL#INT
+            (SYM[19] Matrix.put.y)
+            null
+          )
+          (VARDECL#INT
+            (SYM[20] Matrix.put.x)
+            null
+          )
+          (VARDECL#REAL
+            (SYM[21] Matrix.put.v)
+            null
+          )
+        )
+        (BLOCK
+          (ASSIGN
+            (ARRAYSUB
+              (SYM[14] Matrix.array)
+              (FUNAPP
+                (SYM[4] Matrix.index)
+                (ACTUALS
+                  (SYM[19] Matrix.put.y)
+                  (SYM[20] Matrix.put.x)
+                )
+              )
+            )
+            (SYM[21] Matrix.put.v)
+          )
+        )
+      )
+      (FUNDEF#OBJ
+        (SYM[10] Matrix.multiply)
+        (FORMALS
+          (VARDECL#OBJ
+            (SYM[22] Matrix.multiply.other)
+            null
+          )
+        )
+        (BLOCK
+          (FUNAPP
+            (SYM[-] assert)
+            (ACTUALS
+              (FUNAPP
+                TEST_EQ
+                (ACTUALS
+                  (MEMBER
+                    (SYM[22] Matrix.multiply.other)
+                    (SYM[23] height)
+                  )
+                  (SYM[13] Matrix.width$1)
+                )
+              )
+            )
+          )
+          (VARDECL#OBJ
+            (SYM[25] Matrix.multiply.result)
+            (FUNAPP
+              (SYM[1] Matrix)
+              (ACTUALS
+                (SYM[12] Matrix.height$1)
+                (MEMBER
+                  (SYM[22] Matrix.multiply.other)
+                  (SYM[24] width)
+                )
+              )
+            )
+          )
+          (VARDECL#REAL
+            (SYM[26] Matrix.multiply.sum)
+            0.000000:REAL
+          )
+          (VARDECL#INT
+            (SYM[27] Matrix.multiply.y)
+            0:INT
+          )
+          (WHILE
+            (FUNAPP
+              TEST_LT
+              (ACTUALS
+                (SYM[27] Matrix.multiply.y)
+                (SYM[12] Matrix.height$1)
+              )
+            )
+            (BLOCK
+              (VARDECL#INT
+                (SYM[28] Matrix.multiply.x)
+                0:INT
+              )
+              (WHILE
+                (FUNAPP
+                  TEST_LT
+                  (ACTUALS
+                    (SYM[28] Matrix.multiply.x)
+                    (MEMBER
+                      (SYM[22] Matrix.multiply.other)
+                      (SYM[24] width)
+                    )
+                  )
+                )
+                (BLOCK
+                  (VARDECL#INT
+                    (SYM[29] Matrix.multiply.k)
+                    0:INT
+                  )
+                  (WHILE
+                    (FUNAPP
+                      TEST_LT
+                      (ACTUALS
+                        (SYM[29] Matrix.multiply.k)
+                        (SYM[13] Matrix.width$1)
+                      )
+                    )
+                    (BLOCK
+                      (ASSIGN
+                        (SYM[26] Matrix.multiply.sum)
+                        (FUNAPP
+                          ADD
+                          (ACTUALS
+                            (SYM[26] Matrix.multiply.sum)
+                            (FUNAPP
+                              MUL
+                              (ACTUALS
+                                (FUNAPP
+                                  (SYM[6] Matrix.get)
+                                  (ACTUALS
+                                    (SYM[27] Matrix.multiply.y)
+                                    (SYM[29] Matrix.multiply.k)
+                                  )
+                                )
+                                (FUNAPP
+                                  (MEMBER
+                                    (SYM[22] Matrix.multiply.other)
+                                    (SYM[7] get)
+                                  )
+                                  (ACTUALS
+                                    (SYM[29] Matrix.multiply.k)
+                                    (SYM[28] Matrix.multiply.x)
+                                  )
+                                )
+                              )
+                            )
+                          )
+                        )
+                      )
+                      (ASSIGN
+                        (SYM[29] Matrix.multiply.k)
+                        (FUNAPP
+                          ADD
+                          (ACTUALS
+                            (SYM[29] Matrix.multiply.k)
+                            1:INT
+                          )
+                        )
+                      )
+                    )
+                  )
+                  (FUNAPP
+                    (MEMBER
+                      (SYM[25] Matrix.multiply.result)
+                      (SYM[9] put)
+                    )
+                    (ACTUALS
+                      (SYM[27] Matrix.multiply.y)
+                      (SYM[28] Matrix.multiply.x)
+                      (SYM[26] Matrix.multiply.sum)
+                    )
+                  )
+                  (ASSIGN
+                    (SYM[28] Matrix.multiply.x)
+                    (FUNAPP
+                      ADD
+                      (ACTUALS
+                        (SYM[28] Matrix.multiply.x)
+                        1:INT
+                      )
+                    )
+                  )
+                )
+              )
+              (ASSIGN
+                (SYM[27] Matrix.multiply.y)
+                (FUNAPP
+                  ADD
+                  (ACTUALS
+                    (SYM[27] Matrix.multiply.y)
+                    1:INT
+                  )
+                )
+              )
+            )
+          )
+          (RETURN
+            (SYM[25] Matrix.multiply.result)
+          )
+        )
+      )
+    )
+  )
+  (VARDECL#OBJ
+    (SYM[30] a)
+    (FUNAPP
+      (SYM[1] Matrix)
+      (ACTUALS
+        10:INT
+        10:INT
+      )
+    )
+  )
+  (VARDECL#OBJ
+    (SYM[31] b)
+    (FUNAPP
+      (SYM[1] Matrix)
+      (ACTUALS
+        10:INT
+        10:INT
+      )
+    )
+  )
+  (VARDECL#INT
+    (SYM[32] y)
+    0:INT
+  )
+  (WHILE
+    (FUNAPP
+      TEST_LT
+      (ACTUALS
+        (SYM[32] y)
+        10:INT
+      )
+    )
+    (BLOCK
+      (VARDECL#INT
+        (SYM[33] x)
+        0:INT
+      )
+      (WHILE
+        (FUNAPP
+          TEST_LT
+          (ACTUALS
+            (SYM[33] x)
+            10:INT
+          )
+        )
+        (BLOCK
+          (FUNAPP
+            (MEMBER
+              (SYM[30] a)
+              (SYM[9] put)
+            )
+            (ACTUALS
+              (SYM[32] y)
+              (SYM[33] x)
+              (FUNAPP
+                MUL
+                (ACTUALS
+                  (FUNAPP
+                    ADD
+                    (ACTUALS
+                      (SYM[33] x)
+                      (SYM[32] y)
+                    )
+                  )
+                  0.000220:REAL
+                )
+              )
+            )
+          )
+          (FUNAPP
+            (MEMBER
+              (SYM[31] b)
+              (SYM[9] put)
+            )
+            (ACTUALS
+              (SYM[32] y)
+              (SYM[33] x)
+              (FUNAPP
+                MUL
+                (ACTUALS
+                  (FUNAPP
+                    MUL
+                    (ACTUALS
+                      (SYM[33] x)
+                      (SYM[32] y)
+                    )
+                  )
+                  0.000100:REAL
+                )
+              )
+            )
+          )
+          (ASSIGN
+            (SYM[33] x)
+            (FUNAPP
+              ADD
+              (ACTUALS
+                (SYM[33] x)
+                1:INT
+              )
+            )
+          )
+        )
+      )
+      (ASSIGN
+        (SYM[32] y)
+        (FUNAPP
+          ADD
+          (ACTUALS
+            (SYM[32] y)
+            1:INT
+          )
+        )
+      )
+    )
+  )
+  (VARDECL#INT
+    (SYM[34] y$1)
+    0:INT
+  )
+  (WHILE
+    (FUNAPP
+      TEST_LT
+      (ACTUALS
+        (SYM[34] y$1)
+        1000:INT
+      )
+    )
+    (BLOCK
+      (ASSIGN
+        (SYM[31] b)
+        (FUNAPP
+          (MEMBER
+            (SYM[30] a)
+            (SYM[11] multiply)
+          )
+          (ACTUALS
+            (SYM[31] b)
+          )
+        )
+      )
+      (ASSIGN
+        (SYM[34] y$1)
+        (FUNAPP
+          ADD
+          (ACTUALS
+            (SYM[34] y$1)
+            1:INT
+          )
+        )
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (SYM[31] b)
+    )
+  )
+)

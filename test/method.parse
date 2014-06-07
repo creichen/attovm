@@ -3,14 +3,14 @@
     A:NAME
     (FORMALS)
     (BLOCK
-      (VARDECL@INT
+      (VARDECL#INT
         v:NAME
         0:INT
       )
-      (FUNDEF@VAR
+      (FUNDEF#VAR
         set:NAME
         (FORMALS
-          (VARDECL@INT
+          (VARDECL#INT
             v2:NAME
             null
           )
@@ -22,7 +22,7 @@
           )
         )
       )
-      (FUNDEF@INT
+      (FUNDEF#INT
         get:NAME
         (FORMALS)
         (BLOCK
@@ -30,6 +30,55 @@
             v:NAME
           )
         )
+      )
+    )
+  )
+  (VARDECL#OBJ
+    a:NAME
+    (FUNAPP
+      A:NAME
+      (ACTUALS)
+    )
+  )
+  (FUNAPP
+    (MEMBER
+      a:NAME
+      set:NAME
+    )
+    (ACTUALS
+      2:INT
+    )
+  )
+  (FUNAPP
+    print:NAME
+    (ACTUALS
+      (FUNAPP
+        (MEMBER
+          a:NAME
+          get:NAME
+        )
+        (ACTUALS)
+      )
+    )
+  )
+  (FUNAPP
+    (MEMBER
+      a:NAME
+      set:NAME
+    )
+    (ACTUALS
+      1:INT
+    )
+  )
+  (FUNAPP
+    print:NAME
+    (ACTUALS
+      (FUNAPP
+        (MEMBER
+          a:NAME
+          get:NAME
+        )
+        (ACTUALS)
       )
     )
   )

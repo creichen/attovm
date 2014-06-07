@@ -1,0 +1,38 @@
+#1:	Record
+	Flags:	 CLASS 
+	AST:	(BLOCK # # # # # # # # #)
+	Args:	0: 
+	MethNr:	0
+	FldsNr:	2
+	Offset:	0
+
+#2:	Record.x
+	Flags:	 MEMBER VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#3:	Record.y
+	Flags:	 MEMBER VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	1
+
+#4:	r
+	Flags:	 VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#5:	r2
+	Flags:	 VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#6:	x
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	2
+	Offset:	0
+
+#7:	y
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	3
+	Offset:	0
+

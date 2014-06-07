@@ -43,7 +43,7 @@ print_help(char *fn)
 	printf("Usage: %s [-f <filename>] [options] <action>", fn);
 	printf("Where <action> is one of:\n"
 	       "\t-r\tPrint raw AST (no name analysis)\n"
-	       "\t-a\tPrint raw AST (no name analysis)\n"
+	       "\t-a\tPrint AST after semantic analysis\n"
 	       "\t-s\tPrint symbol table after name analysis\n");
 	printf("And [options] are any of:\n"
 	       "\t-b\tWhen printing symbol table: include built-in operations\n");

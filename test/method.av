@@ -10,3 +10,9 @@ class A() {
         return v;
     }
 }
+
+obj a = A();
+a.set(2);
+print(a.get());
+a.set(1);
+print(a.get());

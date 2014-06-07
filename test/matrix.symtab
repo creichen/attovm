@@ -1,0 +1,181 @@
+#1:	Matrix
+	Flags:	 CLASS 
+	AST:	(BLOCK # # # # # # # #)
+	Args:	2:  (#INT) (#INT)
+	MethNr:	4
+	FldsNr:	3
+	Offset:	0
+
+#2:	Matrix.height
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#3:	Matrix.width
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	1
+
+#4:	Matrix.index
+	Flags:	 MEMBER FUNCTION 
+	AST:	(BLOCK # # # # # # #)
+	Args:	2:  (#INT) (#INT)
+	Select:	2
+	Offset:	0
+
+#5:	index
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	2
+	Offset:	0
+
+#6:	Matrix.get
+	Flags:	 MEMBER FUNCTION 
+	AST:	(BLOCK # # # # # # #)
+	Args:	2:  (#INT) (#INT)
+	Select:	3
+	Offset:	1
+
+#7:	get
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	3
+	Offset:	0
+
+#8:	Matrix.put
+	Flags:	 MEMBER FUNCTION 
+	AST:	(BLOCK # # # # # # #)
+	Args:	3:  (#INT) (#INT) (#REAL)
+	Select:	4
+	Offset:	2
+
+#9:	put
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	4
+	Offset:	0
+
+#10:	Matrix.multiply
+	Flags:	 MEMBER FUNCTION 
+	AST:	(BLOCK # # # # # # #)
+	Args:	1:  (#OBJ)
+	Select:	5
+	Offset:	3
+
+#11:	multiply
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	5
+	Offset:	0
+
+#12:	Matrix.height$1
+	Flags:	 MEMBER VAR #INT#CONST
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#13:	Matrix.width$1
+	Flags:	 MEMBER VAR #INT#CONST
+	AST:	(VARDECL # #)
+	Offset:	1
+
+#14:	Matrix.array
+	Flags:	 MEMBER VAR #CONST#OBJ
+	AST:	(VARDECL # #)
+	Offset:	2
+
+#15:	Matrix.index.y
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#16:	Matrix.index.x
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	1
+
+#17:	Matrix.get.y
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#18:	Matrix.get.x
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	1
+
+#19:	Matrix.put.y
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#20:	Matrix.put.x
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	1
+
+#21:	Matrix.put.v
+	Flags:	 PARAM VAR #REAL
+	AST:	(VARDECL # #)
+	Offset:	2
+
+#22:	Matrix.multiply.other
+	Flags:	 PARAM VAR #OBJ
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#23:	height
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	6
+	Offset:	0
+
+#24:	width
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	7
+	Offset:	0
+
+#25:	Matrix.multiply.result
+	Flags:	 VAR #OBJ
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#26:	Matrix.multiply.sum
+	Flags:	 VAR #REAL
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#27:	Matrix.multiply.y
+	Flags:	 VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#28:	Matrix.multiply.x
+	Flags:	 VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#29:	Matrix.multiply.k
+	Flags:	 VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#30:	a
+	Flags:	 VAR #OBJ
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#31:	b
+	Flags:	 VAR #OBJ
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#32:	y
+	Flags:	 VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#33:	x
+	Flags:	 VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#34:	y$1
+	Flags:	 VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+

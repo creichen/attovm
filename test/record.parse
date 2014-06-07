@@ -3,24 +3,24 @@
     Record:NAME
     (FORMALS)
     (BLOCK
-      (VARDECL@VAR
+      (VARDECL#VAR
         x:NAME
         0:INT
       )
-      (VARDECL@INT
+      (VARDECL#INT
         y:NAME
         1:INT
       )
     )
   )
-  (VARDECL@VAR
+  (VARDECL#VAR
     r:NAME
     (FUNAPP
       Record:NAME
       (ACTUALS)
     )
   )
-  (VARDECL@VAR
+  (VARDECL#VAR
     r2:NAME
     (FUNAPP
       Record:NAME
@@ -28,14 +28,14 @@
     )
   )
   (ASSIGN
-    (ELEMENT
+    (MEMBER
       r:NAME
       x:NAME
     )
     17:INT
   )
   (ASSIGN
-    (ELEMENT
+    (MEMBER
       r2:NAME
       y:NAME
     )
@@ -44,7 +44,7 @@
   (FUNAPP
     print:NAME
     (ACTUALS
-      (ELEMENT
+      (MEMBER
         r:NAME
         x:NAME
       )
@@ -53,7 +53,7 @@
   (FUNAPP
     print:NAME
     (ACTUALS
-      (ELEMENT
+      (MEMBER
         r:NAME
         y:NAME
       )
@@ -62,7 +62,7 @@
   (FUNAPP
     print:NAME
     (ACTUALS
-      (ELEMENT
+      (MEMBER
         r2:NAME
         x:NAME
       )
@@ -71,7 +71,7 @@
   (FUNAPP
     print:NAME
     (ACTUALS
-      (ELEMENT
+      (MEMBER
         r2:NAME
         y:NAME
       )

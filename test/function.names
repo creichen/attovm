@@ -1,0 +1,37 @@
+(BLOCK
+  (FUNDEF#VAR
+    (SYM[1] f)
+    (FORMALS
+      (VARDECL#VAR
+        (SYM[2] f.x)
+        null
+      )
+    )
+    (BLOCK
+      (RETURN
+        (FUNAPP
+          ADD
+          (ACTUALS
+            (SYM[2] f.x)
+            1:INT
+          )
+        )
+      )
+    )
+  )
+  (VARDECL#VAR
+    (SYM[3] z)
+    (FUNAPP
+      (SYM[1] f)
+      (ACTUALS
+        2:INT
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (SYM[3] z)
+    )
+  )
+)

@@ -1,0 +1,70 @@
+#1:	A
+	Flags:	 CLASS 
+	AST:	(BLOCK # # # # # # # #)
+	Args:	1:  (#VAR)
+	MethNr:	1
+	FldsNr:	1
+	Offset:	0
+
+#2:	B
+	Flags:	 CLASS 
+	AST:	(BLOCK # # # # # # # #)
+	Args:	0: 
+	MethNr:	1
+	FldsNr:	0
+	Offset:	0
+
+#3:	A.x
+	Flags:	 PARAM VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#4:	A.p
+	Flags:	 MEMBER FUNCTION 
+	AST:	(BLOCK # #)
+	Args:	1:  (#OBJ)
+	Select:	2
+	Offset:	0
+
+#5:	p
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	2
+	Offset:	0
+
+#6:	A.x$1
+	Flags:	 MEMBER VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#7:	A.p.y
+	Flags:	 PARAM VAR #OBJ
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#8:	B.p
+	Flags:	 MEMBER FUNCTION 
+	AST:	(BLOCK #)
+	Args:	1:  (#OBJ)
+	Select:	2
+	Offset:	0
+
+#9:	B.p.y
+	Flags:	 PARAM VAR #OBJ
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#10:	a0
+	Flags:	 VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#11:	a1
+	Flags:	 VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#12:	b
+	Flags:	 VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+

@@ -1,8 +1,8 @@
 (BLOCK
-  (FUNDEF@INT
+  (FUNDEF#INT
     fact:NAME
     (FORMALS
-      (VARDECL@INT
+      (VARDECL#INT
         v:NAME
         null
       )
@@ -53,7 +53,7 @@
       )
     )
   )
-  (VARDECL@VAR
+  (VARDECL#VAR
     x:NAME
     (FUNAPP
       ADD

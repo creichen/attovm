@@ -1,0 +1,133 @@
+(BLOCK
+  (CLASSDEF
+    (SYM[1] A)
+    (FORMALS
+      (VARDECL#VAR
+        (SYM[3] A.x)
+        null
+      )
+    )
+    (BLOCK
+      (VARDECL#VAR
+        (SYM[6] A.x$1)
+        (SYM[3] A.x)
+      )
+      (FUNDEF#OBJ
+        (SYM[4] A.p)
+        (FORMALS
+          (VARDECL#OBJ
+            (SYM[7] A.p.y)
+            null
+          )
+        )
+        (BLOCK
+          (FUNAPP
+            (SYM[-] print)
+            (ACTUALS
+              "A:":STRING
+            )
+          )
+          (FUNAPP
+            (SYM[-] print)
+            (ACTUALS
+              (SYM[6] A.x$1)
+            )
+          )
+          (FUNAPP
+            (SYM[-] print)
+            (ACTUALS
+              ": ":STRING
+            )
+          )
+          (FUNAPP
+            (SYM[-] print)
+            (ACTUALS
+              (SYM[7] A.p.y)
+            )
+          )
+        )
+      )
+    )
+  )
+  (CLASSDEF
+    (SYM[2] B)
+    (FORMALS)
+    (BLOCK
+      (FUNDEF#OBJ
+        (SYM[8] B.p)
+        (FORMALS
+          (VARDECL#OBJ
+            (SYM[9] B.p.y)
+            null
+          )
+        )
+        (BLOCK
+          (FUNAPP
+            (SYM[-] print)
+            (ACTUALS
+              "B: ":STRING
+            )
+          )
+          (FUNAPP
+            (SYM[-] print)
+            (ACTUALS
+              (SYM[9] B.p.y)
+            )
+          )
+        )
+      )
+    )
+  )
+  (VARDECL#VAR
+    (SYM[10] a0)
+    (FUNAPP
+      (SYM[1] A)
+      (ACTUALS
+        "a0":STRING
+      )
+    )
+  )
+  (VARDECL#VAR
+    (SYM[11] a1)
+    (FUNAPP
+      (SYM[1] A)
+      (ACTUALS
+        "a1":STRING
+      )
+    )
+  )
+  (VARDECL#VAR
+    (SYM[12] b)
+    (FUNAPP
+      (SYM[2] B)
+      (ACTUALS)
+    )
+  )
+  (FUNAPP
+    (MEMBER
+      (SYM[10] a0)
+      (SYM[5] p)
+    )
+    (ACTUALS
+      "test-a0":STRING
+    )
+  )
+  (FUNAPP
+    (MEMBER
+      (SYM[11] a1)
+      (SYM[5] p)
+    )
+    (ACTUALS
+      "test-a1":STRING
+    )
+  )
+  (FUNAPP
+    (MEMBER
+      (SYM[12] b)
+      (SYM[5] p)
+    )
+    (ACTUALS
+      "test-b":STRING
+    )
+  )
+)

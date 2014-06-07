@@ -1,0 +1,32 @@
+(BLOCK
+  (VARDECL#VAR
+    (SYM[1] a)
+    (ARRAYVAL
+      (ARRAYLIST
+        1:INT
+        2:INT
+        4:INT
+        8:INT
+      )
+      null
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (ARRAYSUB
+        (SYM[1] a)
+        0:INT
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (ARRAYSUB
+        (SYM[1] a)
+        3:INT
+      )
+    )
+  )
+)

@@ -1,0 +1,138 @@
+(BLOCK
+  (FUNDEF#VAR
+    (SYM[1] even)
+    (FORMALS
+      (VARDECL#INT
+        (SYM[3] even.x)
+        null
+      )
+    )
+    (BLOCK
+      (IF
+        (FUNAPP
+          TEST_EQ
+          (ACTUALS
+            (SYM[3] even.x)
+            0:INT
+          )
+        )
+        (BLOCK
+          (RETURN
+            1:INT
+          )
+        )
+        (BLOCK
+          (RETURN
+            (FUNAPP
+              NOT
+              (ACTUALS
+                (FUNAPP
+                  (SYM[2] odd)
+                  (ACTUALS
+                    (FUNAPP
+                      SUB
+                      (ACTUALS
+                        (SYM[3] even.x)
+                        1:INT
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+  (FUNDEF#VAR
+    (SYM[2] odd)
+    (FORMALS
+      (VARDECL#INT
+        (SYM[4] odd.x)
+        null
+      )
+    )
+    (BLOCK
+      (IF
+        (FUNAPP
+          TEST_EQ
+          (ACTUALS
+            (SYM[4] odd.x)
+            0:INT
+          )
+        )
+        (BLOCK
+          (RETURN
+            0:INT
+          )
+        )
+        (BLOCK
+          (RETURN
+            (FUNAPP
+              NOT
+              (ACTUALS
+                (FUNAPP
+                  (SYM[1] even)
+                  (ACTUALS
+                    (FUNAPP
+                      SUB
+                      (ACTUALS
+                        (SYM[4] odd.x)
+                        1:INT
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (SYM[1] even)
+        (ACTUALS
+          3:INT
+        )
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (SYM[1] even)
+        (ACTUALS
+          4:INT
+        )
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (SYM[1] even)
+        (ACTUALS
+          1024:INT
+        )
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (SYM[1] even)
+        (ACTUALS
+          4095:INT
+        )
+      )
+    )
+  )
+)

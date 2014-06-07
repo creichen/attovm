@@ -1,12 +1,12 @@
 (BLOCK
-  (VARDECL@VAR
+  (VARDECL#VAR
     a:NAME
     (ARRAYVAL
       (ARRAYLIST)
       null
     )
   )
-  (VARDECL@VAR
+  (VARDECL#VAR
     b:NAME
     (ARRAYVAL
       (ARRAYLIST
@@ -15,7 +15,7 @@
       null
     )
   )
-  (VARDECL@VAR
+  (VARDECL#VAR
     c:NAME
     (ARRAYVAL
       (ARRAYLIST
@@ -24,7 +24,7 @@
       5:INT
     )
   )
-  (VARDECL@VAR
+  (VARDECL#VAR
     d:NAME
     (ARRAYVAL
       (ARRAYLIST)
@@ -35,7 +35,7 @@
     print:NAME
     (ACTUALS
       (FUNAPP
-        (ELEMENT
+        (MEMBER
           a:NAME
           size:NAME
         )
@@ -47,7 +47,7 @@
     print:NAME
     (ACTUALS
       (FUNAPP
-        (ELEMENT
+        (MEMBER
           b:NAME
           size:NAME
         )
@@ -59,7 +59,7 @@
     print:NAME
     (ACTUALS
       (FUNAPP
-        (ELEMENT
+        (MEMBER
           c:NAME
           size:NAME
         )
@@ -71,7 +71,7 @@
     print:NAME
     (ACTUALS
       (FUNAPP
-        (ELEMENT
+        (MEMBER
           d:NAME
           size:NAME
         )

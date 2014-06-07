@@ -1,8 +1,8 @@
 (BLOCK
-  (FUNDEF@VAR
+  (FUNDEF#VAR
     f:NAME
     (FORMALS
-      (VARDECL@VAR
+      (VARDECL#VAR
         x:NAME
         null
       )
@@ -19,7 +19,7 @@
       )
     )
   )
-  (VARDECL@VAR
+  (VARDECL#VAR
     z:NAME
     (FUNAPP
       f:NAME

@@ -2,25 +2,25 @@
   (CLASSDEF
     Matrix:NAME
     (FORMALS
-      (VARDECL@INT
+      (VARDECL#INT
         height:NAME
         null
       )
-      (VARDECL@INT
+      (VARDECL#INT
         width:NAME
         null
       )
     )
     (BLOCK
-      (VARDECL@INT@CONST
+      (VARDECL#INT#CONST
         height:NAME
         height:NAME
       )
-      (VARDECL@INT@CONST
+      (VARDECL#INT#CONST
         width:NAME
         width:NAME
       )
-      (VARDECL@CONST@OBJ
+      (VARDECL#CONST#OBJ
         array:NAME
         (ARRAYVAL
           (ARRAYLIST)
@@ -33,14 +33,14 @@
           )
         )
       )
-      (FUNDEF@INT
+      (FUNDEF#INT
         index:NAME
         (FORMALS
-          (VARDECL@INT
+          (VARDECL#INT
             y:NAME
             null
           )
-          (VARDECL@INT
+          (VARDECL#INT
             x:NAME
             null
           )
@@ -111,14 +111,14 @@
           )
         )
       )
-      (FUNDEF@REAL
+      (FUNDEF#REAL
         get:NAME
         (FORMALS
-          (VARDECL@INT
+          (VARDECL#INT
             y:NAME
             null
           )
-          (VARDECL@INT
+          (VARDECL#INT
             x:NAME
             null
           )
@@ -138,18 +138,18 @@
           )
         )
       )
-      (FUNDEF@VAR
+      (FUNDEF#VAR
         put:NAME
         (FORMALS
-          (VARDECL@INT
+          (VARDECL#INT
             y:NAME
             null
           )
-          (VARDECL@INT
+          (VARDECL#INT
             x:NAME
             null
           )
-          (VARDECL@REAL
+          (VARDECL#REAL
             v:NAME
             null
           )
@@ -170,10 +170,10 @@
           )
         )
       )
-      (FUNDEF@OBJ
+      (FUNDEF#OBJ
         multiply:NAME
         (FORMALS
-          (VARDECL@OBJ
+          (VARDECL#OBJ
             other:NAME
             null
           )
@@ -185,7 +185,7 @@
               (FUNAPP
                 TEST_EQ
                 (ACTUALS
-                  (ELEMENT
+                  (MEMBER
                     other:NAME
                     height:NAME
                   )
@@ -194,24 +194,24 @@
               )
             )
           )
-          (VARDECL@OBJ
+          (VARDECL#OBJ
             result:NAME
             (FUNAPP
               Matrix:NAME
               (ACTUALS
                 height:NAME
-                (ELEMENT
+                (MEMBER
                   other:NAME
                   width:NAME
                 )
               )
             )
           )
-          (VARDECL@REAL
+          (VARDECL#REAL
             sum:NAME
             0.000000:REAL
           )
-          (VARDECL@INT
+          (VARDECL#INT
             y:NAME
             0:INT
           )
@@ -224,7 +224,7 @@
               )
             )
             (BLOCK
-              (VARDECL@INT
+              (VARDECL#INT
                 x:NAME
                 0:INT
               )
@@ -233,14 +233,14 @@
                   TEST_LT
                   (ACTUALS
                     x:NAME
-                    (ELEMENT
+                    (MEMBER
                       other:NAME
                       width:NAME
                     )
                   )
                 )
                 (BLOCK
-                  (VARDECL@INT
+                  (VARDECL#INT
                     k:NAME
                     0:INT
                   )
@@ -270,7 +270,7 @@
                                   )
                                 )
                                 (FUNAPP
-                                  (ELEMENT
+                                  (MEMBER
                                     other:NAME
                                     get:NAME
                                   )
@@ -297,7 +297,7 @@
                     )
                   )
                   (FUNAPP
-                    (ELEMENT
+                    (MEMBER
                       result:NAME
                       put:NAME
                     )
@@ -338,7 +338,7 @@
       )
     )
   )
-  (VARDECL@OBJ
+  (VARDECL#OBJ
     a:NAME
     (FUNAPP
       Matrix:NAME
@@ -348,7 +348,7 @@
       )
     )
   )
-  (VARDECL@OBJ
+  (VARDECL#OBJ
     b:NAME
     (FUNAPP
       Matrix:NAME
@@ -358,7 +358,7 @@
       )
     )
   )
-  (VARDECL@INT
+  (VARDECL#INT
     y:NAME
     0:INT
   )
@@ -371,7 +371,7 @@
       )
     )
     (BLOCK
-      (VARDECL@INT
+      (VARDECL#INT
         x:NAME
         0:INT
       )
@@ -385,7 +385,7 @@
         )
         (BLOCK
           (FUNAPP
-            (ELEMENT
+            (MEMBER
               a:NAME
               put:NAME
             )
@@ -408,13 +408,13 @@
             )
           )
           (FUNAPP
-            (ELEMENT
+            (MEMBER
               b:NAME
               put:NAME
             )
             (ACTUALS
               y:NAME
-              Matrix:NAME
+              x:NAME
               (FUNAPP
                 MUL
                 (ACTUALS
@@ -454,7 +454,7 @@
       )
     )
   )
-  (VARDECL@INT
+  (VARDECL#INT
     y:NAME
     0:INT
   )
@@ -470,7 +470,7 @@
       (ASSIGN
         b:NAME
         (FUNAPP
-          (ELEMENT
+          (MEMBER
             a:NAME
             multiply:NAME
           )

@@ -1,0 +1,22 @@
+#1:	even
+	Flags:	 FUNCTION 
+	AST:	(BLOCK # # # # # #)
+	Args:	1:  (#INT)
+	Offset:	0
+
+#2:	odd
+	Flags:	 FUNCTION 
+	AST:	(BLOCK # # # # # #)
+	Args:	1:  (#INT)
+	Offset:	0
+
+#3:	even.x
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#4:	odd.x
+	Flags:	 PARAM VAR #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+

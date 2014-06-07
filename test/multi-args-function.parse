@@ -1,36 +1,36 @@
 (BLOCK
-  (FUNDEF@VAR
+  (FUNDEF#VAR
     f:NAME
     (FORMALS
-      (VARDECL@INT
+      (VARDECL#INT
         x:NAME
         null
       )
-      (VARDECL@INT
+      (VARDECL#INT
         y:NAME
         null
       )
-      (VARDECL@INT
+      (VARDECL#INT
         z:NAME
         null
       )
-      (VARDECL@INT
+      (VARDECL#INT
         a:NAME
         null
       )
-      (VARDECL@INT
+      (VARDECL#INT
         b:NAME
         null
       )
-      (VARDECL@INT
+      (VARDECL#INT
         c:NAME
         null
       )
-      (VARDECL@INT
+      (VARDECL#INT
         d:NAME
         null
       )
-      (VARDECL@INT
+      (VARDECL#INT
         e:NAME
         null
       )

@@ -1,0 +1,8 @@
+(BLOCK
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      "Hello, World!":STRING
+    )
+  )
+)

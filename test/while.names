@@ -1,0 +1,33 @@
+(BLOCK
+  (VARDECL#VAR
+    (SYM[1] x)
+    1:INT
+  )
+  (WHILE
+    (FUNAPP
+      TEST_LT
+      (ACTUALS
+        (SYM[1] x)
+        10:INT
+      )
+    )
+    (BLOCK
+      (FUNAPP
+        (SYM[-] print)
+        (ACTUALS
+          (SYM[1] x)
+        )
+      )
+      (ASSIGN
+        (SYM[1] x)
+        (FUNAPP
+          ADD
+          (ACTUALS
+            (SYM[1] x)
+            1:INT
+          )
+        )
+      )
+    )
+  )
+)

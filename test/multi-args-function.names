@@ -1,0 +1,104 @@
+(BLOCK
+  (FUNDEF#VAR
+    (SYM[1] f)
+    (FORMALS
+      (VARDECL#INT
+        (SYM[2] f.x)
+        null
+      )
+      (VARDECL#INT
+        (SYM[3] f.y)
+        null
+      )
+      (VARDECL#INT
+        (SYM[4] f.z)
+        null
+      )
+      (VARDECL#INT
+        (SYM[5] f.a)
+        null
+      )
+      (VARDECL#INT
+        (SYM[6] f.b)
+        null
+      )
+      (VARDECL#INT
+        (SYM[7] f.c)
+        null
+      )
+      (VARDECL#INT
+        (SYM[8] f.d)
+        null
+      )
+      (VARDECL#INT
+        (SYM[9] f.e)
+        null
+      )
+    )
+    (BLOCK
+      (RETURN
+        (FUNAPP
+          ADD
+          (ACTUALS
+            (FUNAPP
+              ADD
+              (ACTUALS
+                (FUNAPP
+                  ADD
+                  (ACTUALS
+                    (FUNAPP
+                      ADD
+                      (ACTUALS
+                        (FUNAPP
+                          ADD
+                          (ACTUALS
+                            (FUNAPP
+                              ADD
+                              (ACTUALS
+                                (FUNAPP
+                                  ADD
+                                  (ACTUALS
+                                    (SYM[2] f.x)
+                                    (SYM[3] f.y)
+                                  )
+                                )
+                                (SYM[4] f.z)
+                              )
+                            )
+                            (SYM[5] f.a)
+                          )
+                        )
+                        (SYM[6] f.b)
+                      )
+                    )
+                    (SYM[7] f.c)
+                  )
+                )
+                (SYM[8] f.d)
+              )
+            )
+            (SYM[9] f.e)
+          )
+        )
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (SYM[1] f)
+        (ACTUALS
+          1:INT
+          2:INT
+          3:INT
+          4:INT
+          5:INT
+          6:INT
+          7:INT
+          8:INT
+        )
+      )
+    )
+  )
+)

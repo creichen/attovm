@@ -1,5 +1,5 @@
 (BLOCK
-  (VARDECL@VAR
+  (VARDECL#VAR
     x:NAME
     1:INT
   )

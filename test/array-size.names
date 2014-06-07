@@ -1,0 +1,82 @@
+(BLOCK
+  (VARDECL#VAR
+    (SYM[1] a)
+    (ARRAYVAL
+      (ARRAYLIST)
+      null
+    )
+  )
+  (VARDECL#VAR
+    (SYM[2] b)
+    (ARRAYVAL
+      (ARRAYLIST
+        1:INT
+      )
+      null
+    )
+  )
+  (VARDECL#VAR
+    (SYM[3] c)
+    (ARRAYVAL
+      (ARRAYLIST
+        1:INT
+      )
+      5:INT
+    )
+  )
+  (VARDECL#VAR
+    (SYM[4] d)
+    (ARRAYVAL
+      (ARRAYLIST)
+      5:INT
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (MEMBER
+          (SYM[1] a)
+          (SYM[-] size)
+        )
+        (ACTUALS)
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (MEMBER
+          (SYM[2] b)
+          (SYM[-] size)
+        )
+        (ACTUALS)
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (MEMBER
+          (SYM[3] c)
+          (SYM[-] size)
+        )
+        (ACTUALS)
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (MEMBER
+          (SYM[4] d)
+          (SYM[-] size)
+        )
+        (ACTUALS)
+      )
+    )
+  )
+)

@@ -1,5 +1,5 @@
 (BLOCK
-  (VARDECL@INT@CONST
+  (VARDECL#INT#CONST
     x:NAME
     3:INT
   )

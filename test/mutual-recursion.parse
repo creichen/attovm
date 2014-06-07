@@ -1,8 +1,8 @@
 (BLOCK
-  (FUNDEF@VAR
+  (FUNDEF#VAR
     even:NAME
     (FORMALS
-      (VARDECL@INT
+      (VARDECL#INT
         x:NAME
         null
       )
@@ -45,10 +45,10 @@
       )
     )
   )
-  (FUNDEF@VAR
+  (FUNDEF#VAR
     odd:NAME
     (FORMALS
-      (VARDECL@INT
+      (VARDECL#INT
         x:NAME
         null
       )

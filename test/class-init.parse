@@ -2,25 +2,25 @@
   (CLASSDEF
     Record:NAME
     (FORMALS
-      (VARDECL@VAR
+      (VARDECL#VAR
         x:NAME
         null
       )
-      (VARDECL@VAR
+      (VARDECL#VAR
         y:NAME
         null
       )
     )
     (BLOCK
-      (VARDECL@VAR
+      (VARDECL#VAR
         x:NAME
         x:NAME
       )
-      (VARDECL@INT
+      (VARDECL#INT
         y:NAME
         y:NAME
       )
-      (VARDECL@INT
+      (VARDECL#INT
         both:NAME
         (FUNAPP
           MUL
@@ -32,7 +32,7 @@
       )
     )
   )
-  (VARDECL@VAR
+  (VARDECL#VAR
     r:NAME
     (FUNAPP
       Record:NAME
@@ -45,8 +45,8 @@
   (FUNAPP
     print:NAME
     (ACTUALS
-      (ELEMENT
-        t:NAME
+      (MEMBER
+        r:NAME
         both:NAME
       )
     )
@@ -54,8 +54,8 @@
   (FUNAPP
     print:NAME
     (ACTUALS
-      (ELEMENT
-        t:NAME
+      (MEMBER
+        r:NAME
         x:NAME
       )
     )
@@ -63,8 +63,8 @@
   (FUNAPP
     print:NAME
     (ACTUALS
-      (ELEMENT
-        t:NAME
+      (MEMBER
+        r:NAME
         y:NAME
       )
     )

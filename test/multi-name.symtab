@@ -1,0 +1,37 @@
+#1:	f
+	Flags:	 FUNCTION 
+	AST:	(BLOCK # # # # # #)
+	Args:	1:  (#VAR)
+	Offset:	0
+
+#2:	g
+	Flags:	 FUNCTION 
+	AST:	(BLOCK # # # # # #)
+	Args:	1:  (#VAR)
+	Offset:	0
+
+#3:	x
+	Flags:	 VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#4:	x$1
+	Flags:	 VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#5:	f.y
+	Flags:	 PARAM VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#6:	x$2
+	Flags:	 VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#7:	g.x$3
+	Flags:	 PARAM VAR #VAR
+	AST:	(VARDECL # #)
+	Offset:	0
+

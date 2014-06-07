@@ -5,6 +5,6 @@ class Record(var x, var y) {
 }
 
 var r = Record(2, 3);
-print(t.both);
-print(t.x);
-print(t.y);
+print(r.both);
+print(r.x);
+print(r.y);

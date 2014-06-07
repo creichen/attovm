@@ -105,6 +105,11 @@ symtab_new(int ast_flags, int symtab_flags, char *name, ast_node_t *declaration)
 	entry->name = name;
 	entry->astref = declaration;
 
+	if (symtab_flags & SYMTAB_REGISTER) {
+		int *x = 0;
+		*x = 1;
+	}
+
 	return entry;
 }
 
@@ -154,7 +159,7 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 
 	fprintf(file, "#%d:\t", entry->id);
 	symtab_entry_name_dump(file, entry);
-	fprintf(file, "\tFlags:\t");
+	fprintf(file, "\n\tFlags:\t");
 #define PRINT_SYMVAR(s)				\
 	if (entry->symtab_flags & SYMTAB_ ## s)	\
 		fputs(" " # s, file);
@@ -163,6 +168,9 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	PRINT_SYMVAR(PARAM);
 
 	switch (SYMTAB_TY(entry)) {
+	case 0: // should only happen for selectors
+		fputs(" UNKNOWN", file);
+		break;
 	case SYMTAB_TY_VAR:
 		fputs(" VAR", file);
 		break;
@@ -188,6 +196,7 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	PRINT_SYMVAR(LVALUE);
 	PRINT_SYMVAR(HIDDEN);
 #undef PRINT_SYMVAR
+	fputs(" ", file);
 	ast_print_flags(file, entry->ast_flags);
 	fputs("\n", file);
 
@@ -242,7 +251,8 @@ static struct builtin_ops builtin_ops[] = {
 	{ BUILTIN_OP_TEST_LT, "<", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
 	{ BUILTIN_OP_NOT, "not", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_INT, 1, args_int },
 	// not with a fixed position
-	{ 0, "print", SYMTAB_TY_FUNCTION, AST_FLAG_OBJ, 1, args_obj }
+	{ 0, "print", SYMTAB_TY_FUNCTION, AST_FLAG_OBJ, 1, args_obj },
+	{ 0, "assert", SYMTAB_TY_FUNCTION, AST_FLAG_OBJ, 1, args_int }
 };
 
 static struct builtin_ops builtin_selectors[] = {

@@ -1,0 +1,80 @@
+(BLOCK
+  (CLASSDEF
+    (SYM[1] Record)
+    (FORMALS)
+    (BLOCK
+      (VARDECL#VAR
+        (SYM[2] Record.x)
+        0:INT
+      )
+      (VARDECL#INT
+        (SYM[3] Record.y)
+        1:INT
+      )
+    )
+  )
+  (VARDECL#VAR
+    (SYM[4] r)
+    (FUNAPP
+      (SYM[1] Record)
+      (ACTUALS)
+    )
+  )
+  (VARDECL#VAR
+    (SYM[5] r2)
+    (FUNAPP
+      (SYM[1] Record)
+      (ACTUALS)
+    )
+  )
+  (ASSIGN
+    (MEMBER
+      (SYM[4] r)
+      (SYM[6] x)
+    )
+    17:INT
+  )
+  (ASSIGN
+    (MEMBER
+      (SYM[5] r2)
+      (SYM[7] y)
+    )
+    23:INT
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (MEMBER
+        (SYM[4] r)
+        (SYM[6] x)
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (MEMBER
+        (SYM[4] r)
+        (SYM[7] y)
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (MEMBER
+        (SYM[5] r2)
+        (SYM[6] x)
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (MEMBER
+        (SYM[5] r2)
+        (SYM[7] y)
+      )
+    )
+  )
+)

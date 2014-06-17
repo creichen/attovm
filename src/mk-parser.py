@@ -949,7 +949,7 @@ rules = [
     Rule(TY,		['int'],					Attr('INT')),
     Rule(TY,		['real'],					Attr('REAL')),
 
-    Rule(VARDECL,	[ MAYBECONST, TY, ID ],				AddAttribute(AddAttribute(Cons('VARDECL', [ID, NULL]), TY), MAYBECONST)),
+#    Rule(VARDECL,	[ MAYBECONST, TY, ID ],				AddAttribute(AddAttribute(Cons('VARDECL', [ID, NULL]), TY), MAYBECONST)),
 
     Rule(MAYBECONST,	[],						NoAttr),
     Rule(MAYBECONST,	['const'],					Attr('CONST')),
@@ -967,8 +967,6 @@ rules = [
     Rule(OPTINIT,	[],						NULL),
     Rule(OPTINIT,	[ '=', EXPR],					EXPR),
 
-    Rule(STMT,		[ VARDECL, ';' ],				VARDECL),
-    Rule(STMT,		[ VARDECL, '=', EXPR, ';' ],			Update(VARDECL, 1, EXPR)),
     Rule(STMT,		[ MAYBECONST, TY, ID, OPTINIT, ';' ],		Update(AddAttribute(AddAttribute(Cons('VARDECL', [ID, NULL]), TY), MAYBECONST), 1, OPTINIT)),
     # Compromise: semantic analysis must disallow the constness here
     Rule(STMT,		[ MAYBECONST, TY, ID, FORMALSLIST, BLOCK ],	AddAttribute(AddAttribute(Cons('FUNDEF', [ID, FORMALSLIST, BLOCK]), TY), MAYBECONST)),

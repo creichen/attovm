@@ -43,29 +43,31 @@
 #define AST_VALUE_ID        0x04
 #define AST_VALUE_NAME      0x05
 #define AST_VALUE_MAX       0x05
-#define AST_NODE_ISINSTANCE 0x06
-#define AST_NODE_FORMALS    0x07
-#define AST_NODE_ARRAYLIST  0x08
-#define AST_NODE_BREAK      0x09
-#define AST_NODE_ARRAYSUB   0x0a
-#define AST_NODE_CLASSDEF   0x0b
-#define AST_NODE_WHILE      0x0c
-#define AST_NODE_MEMBER     0x0d
-#define AST_NODE_FUNDEF     0x0e
-#define AST_NODE_ASSIGN     0x0f
-#define AST_NODE_ARRAYVAL   0x10
-#define AST_NODE_CONTINUE   0x11
-#define AST_NODE_ISPRIMTY   0x12
-#define AST_NODE_RETURN     0x13
-#define AST_NODE_IF         0x14
-#define AST_NODE_LET        0x15
-#define AST_NODE_SKIP       0x16
-#define AST_NODE_FUNAPP     0x17
-#define AST_NODE_VARDECL    0x18
-#define AST_NODE_BLOCK      0x19
-#define AST_NODE_ACTUALS    0x1a
+#define AST_NODE_WHILE      0x06
+#define AST_NODE_BREAK      0x07
+#define AST_NODE_CONTINUE   0x08
+#define AST_NODE_ISPRIMTY   0x09
+#define AST_NODE_MEMBER     0x0a
+#define AST_NODE_SKIP       0x0b
+#define AST_NODE_FUNDEF     0x0c
+#define AST_NODE_ACTUALS    0x0d
+#define AST_NODE_ARRAYSUB   0x0e
+#define AST_NODE_VARDECL    0x0f
+#define AST_NODE_ASSIGN     0x10
+#define AST_NODE_IF         0x11
+#define AST_NODE_FUNAPP     0x12
+#define AST_NODE_ISINSTANCE 0x13
+#define AST_NODE_FORMALS    0x14
+#define AST_NODE_ARRAYLIST  0x15
+#define AST_NODE_CLASSDEF   0x16
+#define AST_NODE_SELFREF    0x17
+#define AST_NODE_ARRAYVAL   0x18
+#define AST_NODE_RETURN     0x19
+#define AST_NODE_METHODAPP  0x1a
+#define AST_NODE_BLOCK      0x1b
 
 #define NODE_TY(n) ((n)->type & AST_NODE_MASK)
+#define NODE_FLAGS(n) ((n)->type & ~AST_NODE_MASK)
 #define IS_VALUE_NODE(n) (NODE_TY(n) <= AST_VALUE_MAX)
 
 #define AV_INT(n) (((ast_value_node_t *)(n))->v.num)
@@ -75,12 +77,19 @@
 #define AV_NAME(n) (((ast_value_node_t *)(n))->v.str)
 
 // AST-Flags (Zusatzinformationen)
-#define AST_FLAG_INT    0x0080
-#define AST_FLAG_CONST  0x0100
-#define AST_FLAG_VAR    0x0040
-#define AST_FLAG_REAL   0x0400
-#define AST_FLAG_OBJ    0x0200
+#define AST_FLAG_INT     0x0100
+#define AST_FLAG_OBJ     0x0800
+#define AST_FLAG_CONST   0x0080
+#define AST_FLAG_VAR     0x0400
+#define AST_FLAG_LVALUE  0x0200
+#define AST_FLAG_REAL    0x0040
 // Ende der AST-Tags
+
+#define TYPE_INT	AST_FLAG_INT
+#define TYPE_REAL	AST_FLAG_REAL
+#define TYPE_OBJ	AST_FLAG_OBJ
+#define TYPE_VAR	AST_FLAG_VAR
+#define TYPE_FLAGS	(TYPE_INT | TYPE_REAL | TYPE_OBJ | TYPE_VAR)
 
 // Eingebaute Bezeichner.  NAME: nicht aufgeloester Name, ID: aufgeloester Name
 #define BUILTIN_OP_ADD     -1

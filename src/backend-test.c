@@ -33,7 +33,7 @@
 #include "assembler.h"
 #include "baseline-backend.h"
 #include "class.h"
-#include "name-analysis.h"
+#include "analysis.h"
 #include "object.h"
 #include "parser.h"
 #include "registers.h"

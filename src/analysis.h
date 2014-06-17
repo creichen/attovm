@@ -54,7 +54,7 @@ name_analysis_errors(void);
  * - Markiert Fehler, wenn Fliesskommazahlen verwendet werden
  */
 void
-type_analysis(ast_node_t *);
+type_analysis(ast_node_t **);
 
 /**
  * Anzahl der bei der Namensanalyse beobachteten Fehler

@@ -9,6 +9,12 @@ echo ""
 
 echo "Name analysis"
 echo "============="
+./test-dump.sh names -n
+ERRORS=$((ERRORS + $?))
+echo ""
+
+echo "Semantic analysis"
+echo "================="
 ./test-dump.sh names -a
 ERRORS=$((ERRORS + $?))
 echo ""

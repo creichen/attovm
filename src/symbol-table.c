@@ -192,7 +192,6 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	PRINT_SYMVAR(OPT);
 	PRINT_SYMVAR(BUILTIN);
 	PRINT_SYMVAR(REGISTER);
-	PRINT_SYMVAR(LVALUE);
 	PRINT_SYMVAR(HIDDEN);
 #undef PRINT_SYMVAR
 	fputs(" ", file);

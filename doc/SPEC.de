@@ -1,0 +1,114 @@
+Copyright (C) Christoph Reichenbach, 2014
+
+Sprachspezifikation AttoL für AttoVM, Version 0.1
+=================================================
+
+AttoL ist eine kleine, dynamisch getypte Programmiersprache, die als
+Eingangssprache für die Virtuelle Maschine `AttoVM' dient.
+
+
+1. Syntax
+=========
+
+Die Syntax der Sprache ist einfach gehalten, aber sie unterliegt
+mehreren semantischen Einschränkungen, die in Abschnitt 2 beschrieben
+werden.  Die Syntax wird in EBNF beschrieben, mit der folgenden
+Erweiterung:
+
+  <NT>*		0 oder mehr Wiederholungen von <NT>
+  <NT> //* T	0 oder mehr Wiederholungen von <NT>, getrennt durch T
+  [ X ]         optionally X
+
+
+program ::= <stmt>*
+	  ;
+
+stmt ::= <vardecl> [ '=' <expr> ] ';'
+       | <fundef>
+       | <classdef>
+       | <lvalue> ':=' <expr> ';'
+       | <funcall> ';'
+       | <block>
+       | 'if' <expr> 'then' <stmt> [ 'else' <stmt> ]
+       | 'while' <expr> 'do' <stmt>
+       | 'do' <stmt> 'while' <expr>
+       | 'break' ';'
+       | 'continue' ';'
+       | 'return' [ <expr> ] ';'
+       ;
+
+block ::= '{' <stmt>* '}'
+        ;
+
+<ty> ::= 'var'
+       | 'obj'
+       | 'int'
+       | 'real'
+       ;
+
+vardecl ::= [ 'const' ] <ty> <name>
+         ;
+
+fundef ::= <ty> <name> '(' <vardecl> //* ',' ')' <block>
+       	 ;
+
+classdef ::= 'class' <name> '(' <vardecl> //* ',' ')' <block>
+	   ;
+
+funcall ::= <expr> '(' <expr> //* ',' ')'
+	  | <expr> '.' <name> '(' <expr> //* ',' ')'
+	  ;
+
+binop ::= '+' | '-' | '/' | '*' | '<' | '>' | '==' | '!=' | '<=' | '>='
+        ;
+
+expr ::= <expr> <binop> <expr>
+       | <expr> 'is' <name>
+       | <expr> 'is' <ty>
+       | 'not' <expr>
+       | <funcall>
+       | <literal>
+       | <lvalue>
+       | '(' <expr> ')'
+       | <arrayexpr>
+       ;
+
+arrayexpr ::= '[' <expr> //* ',' ']'
+	    | '[' <expr> //* ',' '/' <expr> ']'   ( add specified number of zeroes )
+	    ;
+
+lvalue ::= <name>
+         | <lvalue> '[' <expr> ']'
+	 | <lvalue> '.' <name>
+	 ;
+
+
+TODO:
+- full grammar
+- test with full grammar
+
+1.1. Operatorenpräzedenz
+------------------------
+   not
+   == != <= >= < > is
+   is
+   + -
+   * /
+
+2. Statische Semantik
+=====================
+
+2.1. Sichtbarkeitsbereiche von Namen (Scoping)
+----------------------------------------------
+
+2.2. Sichtbarkeitsbereiche von Typdefinitionen
+----------------------------------------------
+
+2.3. Semantische Einschränkungen
+--------------------------------
+
+2.3.1: NO_CLOSURE_GEN: Any expression "<expr> '.' <name>" must
+       reference a value
+
+2.3.2: NO_CLOSURE_CALL: Any function invocation "<expr>( ... )" must
+       have <expr> as the name of a function in the current scope

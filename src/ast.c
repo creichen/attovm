@@ -67,6 +67,7 @@ value_node_alloc_generic(int type, ast_value_union_t value)
 
 	ast_value_node_t *retval = (ast_value_node_t *) malloc(sizeof(ast_value_node_t));
 	retval->type = type;
+	retval->annotations = NULL;
 	retval->v = value;
 
 	return (ast_node_t *) retval;

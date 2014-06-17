@@ -60,8 +60,8 @@ error(const ast_node_t *node, char *fmt, ...)
 static void
 set_type(ast_node_t *node, int ty)
 {
-	node->flags &= AST_NODE_MASK;
-	node->flags |= ty & ~AST_NODE_MASK;
+	node->type &= AST_NODE_MASK;
+	node->type |= ty & ~AST_NODE_MASK;
 }
 
 static ast_node_t *
@@ -76,6 +76,7 @@ require_lvalue(ast_node_t *node, int const_assignment_permitted)
 		if (!const_assignment_permitted && (node->type & AST_FLAG_CONST)) {
 			error(node, "attempted assignment to constant `%s'", ((symtab_entry_t *)node->annotations)->name);
 		}
+	case AST_NODE_MEMBER:
 	case AST_NODE_ARRAYSUB:
 		break;
 
@@ -84,6 +85,7 @@ require_lvalue(ast_node_t *node, int const_assignment_permitted)
 	}
 
 	node->type |= AST_FLAG_LVALUE;
+	return node;
 }
 
 static ast_node_t *
@@ -104,12 +106,13 @@ require_type(ast_node_t *node, int ty)
 	}
 
 	ast_node_t *fun = value_node_alloc_generic(AST_VALUE_ID, (ast_value_union_t) { .ident = BUILTIN_OP_CONVERT });
-	fun->annotation = convert_sym;
-	ast_node_t *conversion ast_node_alloc_generic(AST_NODE_FUNAPP,
-						      2, fun,
-						      ast_node_alloc_generic(AST_NODE_ACTUALS,
-									     1,
-									     node));
+	fun->annotations = convert_sym;
+	ast_node_t *conversion = ast_node_alloc_generic
+		(AST_NODE_FUNAPP,
+		 2, fun,
+		 ast_node_alloc_generic(AST_NODE_ACTUALS,
+					1,
+					node));
 	set_type(fun, ty);
 	set_type(conversion, ty);
 	return conversion;
@@ -124,7 +127,7 @@ analyse(ast_node_t *node)
 
 	if (!IS_VALUE_NODE(node)) {
 		for (int i = 0; i < node->children_nr; i++) {
-			node->children[i] = type_analysis(node->children[i]);
+			node->children[i] = analyse(node->children[i]);
 		}
 	}
 
@@ -132,7 +135,7 @@ analyse(ast_node_t *node)
 
 	case AST_VALUE_REAL:
 		error(node, "Floating point numbers are not presently supported");
-		return TYPE_REAL;
+		break;
 
 	case AST_VALUE_ID:
 		if (node->annotations) {
@@ -145,6 +148,16 @@ analyse(ast_node_t *node)
 		if (NODE_TY(node->children[0]) == AST_VALUE_ID) {
 			// Funktionsaufruf
 			symtab_entry_t *function = node->children[0]->annotations;
+			if (!function) {
+				// Sollte nur passieren, wenn Namensanalyse fehlschlug
+				fprintf(stderr, "No function annotation on ID %d\n", AV_ID(node->children[0]));
+				return node;
+			}
+
+			if (!(function->symtab_flags & SYMTAB_TY_FUNCTION)) {
+				error(node, "Attempt to call non-function `%s'", function->name);
+				return node;
+			}
 			node->annotations = function;
 
 			int min_params = function->parameters_nr;
@@ -182,6 +195,7 @@ analyse(ast_node_t *node)
 
 			ast_node_free(node, 0);
 			node = ast_node_alloc_generic(AST_NODE_METHODAPP | method_call_return_type,
+						      3,
 						      require_type(receiver, TYPE_OBJ),
 						      selector_node,
 						      actuals);
@@ -198,7 +212,7 @@ analyse(ast_node_t *node)
 						   NODE_TY(node) == AST_NODE_VARDECL);
 		break;
 
-	case AST_NODE_ARRAYITEMS:
+	case AST_NODE_ARRAYLIST:
 		for (int i = 0; i < node->children_nr; i++) {
 			node->children[i] = require_type(node->children[i], array_storage_type);
 		}
@@ -216,6 +230,7 @@ analyse(ast_node_t *node)
 				error(node, "`isinstance' on non-class (%s)", classref->name);
 			}
 		} // ansonsten hat die Namensanalyse bereits einen Fehler gemeldet
+	}
 	case AST_NODE_ISPRIMTY:
 		set_type(node, TYPE_INT);
 		break;
@@ -236,14 +251,14 @@ analyse(ast_node_t *node)
 		node->children[0] = require_type(node->children[0], TYPE_INT);
 		break;
 
-	default:
+	default: ;
 	}
 
 	return node;
 }
 
 void
-type_analysis(ast_node_t *node)
+type_analysis(ast_node_t **node)
 {
-	analyse(node);
+	*node = analyse(*node);
 }

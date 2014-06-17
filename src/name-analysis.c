@@ -108,8 +108,12 @@ fix_with_parameters(ast_node_t *cnode, hashtable_t *env, int child_flags_params,
 
 	// CLASSDEF und FUNDEF haben analoge Struktur für Parameter:
 	ast_node_t *formals = cnode->children[1];
-	fixnames_recursive(formals, env, syminfo, (child_flags_params & ~SYMTAB_MEMBER) | SYMTAB_PARAM);
+
+	syminfo->parameters_nr = 0;
+	
 	// Setzt implizit parameters_nr korrekt
+	fixnames_recursive(formals, env, syminfo, (child_flags_params & ~SYMTAB_MEMBER) | SYMTAB_PARAM);
+
 	syminfo->parameter_types = malloc(sizeof(unsigned short) * syminfo->parameters_nr);
 	for (int i = 0; i < syminfo->parameters_nr; i++) {
 		ast_node_t *child = formals->children[i];
@@ -137,6 +141,12 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 	/* fprintf(stderr, "\n"); */
 
 	switch (NODE_TY(node)) {
+
+	case AST_VALUE_ID:
+		// Fest eingebaute Funktion
+		node->annotations = symtab_lookup(AV_ID(node));
+		break;
+
 	case AST_VALUE_NAME:
 		if (child_flags & NF_SELECTOR) {
 			lookup = get_selector(node, 0);
@@ -198,7 +208,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		break;
 
 	case AST_NODE_ASSIGN: // Als lvalue markieren
-		fixnames(node->children[0], env, parent, child_flags | SYMTAB_LVALUE);
+		fixnames(node->children[0], env, parent, child_flags);
 		fixnames(node->children[1], env, parent, child_flags);
 		return;
 

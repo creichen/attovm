@@ -48,8 +48,7 @@
 #define SYMTAB_OPT		0x0020	// Mit Optimierungen übersetzt
 #define SYMTAB_BUILTIN		0x0040
 #define SYMTAB_REGISTER		0x0080	// Wird in Register gespeichert
-#define SYMTAB_LVALUE		0x0100
-#define SYMTAB_HIDDEN		0x0200	// Name nicht explizit angegeben
+#define SYMTAB_HIDDEN		0x0100	// Name nicht explizit angegeben
 
 
 #define SYMTAB_TY(s)			(((s)->symtab_flags) & SYMTAB_TY_MASK)

@@ -44,8 +44,10 @@ print_help(char *fn)
 	printf("Usage: %s [-f <filename>] [options] <action>", fn);
 	printf("Where <action> is one of:\n"
 	       "\t-r\tPrint raw AST (no name analysis)\n"
-	       "\t-a\tPrint AST after semantic analysis\n"
-	       "\t-s\tPrint symbol table after name analysis\n");
+	       "\t-n\tPrint AST after name analysis\n"
+	       "\t-a\tPrint AST after semantic (name + type) analysis\n"
+	       "\t-s\tPrint symbol table after name analysis\n"
+	       );
 	printf("And [options] are any of:\n"
 	       "\t-b\tWhen printing symbol table: include built-in operations\n");
 	exit(0);
@@ -58,7 +60,7 @@ main(int argc, char **argv)
 	yyin = stdin;
 	int opt;
 
-	while ((opt = getopt(argc, argv, "brasf:")) != -1) {
+	while ((opt = getopt(argc, argv, "brnasf:")) != -1) {
 		switch (opt) {
 
 		case 'f':
@@ -74,6 +76,7 @@ main(int argc, char **argv)
 
 		case 'r':
 		case 'a':
+		case 'n':
 		case 's':
 			action = opt;
 			break;
@@ -96,8 +99,12 @@ main(int argc, char **argv)
 		ast_node_dump(stdout, root, AST_NODE_DUMP_FLAGS | AST_NODE_DUMP_FORMATTED);
 		break;
 
+	case 'n':
 	case 'a':
 		name_analysis(root);
+		if (action == 'a') {
+			type_analysis(&root);
+		}
 		ast_node_dump(stdout, root, AST_NODE_DUMP_FLAGS | AST_NODE_DUMP_FORMATTED);
 		break;
 

@@ -29,9 +29,10 @@
 #include <unistd.h>
 
 #include "ast.h"
+#include "class.h"
 #include "parser.h"
 #include "symbol-table.h"
-#include "name-analysis.h"
+#include "analysis.h"
 
 extern FILE *yyin; // lexer
 
@@ -84,7 +85,7 @@ main(int argc, char **argv)
 	}
 
 	ast_node_t *root = NULL;
-	symtab_init();
+	builtins_init();
 	if (!parse_program(&root)) {
 		fprintf(stderr, "Parse error\n");
 		return 1;

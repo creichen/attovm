@@ -77,6 +77,13 @@ class Arg(object):
     def strName(self):
         return self.name
 
+    def strGenericName(self):
+        '''
+        Liefert eine Zeichenkette, die fuer einen menschlichen Leser einen Hinweis auf die
+        Art des Parameters gibt.
+        '''
+        return None
+
     def getExclusiveRegion(self):
         '''
         Determines whether the argument fully determines the contents of a particular sequence of bytes in this instruction.
@@ -102,14 +109,47 @@ class Arg(object):
     def printCopyToExclusiveRegion(self, dataptr):
         pass
 
-    def printDisassemble(self, dataptr, p):
+    def printDisassemble(self, dataptr, offset_shift, p):
         '''
         prints C code to diassemble this particular argument
 
         @param p: print function
+        @param offset_shift: Tatsaechliche Position ist offset_shift + eigenes-offset; negative Positionen sind ungueltig
         @return a tuple ([printf format strings], [args to format strings])
         '''
         return ([], [])
+
+
+class PCRelative(Arg):
+    '''
+    Represents an address parameter to an Insn and describes how the register number is encoded.
+    '''
+
+    def __init__(self, byte, width, delta):
+        self.byte = byte
+        self.width = width
+        self.delta = delta
+
+    def getExclusiveRegion(self):
+        return (self.byte, self.byte + self.width - 1)
+
+    def strGenericName(self):
+        return 'ptr'
+
+    def strType(self):
+        return 'void *'
+
+    def printCopyToExclusiveRegion(self, p, dataptr):
+        p('int %s_offset = (char *)data + %d - (char *)%s;' % (self.strName(), self.delta, self.strName()))
+        p('memcpy(%s + %d, &%s_offset, %d);' % (dataptr, self.byte, self.strName(), self.width))
+
+    def printDisassemble(self, dataptr, offset_shift, p):
+        if (self.byte + offset_shift < 0):
+            return
+        p('int relative_%s;'% self.strName())
+        p('memcpy(&relative_%s, data + %d, %d);' % (self.strName(), self.byte, self.byte))
+        p('unsigned char *%s = data + %d + relative_%s;' % (self.strName(), self.delta, self.strName()))
+        return (["%p"], [self.strName()])
 
 
 class Reg(Arg):
@@ -155,11 +195,13 @@ class Reg(Arg):
     def strType(self):
         return 'int'
 
-    def printDisassemble(self, dataptr, p):
+    def printDisassemble(self, dataptr, offset_shift, p):
         decoding = []
         bitoffset = 0
         for pat in self.bit_patterns:
-            decoding.append('(' + pat.strDecode(dataptr + '[' + str(pat.byteid) + ']') + ('<< %d)' % bitoffset))
+            offset = pat.byteid + offset_shift
+            if (offset >= 0):
+                decoding.append('(' + pat.strDecode(dataptr + '[' + str(offset) + ']') + ('<< %d)' % bitoffset))
             bitoffset += pat.bits_nr
         p('int %s = %s;' % (self.strName(), ' | ' .join(decoding)))
         return (['%s'], ['register_names[' + self.strName() + '].mips'])
@@ -187,9 +229,11 @@ class Imm(Arg):
     def printCopyToExclusiveRegion(self, p, dataptr):
         p('memcpy(%s + %d, &%s, %d);' % (dataptr, self.bytenr, self.strName(), self.bytelen))
 
-    def printDisassemble(self, dataptr, p):
+    def printDisassemble(self, dataptr, offset_shift, p):
+        if (self.bytenr + offset_shift < 0):
+            return
         p('%s %s;' % (self.ctype, self.strName()))
-        p('memcpy(&%s, %s + %d, %d);' % (self.strName(), dataptr, self.bytenr, self.bytelen))
+        p('memcpy(&%s, %s + %d, %d);' % (self.strName(), dataptr, self.bytenr + offset_shift, self.bytelen))
         return ([self.cformatstr], [self.strName()])
 
 
@@ -238,30 +282,50 @@ class Insn(object):
         print 'void'
         print Insn.emit_prefix + self.name + '(' + ', '.join(["buffer_t *buf"] + arglist) + ')' + trail
 
+    def machineCodeLen(self):
+        return '%d' % len(self.machine_code)
+
+    def prepareMachineCodeLen(self, p):
+        pass
+
+    def postprocessMachineCodeLen(self, p):
+        pass
+
+    def initialMachineCodeOffset(self):
+        return 0
+
+    def printDataUpdate(self, p, offset, machine_code_byte, spec):
+        p('data[%d] = 0x%02x%s;' % (offset, machine_code_byte, spec))
+
+    def getConstructionBitmaskBuilders(self, offset):
+        builders = []
+        build_this_byte = True
+        for arg in self.args:
+            if arg.inExclusiveRegion(offset):
+                return None
+
+            builder = arg.getBuilderFor(offset)
+            if builder is not None:
+                builders.append('(' + builder + ')')
+        return builders
 
     def printGenerator(self):
         self.printHeader(trail='')
         print '{'
         p = mkp(1)
-        p('unsigned char *data = buffer_alloc(buf, %d);' % len(self.machine_code))
+        self.prepareMachineCodeLen(p)
+        p('unsigned char *data = buffer_alloc(buf, %s);' % self.machineCodeLen())
+        self.postprocessMachineCodeLen(p)
 
         # Basic machine code generation: copy from machine code string and or in any suitable arg bits
-        offset = 0
+        offset = self.initialMachineCodeOffset()
         for byte in self.machine_code:
-            builders = []
-            build_this_byte = True
-            for arg in self.args:
-                if arg.inExclusiveRegion(offset):
-                    build_this_byte = False
-
-                builder = arg.getBuilderFor(offset)
-                if builder is not None:
-                    builders.append('(' + builder + ')')
-
-            if build_this_byte:
+            builders = self.getConstructionBitmaskBuilders(offset)
+            if builders is not None:
                 if len(builders) > 0:
                     builders = [''] + builders # add extra ' | ' to beginning
-                p('data[%d] = 0x%02x%s;' % (offset, self.machine_code[offset], ' | '.join(builders)))
+          	self.printDataUpdate(p, offset, byte, ' | '.join(builders))
+
             offset += 1
 
         for arg in self.args:
@@ -271,44 +335,86 @@ class Insn(object):
         print '}'
 
     def printTryDisassemble(self, data_name, max_len_name):
+        self.printTryDisassembleOne(data_name, max_len_name, self.machine_code, 0)
+
+    def printTryDisassembleOne(self, data_name, max_len_name, machine_code, offset_shift):
         checks = []
 
-        offset = 0
-        for byte in self.machine_code:
+        offset = offset_shift
+        for byte in machine_code:
             bitmask = 0xff
             for arg in self.args:
                 bitmask = bitmask & arg.maskOut(offset)
 
             if bitmask != 0:
                 if bitmask == 0xff:
-                    checks.append('data[%d] == 0x%02x' % (offset, self.machine_code[offset]))
+                    checks.append('data[%d] == 0x%02x' % (offset - offset_shift, byte))
                 else:
-                    checks.append('(data[%d] & 0x%02x) == 0x%02x' % (offset, bitmask, self.machine_code[offset]))
+                    checks.append('(data[%d] & 0x%02x) == 0x%02x' % (offset - offset_shift, bitmask, byte))
             offset += 1
 
         assert len(checks) > 0
 
         p = mkp(1)
-        p(('if (%s >= %d && ' % (max_len_name, len(self.machine_code))) + ' && '.join(checks) + ') {')
+        p(('if (%s >= %d && ' % (max_len_name, len(machine_code))) + ' && '.join(checks) + ') {')
         pp = mkp(2)
         
         formats = []
         format_args = []
         for arg in self.args:
-            (format_addition, format_args_addition) = arg.printDisassemble('data', pp)
+            (format_addition, format_args_addition) = arg.printDisassemble('data', -offset_shift, pp)
             formats = formats + format_addition
             format_args = format_args + format_args_addition
         if len(formats) == 0:
             pp('fprintf(file, "%s");' % self.name)
         else:
             pp(('fprintf(file, "%s\\t' % self.name) + ', '.join(formats) + '", ' + ', '.join(format_args) + ');');
-        pp('return %d;' % len(self.machine_code));
+        pp('return %d;' % len(machine_code));
         p('}')
-    
+
+
+
+class OptPrefixInsn (Insn):
+    '''
+    Eine Insn, die ein optionales Praefix-Byte erlaubt.  Dieses wird erzeugt gdw ein Bit in Byte -1 auf nicht-0 gesetzt werden muss.
+    '''
+
+    def __init__(self, name, opt_prefix, machine_code, args):
+        Insn.__init__(self, name, [opt_prefix] + machine_code, args)
+        self.opt_prefix = opt_prefix
+
+    def machineCodeLen(self):
+        return Insn.machineCodeLen(self) + ' - 1 + data_prefix_len';
+
+    def prepareMachineCodeLen(self, p):
+        p('int data_prefix_len = 0;')
+        p('if (%s) { data_prefix_len = 1; }' % (' || '.join(self.getConstructionBitmaskBuilders(-1))))
+          
+    def postprocessMachineCodeLen(self, p):
+        p('data += data_prefix_len;')
+
+    def initialMachineCodeOffset(self):
+        return -1
+
+    def printDataUpdate(self, p, offset, mcb, spec):
+        pp = p
+        if (offset < 0):
+            pp = mkp(2)
+            p('if (data_prefix_len) {')
+        Insn.printDataUpdate(self, pp, offset, mcb, spec)
+        if (offset < 0):
+            p('}')
+
+    def printTryDisassemble(self, data_name, max_len_name):
+        self.printTryDisassembleOne(data_name, max_len_name, self.machine_code, -1)
+        self.printTryDisassembleOne(data_name, max_len_name, self.machine_code[1:], 0)
 
 
 def ImmInt(offset):
-    return Imm('long', '%ld', offset, 8)
+    return Imm('int', '%x', offset, 4)
+
+def ImmLongLong(offset):
+    return Imm('long long', '%llx', offset, 8)
 
 def ImmReal(offset):
     return Imm('double', '%f', offset, 8)
@@ -325,6 +431,8 @@ def ArithmeticDestReg(offset):
     return Reg([BitPattern(0, 0, 1), BitPattern(offset, 0, 3)])
 def ArithmeticSrcReg(offset):
     return Reg([BitPattern(0, 2, 1), BitPattern(offset, 3, 3)])
+def OptionalArithmeticDestReg(offset):
+    return Reg([BitPattern(-1, 0, 1), BitPattern(offset, 0, 3)])
 
 def printDisassemblerDoc():
     print '/**'
@@ -352,10 +460,26 @@ def printDisassembler(instructions):
 instructions = [
     Insn("add", [0x48, 0x01, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
     Insn("sub", [0x48, 0x29, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn(Name(mips="move", intel="mov"), [0x48, 0x89, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
     Insn(Name(mips="mul", intel="imul"), [0x48, 0x0f, 0xaf], [ArithmeticDestReg(3), ArithmeticSrcReg(3)]),
     Insn(Name(mips="div_a2v0", intel="idiv"), [0x48, 0xf7, 0xf8], [ArithmeticSrcReg(2)]),
-    Insn(Name(mips="li", intel="mov_imm"), [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmInt(2)]),
+    Insn(Name(mips="li", intel="mov_imm"), [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
     Insn(Name(mips="jreturn", intel="ret"), [0xc3], []),
+    Insn(Name(mips="jal", intel="callq"), [0xe8, 0xe3, 0x00, 0x00, 0x00, 0x00], [PCRelative(2, 4, -6)]),
+    OptPrefixInsn(Name(mips="jalr", intel="callq"), 0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
+    Insn(Name(mips="bgt", intel="cmp;jg"), [0x48, 0x39, 0xf8, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bge", intel="cmp;jge"), [0x48, 0x39, 0xf8, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="blt", intel="cmp;jl"), [0x48, 0x39, 0xf8, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="ble", intel="cmp;jle"), [0x48, 0x39, 0xf8, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="beq", intel="cmp;je"), [0x48, 0x39, 0xf8, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bne", intel="cmp;jne"), [0x48, 0x39, 0xf8, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bgtz", intel="cmp-0;jg"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bgez", intel="cmp-0;jge"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bltz", intel="cmp-0;jl"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="blez", intel="cmp-0;jle"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bnez", intel="cmp-0;jnz"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="beqz", intel="cmp-0;jz"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="j", intel="jmp"), [0xe9, 0xcd, 0, 0, 0, 0], [PCRelative(2, 4, -6)]),
 ]
 
 
@@ -363,16 +487,33 @@ def printUsage():
     print 'usage: '
     print '\t' + sys.argv[0] + ' headers'
     print '\t' + sys.argv[0] + ' code'
+
+def printWarning():
+    print '// This is GENERATED CODE.  Do not modify by hand, or your modifications will be lost on the next re-buld!'
+
+def printHeaderHeader():
+    print '#include "assembler-buffer.h"'
+    
+def printCodeHeader():
+    print '#include <string.h>'
+    print '#include <stdio.h>'
+    print ''
+    print '#include "assembler-buffer.h"'
+    print '#include "registers.h"'
     
 
 if len(sys.argv) > 1:
     if sys.argv[1] == 'headers':
+        printWarning()
+        printHeaderHeader()
         for insn in instructions:
             insn.printHeader()
         printDisassemblerDoc()
         printDisassemblerHeader()
 
     elif sys.argv[1] == 'code':
+        printWarning()
+        printCodeHeader()
         for insn in instructions:
             insn.printGenerator()
             print "\n"

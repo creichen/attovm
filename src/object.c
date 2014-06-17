@@ -25,21 +25,49 @@
 
 ***************************************************************************/
 
-#ifndef _ATTOL_NAME_ANALYSIS_H
-#define _ATTOL_NAME_ANALYSIS_H
+#include <string.h>
 
-#include "ast.h"
+#include "object.h"
 
-/**
- * Ersetzt alle AST_VALUE_NAME-Knoten durch AST_VALUE_ID-Knoten
- */
-void
-name_analysis(ast_node_t *);
+object_t *
+heap_allocate_object(class_t* type, size_t fields_nr)
+{
+	object_t *obj = calloc(1, sizeof(object_t) + fields_nr * sizeof(object_t *));
+	obj->classref = type;
+	return obj;
+}
 
-/**
- * Anzahl der bei der Namensanalyse beobachteten Fehler
- */
-int
-name_analysis_errors(void);
+object_t *
+new_int(long long int v)
+{
+	object_t *obj = heap_allocate_object(&class_boxed_int, 1);
+	obj->members[0].int_v = v;
+	return obj;
+}
 
-#endif 
+object_t *
+new_real(double v)
+{
+	object_t *obj = heap_allocate_object(&class_boxed_real, 1);
+	obj->members[0].real_v = v;
+	return obj;
+}
+
+
+object_t *
+new_string(char *string, size_t len)
+{
+	object_t *obj = heap_allocate_object(&class_string, (len + 1) & ~(sizeof (void*) - 1));
+	memcpy(&obj->members[0], string, len + 1);
+	return obj;
+}
+
+
+object_t *
+new_array(size_t len)
+{
+	object_t *obj = heap_allocate_object(&class_array, len + 1);
+	obj->members[0].int_v = len;
+	return obj;
+}
+

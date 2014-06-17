@@ -128,10 +128,4 @@ void
 symtab_entry_dump(FILE *file, symtab_entry_t *entry);
 
 
-/**
- * Initialisiert die Symboltabelle und installiert die eingebauten Operationen
- */
-void
-symtab_init();
-
 #endif // !defined(_ATTOL_SYMBOL_TABLE_H)

@@ -25,28 +25,42 @@
 
 ***************************************************************************/
 
-#ifndef REGISTERS_H_
-#define REGISTERS_H_
+#ifndef _ATTOL_ANALYSIS_H
+#define _ATTOL_ANALYSIS_H
 
-#define REGISTERS_NR 16
+#include "ast.h"
 
-// Special registers
-#define REGISTER_V0 0 // return value
-#define REGISTER_SP 4
-#define REGISTER_FP 5
-#define REGISTER_GP 11
+/**
+ * Ersetzt alle AST_VALUE_NAME-Knoten durch AST_VALUE_ID-Knoten
+ */
+void
+name_analysis(ast_node_t *);
 
-#define REGISTERS_CALLEE_SAVED_NR 6
-#define REGISTERS_ARGUMENT_NR 6
+/**
+ * Anzahl der bei der Namensanalyse beobachteten Fehler
+ */
+int
+name_analysis_errors(void);
 
-typedef struct {
-	char *intel; // real name
-	char *mips;  // pseudo-name for students more familiar with MIPS naming
-} regname_t;
+/**
+ * Fuehrt Typanalyse durch:
+ *
+ * - Fuegt __convert-Knoten ein, wo noetig
+ * - Konvertiert Parameter vor und nach Methodenaufrufen, soweit noetig
+ * - Fuegt Let-Knoten bei Methodenaufruf ein
+ * - Fuegt __self-Knoten bei lokalen Methodenaufrufen und Feldzugriffen ein
+ * - Stellt sicher, dass keine unerlaubten Variablenzugriffe stattfinden
+ * - Erstellt den Konstruktor fuer jede Klass
+ * - Markiert Fehler, wenn Fliesskommazahlen verwendet werden
+ */
+void
+type_analysis(ast_node_t *);
 
-extern regname_t register_names[REGISTERS_NR];
-extern int registers_callee_saved[REGISTERS_CALLEE_SAVED_NR];
-extern int registers_argument_nr[REGISTERS_ARGUMENT_NR];
+/**
+ * Anzahl der bei der Namensanalyse beobachteten Fehler
+ */
+int
+type_analysis_errors(void);
 
 
-#endif // !defined(REGISTERS_H_)
+#endif 

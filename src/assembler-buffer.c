@@ -25,8 +25,16 @@
 
 ***************************************************************************/
 
-#include <sys/mman.h>
+#define _BSD_SOURCE // Um MAP_ANONYMOUS zu aktivieren
+
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+
+#include "assembler-buffer.h"
+#include "errors.h"
 
 #define PAGE_SIZE 0x1000
 #define INITIAL_SIZE (PAGE_SIZE * 8)
@@ -108,7 +116,7 @@ code_alloc(size_t buf_size) // size does not include the header
 	const size_t old_size = code_segment_size;
 	size_t alloc_size = code_segment_size + MIN_INCREMENT;
 	if (alloc_size + code_segment_size < size) {
-		alloc_size = code_segment_size + size + MIN_INCREMENT & (~(PAGE_SIZE-1));
+		alloc_size = (code_segment_size + size + MIN_INCREMENT) & (~(PAGE_SIZE-1));
 	}
 
 	// alloc executable memory
@@ -229,7 +237,13 @@ buffer_disassemble(buffer_t buf)
 		int disasmd = disassemble_one(stdout, data, size);
 		putchar('\n');
 		if (!disasmd) {
-			puts("<Error>");
+			puts("Dissassembly failed:");
+			while (size > 0) {
+				printf(" %02x", *data);
+				++data;
+				--size;
+			}
+			puts("\nFailed to decode");
 			return;
 		}
 		data += disasmd;

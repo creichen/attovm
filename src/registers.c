@@ -28,19 +28,27 @@
 #include "registers.h"
 
 regname_t register_names[REGISTERS_NR] = {
-	{"%rax", "$v0"},
+	{"%rax", "$v0"}, // 0
 	{"%rcx", "$a3"},
 	{"%rdx", "$a2"},
 	{"%rbx", "$s0"},
-	{"%rsp", "$sp"},
+	{"%rsp", "$sp"}, // 4
 	{"%rbp", "$fp"},
 	{"%rsi", "$a1"},
 	{"%rdi", "$a0"},
-	{"%r8",  "$a4"},
+	{"%r8",  "$a4"}, // 8
 	{"%r9",  "$a5"},
 	{"%r10", "$s1"}, 
 	{"%r11", "$gp"},
-	{"%r12", "$s2"},
+	{"%r12", "$s2"}, // 12
 	{"%r13", "$s3"},
 	{"%r14", "$s4"},
 	{"%r15", "$s5"}};
+
+int registers_callee_saved[REGISTERS_CALLEE_SAVED_NR] = {
+	3, 10, 12, 13, 14, 15
+};
+
+int registers_argument_nr[REGISTERS_ARGUMENT_NR] = {
+	7, 6, 2, 1, 8, 9
+};

@@ -549,12 +549,15 @@ class ASTCons(ASTGen):
     '''
     Abstract AST construction superclass
     '''
+
+    PREFIX = 'AST_NODE_'
+
     def __init__(self):
         ASTGen.__init__(self)
         pass
 
     def getASTFullName(self):
-        return 'AST_NODE_' + self.getASTName()
+        return ASTCons.PREFIX + self.getASTName()
 
     def generateASTGen(self, genVar):
         '''
@@ -645,6 +648,8 @@ class Cons(ASTCons):
 
 
 class Builtin(ASTCons):
+    PREFIX = 'BUILTIN_OP_' 
+
     def __init__(self, builtin_name):
         ASTCons.__init__(self)
         self.name = builtin_name
@@ -662,7 +667,7 @@ class Builtin(ASTCons):
         return self.name
 
     def getBuiltinFullName(self):
-        return 'BUILTIN_OP_' + self.getBuiltinName()
+        return Builtin.PREFIX + self.getBuiltinName()
 
     def generateASTGen(self, genVar):
         return 'value_node_alloc_generic(AST_VALUE_ID, (ast_value_union_t) { .ident = %s })' % self.getBuiltinFullName()
@@ -1031,6 +1036,17 @@ rules = [
 # TODO:
 # - test that we correctly parse `1 + "foo"' with `A ::= B + STRING    B ::= INT + INT', otherwise fix
 
+# 
+OTHER_BUILTINS = {
+    'CONVERT'
+}
+
+OTHER_NONVALUE_NODE_TYPES = {
+    'METHODAPP',
+    'SELFREF'
+}
+Attr('LVALUE')
+
 BITS_FOR_NODE_TYPE_TOTAL = 16
 TOTAL_AST_NODE_TYPES = len(Cons.cons_names) + len(Term.all) + 2 # 2 for identifiers and `invalid'
 BITS_FOR_FLAGS = BITS_FOR_NODE_TYPE_TOTAL - TOTAL_AST_NODE_TYPES.bit_length()
@@ -1169,6 +1185,12 @@ def printASTHeader():
                     builtin_names.add(n)
                     if len(n) > max_builtin_name_len:
                         max_builtin_name_len = len(n)
+
+    for n in OTHER_BUILTINS:
+        builtin_names.add(Builtin.PREFIX + n)
+
+    for n in OTHER_NONVALUE_NODE_TYPES:
+        nonvalue_nty_names.add(ASTCons.PREFIX + n)
 
     node_ty_decls = []
     node_ty_nr = [0]

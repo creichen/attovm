@@ -2,35 +2,43 @@ CFLAGS=-O0 -g -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200
 PYTHON=python
 LEX=flex
 
-FRONTEND_HEADERS = parser.h ast.h chash.h symbol-table.h name-analysis.h
-FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c
+FRONTEND_HEADERS = chash.h symbol-table.h name-analysis.h
+FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c ast.h parser.h
 FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o symbol-table.o name-analysis.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
-BACKEND_HEADERS = assembler.h
-BACKEND_GENSRC = assembler.c
-BACKEND_OBJS = assembler.o
-BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS) 
+BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registers.h
+BACKEND_GENSRC = assembler.c assembler.h
+BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o builtins.o
+BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 .PHONY: clean
 
 # ========================================
 
-all: dump
+all: dump backend-test
 
 clean:
 	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) $(FRONTEND_GENSRC) $(BACKEND_GENSRC)
 
-dump: $(FRONTEND) dump.o
-	$(CC) $(CFLAGS) $(FRONTEND_OBJS) dump.o -o dump
+dump: $(FRONTEND) dump.o builtins.o class.o
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) class.o builtins.o dump.o -o dump
 
-test: all
+test-frontend: all
 	(cd ../test ; ./test.sh)
+
+backend-test: $(BACKEND) $(FRONTEND) backend-test.o
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) backend-test.o -o backend-test
+
+test-backend: backend-test
+	./backend-test
+
+test: test-frontend test-backend
 
 # ========================================
 # Generated code
 
-assembler.c: mk-codegen.py
+assembler.c: mk-codegen.py assembler.h
 	${PYTHON} mk-codegen.py code > assembler.c
 
 assembler.h: mk-codegen.py
@@ -45,13 +53,13 @@ lexer.c: lexer.l
 ast.h: mk-parser.py ast.template.h
 	${PYTHON} mk-parser.py ast.h > ast.h
 
-parser.c: mk-parser.py parser.template.c
+parser.c: mk-parser.py parser.template.c parser.h ast.h
 	${PYTHON} mk-parser.py parser.c > parser.c
 
 parser.h: mk-parser.py parser.template.h
 	${PYTHON} mk-parser.py parser.h > parser.h
 
-unparser.c: mk-parser.py unparser.template.c
+unparser.c: mk-parser.py unparser.template.c parser.h ast.h
 	${PYTHON} mk-parser.py unparser.c > unparser.c
 
 

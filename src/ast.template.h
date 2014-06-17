@@ -37,6 +37,7 @@
 $$NODE_TYPES$$
 
 #define NODE_TY(n) ((n)->type & AST_NODE_MASK)
+#define NODE_FLAGS(n) ((n)->type & ~AST_NODE_MASK)
 #define IS_VALUE_NODE(n) (NODE_TY(n) <= AST_VALUE_MAX)
 
 $$AV_VALUE_GETTERS$$
@@ -44,6 +45,12 @@ $$AV_VALUE_GETTERS$$
 // AST-Flags (Zusatzinformationen)
 $$AV_FLAGS$$
 // Ende der AST-Tags
+
+#define TYPE_INT	AST_FLAG_INT
+#define TYPE_REAL	AST_FLAG_REAL
+#define TYPE_OBJ	AST_FLAG_OBJ
+#define TYPE_VAR	AST_FLAG_VAR
+#define TYPE_FLAGS	(TYPE_INT | TYPE_REAL | TYPE_OBJ | TYPE_VAR)
 
 // Eingebaute Bezeichner.  NAME: nicht aufgeloester Name, ID: aufgeloester Name
 $$BUILTIN_IDS$$

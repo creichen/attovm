@@ -1,0 +1,14 @@
+var x = 1;
+var x = 2;
+
+var f(var y) {
+    return x + y;
+}
+
+var x = 3;
+
+var g(var x) {
+    return x + 1;
+}
+
+print(g(x));

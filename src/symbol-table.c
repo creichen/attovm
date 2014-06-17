@@ -43,8 +43,7 @@ int symtab_entries_builtin_nr = 0;
 static int symtab_entries_builtin_size = 0;
 static symbol_table_t *symtab_builtin = NULL;
 
-int symtab_selectors_nr = 1; // selector #0 ist reserviert (Fehler)
-
+int symtab_selectors_nr = 1; // selector #0 ist reserviert (Kein Eintrag/Fehler)
 
 #define BUILTIN_TABLE -1
 #define USER_TABLE 1
@@ -228,59 +227,6 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	fprintf(file, "\tOffset:\t%d\n", entry->offset);
 }
 
-struct builtin_ops {
-	int index; // filled in with selector ID for selectors ONLY
-	char *name;
-	int symtab_flags;
-	int ast_flags;
-	int args_nr;
-	unsigned short *args;
-};
-
-static unsigned short args_var_var[] = { AST_FLAG_VAR, AST_FLAG_VAR };
-static unsigned short args_int[] = { AST_FLAG_INT };
-static unsigned short args_obj[] = { AST_FLAG_INT };
-
-static struct builtin_ops builtin_ops[] = {
-	{ BUILTIN_OP_ADD, "+", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
-	{ BUILTIN_OP_MUL, "*", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
-	{ BUILTIN_OP_SUB, "-", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
-	{ BUILTIN_OP_DIV, "/", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
-	{ BUILTIN_OP_TEST_EQ, "==", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
-	{ BUILTIN_OP_TEST_LE, "<=", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
-	{ BUILTIN_OP_TEST_LT, "<", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var },
-	{ BUILTIN_OP_NOT, "not", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_INT, 1, args_int },
-	// not with a fixed position
-	{ 0, "print", SYMTAB_TY_FUNCTION, AST_FLAG_OBJ, 1, args_obj },
-	{ 0, "assert", SYMTAB_TY_FUNCTION, AST_FLAG_OBJ, 1, args_int }
-};
-
-static struct builtin_ops builtin_selectors[] = {
-	{ 0, "size", SYMTAB_TY_FUNCTION | SYMTAB_SELECTOR, AST_FLAG_INT, 0, NULL }
-};
-
-// Die Namen für builtins, die hier verwendet werden, müssen auf die gleiche Speicherstelle zeigen
-// wie die im AST verwendeten Namen.  Dazu wird diese Normalisierungsfunktion verwendet:
-extern char* mk_unique_string(char *id);
-
-static void
-symtab_add_builtins(struct builtin_ops *builtins, int nr)
-{
-	for (int i = 0; i < nr; i++) {
-		struct builtin_ops *b = builtins + i;
-		symtab_entry_t *e = symtab_builtin_new(b->index, b->ast_flags, b->symtab_flags,
-						       mk_unique_string(b->name));
-		b->index = e->id;
-		if (e->symtab_flags & SYMTAB_SELECTOR) {
-			e->selector = b->index = symtab_selectors_nr++;
-		}
-		if (b->args != NULL) {
-			e->parameters_nr = b->args_nr;
-			e->parameter_types = b->args;
-		}
-	}
-}
-
 void
 symtab_init()
 {
@@ -288,6 +234,4 @@ symtab_init()
 	symtab_builtin = calloc(sizeof(symtab_entry_t *), INITIAL_SIZE);
 	symtab_entries_size = INITIAL_SIZE;
 	symtab_entries_builtin_size = INITIAL_SIZE;
-	symtab_add_builtins(builtin_ops, sizeof(builtin_ops) / sizeof(struct builtin_ops));
-	symtab_add_builtins(builtin_selectors, sizeof(builtin_selectors) / sizeof(struct builtin_ops));
 }

@@ -58,11 +58,12 @@
 #define AST_NODE_ISPRIMTY   0x12
 #define AST_NODE_RETURN     0x13
 #define AST_NODE_IF         0x14
-#define AST_NODE_SKIP       0x15
-#define AST_NODE_FUNAPP     0x16
-#define AST_NODE_VARDECL    0x17
-#define AST_NODE_BLOCK      0x18
-#define AST_NODE_ACTUALS    0x19
+#define AST_NODE_LET        0x15
+#define AST_NODE_SKIP       0x16
+#define AST_NODE_FUNAPP     0x17
+#define AST_NODE_VARDECL    0x18
+#define AST_NODE_BLOCK      0x19
+#define AST_NODE_ACTUALS    0x1a
 
 #define NODE_TY(n) ((n)->type & AST_NODE_MASK)
 #define IS_VALUE_NODE(n) (NODE_TY(n) <= AST_VALUE_MAX)
@@ -83,15 +84,16 @@
 
 // Eingebaute Bezeichner.  NAME: nicht aufgeloester Name, ID: aufgeloester Name
 #define BUILTIN_OP_ADD     -1
-#define BUILTIN_OP_DIV     -2
-#define BUILTIN_OP_MUL     -3
-#define BUILTIN_OP_NOT     -4
-#define BUILTIN_OP_SUB     -5
-#define BUILTIN_OP_TEST_EQ -6
-#define BUILTIN_OP_TEST_LE -7
-#define BUILTIN_OP_TEST_LT -8
+#define BUILTIN_OP_CONVERT -2
+#define BUILTIN_OP_DIV     -3
+#define BUILTIN_OP_MUL     -4
+#define BUILTIN_OP_NOT     -5
+#define BUILTIN_OP_SUB     -6
+#define BUILTIN_OP_TEST_EQ -7
+#define BUILTIN_OP_TEST_LE -8
+#define BUILTIN_OP_TEST_LT -9
 
-#define BUILTIN_OPS_NR 8
+#define BUILTIN_OPS_NR 9
 
 
 typedef struct ast_node {

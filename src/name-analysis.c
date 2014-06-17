@@ -27,7 +27,7 @@
 
 #include <assert.h>
 
-#include "name-analysis.h"
+#include "analysis.h"
 #include "chash.h"
 #include "symbol-table.h"
 

@@ -49,7 +49,7 @@ name_analysis_errors()
 static void
 error(const ast_node_t *node, char *message)
 {
-	fprintf(stderr, "Name error for `%s': %s\n", AV_NAME(node), message);
+	fprintf(stderr, "Name error in line %d for `%s': %s\n", node->source_line, AV_NAME(node), message);
 	++error_count;
 }
 
@@ -94,14 +94,14 @@ resolve_node(ast_node_t *node, symtab_entry_t *symtab)
 	node->type = (node->type & ~AST_NODE_MASK) // Flags erhalten
 		| AST_VALUE_ID;
 	AV_ID(node) = symtab->id;
-	node->annotations = symtab;
+	node->sym = symtab;
 }
 
 // fuer CLASSDEF und FUNDEF:
 static void
 fix_with_parameters(ast_node_t *cnode, hashtable_t *env, int child_flags_params, int child_flags_body)
 {
-	symtab_entry_t *syminfo = cnode->children[0]->annotations;
+	symtab_entry_t *syminfo = cnode->children[0]->sym;
 	assert(syminfo);
 
 	env = hashtable_clone(env, NULL, NULL);	
@@ -144,7 +144,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 
 	case AST_VALUE_ID:
 		// Fest eingebaute Funktion
-		node->annotations = symtab_lookup(AV_ID(node));
+		node->sym = symtab_lookup(AV_ID(node));
 		break;
 
 	case AST_VALUE_NAME:
@@ -162,11 +162,13 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 
 	case AST_NODE_FUNDEF:
 		// Definitionen werden im umgebenden AST_NODE_BLOCK gemanaged
-		fix_with_parameters(node, env, (child_flags & ~SYMTAB_MEMBER) | SYMTAB_PARAM, child_flags & ~SYMTAB_MEMBER);
+		fix_with_parameters(node, env, (child_flags & ~SYMTAB_MEMBER) | SYMTAB_PARAM,
+				    child_flags & ~SYMTAB_MEMBER);
 		return;
 	case AST_NODE_CLASSDEF:
 		// Definitionen werden im umgebenden AST_NODE_BLOCK gemanaged
-		fix_with_parameters(node, env, (child_flags & ~SYMTAB_MEMBER) | SYMTAB_PARAM, child_flags | SYMTAB_MEMBER);
+		fix_with_parameters(node, env, child_flags | SYMTAB_MEMBER | SYMTAB_PARAM,
+				    child_flags | SYMTAB_MEMBER);
 		return;
 
 	case AST_NODE_FORMALS:

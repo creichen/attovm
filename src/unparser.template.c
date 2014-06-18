@@ -105,7 +105,7 @@ dump_recursively(FILE *file, int indent, ast_node_t *node, int flags)
 	fputs("(", file);
 	print_tag_string(file, type);
 	if (flags & AST_NODE_DUMP_ADDRESS) {
-		fprintf(file, "%p", node);
+		fprintf(file, "@%p", node);
 	}
 	if (flags & AST_NODE_DUMP_FLAGS) {
 		ast_print_flags(file, node->type);

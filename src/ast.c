@@ -35,11 +35,10 @@ ast_node_alloc_generic_without_init(int type, int children_nr)
 {
 	assert(type > AST_VALUE_MAX);
 
-	ast_node_t *retval = (ast_node_t *) malloc(sizeof(ast_node_t)
+	ast_node_t *retval = (ast_node_t *) calloc(1, sizeof(ast_node_t)
 						   // allocate extra space for children
 						   + sizeof(ast_node_t *) * children_nr);
 	retval->type = type;
-	retval->annotations = NULL;
 	retval->children_nr = children_nr;
 	return retval;
 }
@@ -65,9 +64,8 @@ value_node_alloc_generic(int type, ast_value_union_t value)
 {
 	assert(type <= AST_VALUE_MAX && type > AST_ILLEGAL);
 
-	ast_value_node_t *retval = (ast_value_node_t *) malloc(sizeof(ast_value_node_t));
+	ast_value_node_t *retval = (ast_value_node_t *) calloc(1, sizeof(ast_value_node_t));
 	retval->type = type;
-	retval->annotations = NULL;
 	retval->v = value;
 
 	return (ast_node_t *) retval;
@@ -110,12 +108,14 @@ ast_node_clone(ast_node_t *node)
 	ast_node_t *retval;
 	if (IS_VALUE_NODE(node)) {
 		const ast_value_node_t *vn = (ast_value_node_t *) node;
-		retval = value_node_alloc_generic(vn->type, vn->v);
+		retval = value_node_alloc_generic(NODE_TY(vn), vn->v);
+		retval->type = vn->type;
 		if (retval->type == AST_VALUE_STRING) {
 			AV_STRING(retval) = strdup(AV_STRING(retval));
 		}
 	} else {
-		retval = ast_node_alloc_generic(node->type, node->children_nr);
+		retval = ast_node_alloc_generic(NODE_TY(node), node->children_nr);
+		retval->type = node->type;
 		for (int i = 0; i < node->children_nr; i++) {
 			retval->children[i] = ast_node_clone(node->children[i]);
 		}

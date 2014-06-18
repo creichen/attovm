@@ -66,7 +66,7 @@ class_initialise_and_link(class_t *classref, symtab_entry_t *entry)
 			assert(NODE_TY(entry->astref->children[i]) == AST_NODE_FUNDEF
 			       || NODE_TY(entry->astref->children[i]) == AST_NODE_VARDECL);
 			class_add_selector(classref,
-					   (symtab_entry_t *) entry->astref->children[i]->children[1]->annotations);
+					   (symtab_entry_t *) entry->astref->children[i]->children[1]->sym);
 		}
 	}
 	return classref;

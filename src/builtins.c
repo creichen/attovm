@@ -111,11 +111,11 @@ struct builtin_ops {
 	void *function_pointer;
 };
 
-static unsigned short args_var_var[] = { AST_FLAG_VAR, AST_FLAG_VAR };
-static unsigned short args_int_int[] = { AST_FLAG_INT, AST_FLAG_INT };
-static unsigned short args_int[] = { AST_FLAG_INT };
-static unsigned short args_obj[] = { AST_FLAG_OBJ };
-static unsigned short args_null[] = { 0 };
+static unsigned short args_var_var[] = { TYPE_VAR, TYPE_VAR };
+static unsigned short args_int_int[] = { TYPE_INT, TYPE_INT };
+static unsigned short args_int[] = { TYPE_INT };
+static unsigned short args_obj[] = { TYPE_OBJ };
+static unsigned short args_any[] = { TYPE_ANY };
 
 void *builtin_op_print(object_t *arg);  // Nicht statisch: Wird vom Test-Code verwendet
 static void *builtin_op_assert(long long int arg); 
@@ -123,22 +123,24 @@ static long long int builtin_op_string_size(object_t *arg);
 static long long int builtin_op_array_size(object_t *arg); 
 
 static struct builtin_ops builtin_ops[] = {
-	{ BUILTIN_OP_ADD, "+", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_MUL, "*", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_SUB, "-", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_DIV, "/", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_TEST_EQ, "==", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_VAR, 2, args_var_var, NULL },
-	{ BUILTIN_OP_TEST_LE, "<=", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_TEST_LT, "<", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_CONVERT, "__convert", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), 0, 1, args_null, NULL },
-	{ BUILTIN_OP_NOT, "not", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), AST_FLAG_INT, 1, args_int, NULL },
+	{ BUILTIN_OP_ADD, "+", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_MUL, "*", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_SUB, "-", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_DIV, "/", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_TEST_EQ, "==", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_VAR, 2, args_var_var, NULL },
+	{ BUILTIN_OP_TEST_LE, "<=", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_TEST_LT, "<", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_CONVERT, "*convert", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), 0, 1, args_any, NULL },
+	{ BUILTIN_OP_NOT, "not", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 1, args_int, NULL },
+	{ BUILTIN_OP_ALLOCATE, "*allocate", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_OBJ, 1, args_int, NULL },
+	{ BUILTIN_OP_SELF, "*self", (SYMTAB_TY_VAR | SYMTAB_HIDDEN), TYPE_OBJ, 0, NULL, NULL },
 	// not with a fixed position
-	{ 0, "print", SYMTAB_TY_FUNCTION, AST_FLAG_OBJ, 1, args_obj, &builtin_op_print },
-	{ 0, "assert", SYMTAB_TY_FUNCTION, AST_FLAG_OBJ, 1, args_int, &builtin_op_assert }
+	{ 0, "print", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_print },
+	{ 0, "assert", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_int, &builtin_op_assert }
 };
 
 static struct builtin_ops builtin_selectors[] = {
-	{ 0, "size", SYMTAB_TY_FUNCTION | SYMTAB_SELECTOR, AST_FLAG_INT, 0, NULL, NULL }
+	{ 0, "size", SYMTAB_TY_FUNCTION | SYMTAB_SELECTOR, TYPE_INT, 0, NULL, NULL }
 };
 
 static struct builtin_ops builtin_classes[] = {
@@ -147,8 +149,8 @@ static struct builtin_ops builtin_classes[] = {
 	{ BUILTIN_PRELINKED_CLASS_STRING, "String", SYMTAB_TY_CLASS | SYMTAB_HIDDEN, 0, 0, NULL, NULL },
 	{ BUILTIN_PRELINKED_CLASS_ARRAY, "Array", SYMTAB_TY_CLASS | SYMTAB_HIDDEN, 0, 0, NULL, NULL },
 
-	{ BUILTIN_PRELINKED_METHOD_STRING_SIZE, "size", SYMTAB_TY_FUNCTION | SYMTAB_MEMBER, AST_FLAG_INT, 0, NULL, &builtin_op_string_size },
-	{ BUILTIN_PRELINKED_METHOD_ARRAY_SIZE, "size", SYMTAB_TY_FUNCTION | SYMTAB_MEMBER, AST_FLAG_INT, 0, NULL, &builtin_op_array_size }
+	{ BUILTIN_PRELINKED_METHOD_STRING_SIZE, "size", SYMTAB_TY_FUNCTION | SYMTAB_MEMBER, TYPE_INT, 0, NULL, &builtin_op_string_size },
+	{ BUILTIN_PRELINKED_METHOD_ARRAY_SIZE, "size", SYMTAB_TY_FUNCTION | SYMTAB_MEMBER, TYPE_INT, 0, NULL, &builtin_op_array_size }
 };
 
 // Die Namen für builtins, die hier verwendet werden, müssen auf die gleiche Speicherstelle zeigen

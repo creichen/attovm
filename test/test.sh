@@ -15,7 +15,7 @@ echo ""
 
 echo "Semantic analysis"
 echo "================="
-./test-dump.sh names -a
+./test-dump.sh semantic -a
 ERRORS=$((ERRORS + $?))
 echo ""
 

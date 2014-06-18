@@ -71,12 +71,11 @@ typedef struct symtab_entry {
 	ast_node_t *astref;			// CLASSDEF, FUNDEF, oder VARDECL
 	short id;				// Symboltabellennummer dieses Eintrags
 	unsigned short selector;		// Globale ID für Felder und Methoden
-	unsigned short methods_nr;
 	unsigned short fields_nr;
+	unsigned short methods_nr;
 	unsigned short offset;			/* MEMBER | VAR: Offset in Speicher der Struktur
-						 * MEMBER | FUNCTION: Offset in virtueller Funktionstabelle
+						 * MEMBER | FUNCTION: Eindeutige Funktionsnummer
 						 * PARAM: Parameternummer
-						 * SELECTOR: Parameternummer
 						 */
 } symtab_entry_t;
 

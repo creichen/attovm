@@ -31,9 +31,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+struct symtab_entry; // symbol_table.h
+
 /* Abstrakter Syntaxbaum (AST).  Repräsentiert Programme nach dem Parsen. */
 
 // AST-Knotentypen
+		
 $$NODE_TYPES$$
 
 #define NODE_TY(n) ((n)->type & AST_NODE_MASK)
@@ -46,19 +49,22 @@ $$AV_VALUE_GETTERS$$
 $$AV_FLAGS$$
 // Ende der AST-Tags
 
-#define TYPE_INT	AST_FLAG_INT
-#define TYPE_REAL	AST_FLAG_REAL
-#define TYPE_OBJ	AST_FLAG_OBJ
-#define TYPE_VAR	AST_FLAG_VAR
+#define TYPE_INT	AST_FLAG_INT	// Integer-Zahl
+#define TYPE_REAL	AST_FLAG_REAL	// Fliesskomma-Zahl
+#define TYPE_OBJ	AST_FLAG_OBJ	// Zeiger auf Objekt
+#define TYPE_VAR	AST_FLAG_VAR	// Bitmuster mit `Tagging' zur Identifizierung
 #define TYPE_FLAGS	(TYPE_INT | TYPE_REAL | TYPE_OBJ | TYPE_VAR)
+#define TYPE_ANY	0		// Beliebiges Bitmuster (von internen Operationen verwendet)
 
-// Eingebaute Bezeichner.  NAME: nicht aufgeloester Name, ID: aufgeloester Name
+// Eingebaute Bezeichner.
 $$BUILTIN_IDS$$
 
 typedef struct ast_node {
 	unsigned short type;
 	unsigned short children_nr;
-	void *annotations;
+	short storage;		// Speicherstelle fuer Code-Generierung
+	short source_line;	// Quellcode-Zeile
+	struct symtab_entry *sym;
 	struct ast_node * children[0]; // Kindknoten
 } ast_node_t;
 
@@ -70,7 +76,9 @@ $$VALUE_UNION$$
 typedef struct {
 	unsigned short type;
 	unsigned short _reserved;
-	void *annotations;
+	short storage;
+	short source_location;
+	struct symtab_entry *sym;
 	ast_value_union_t v;
 } ast_value_node_t;
 

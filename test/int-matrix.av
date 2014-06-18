@@ -44,7 +44,7 @@ class Matrix(int height, int width) {
 }
 
 
-z = 0;
+int z = 0;
 obj b;
 
 while (z < 200) {
@@ -68,6 +68,6 @@ while (z < 200) {
         y := y + 1;
     }
 
-    z = z + 1
+    z := z + 1;
 }
 print(b);

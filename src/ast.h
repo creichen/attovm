@@ -32,9 +32,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+struct symtab_entry; // symbol_table.h
+
 /* Abstrakter Syntaxbaum (AST).  Repräsentiert Programme nach dem Parsen. */
 
 // AST-Knotentypen
+
 #define AST_ILLEGAL         0x00
 #define AST_NODE_MASK       0x3f
 #define AST_VALUE_INT       0x01
@@ -43,24 +46,24 @@
 #define AST_VALUE_ID        0x04
 #define AST_VALUE_NAME      0x05
 #define AST_VALUE_MAX       0x05
-#define AST_NODE_WHILE      0x06
+#define AST_NODE_MEMBER     0x06
 #define AST_NODE_BREAK      0x07
 #define AST_NODE_CONTINUE   0x08
 #define AST_NODE_ISPRIMTY   0x09
-#define AST_NODE_MEMBER     0x0a
-#define AST_NODE_SKIP       0x0b
-#define AST_NODE_FUNDEF     0x0c
-#define AST_NODE_ACTUALS    0x0d
-#define AST_NODE_ARRAYSUB   0x0e
-#define AST_NODE_VARDECL    0x0f
-#define AST_NODE_ASSIGN     0x10
-#define AST_NODE_IF         0x11
+#define AST_NODE_SKIP       0x0a
+#define AST_NODE_FUNDEF     0x0b
+#define AST_NODE_ACTUALS    0x0c
+#define AST_NODE_ARRAYSUB   0x0d
+#define AST_NODE_VARDECL    0x0e
+#define AST_NODE_ASSIGN     0x0f
+#define AST_NODE_IF         0x10
+#define AST_NODE_NEWCLASS   0x11
 #define AST_NODE_FUNAPP     0x12
 #define AST_NODE_ISINSTANCE 0x13
 #define AST_NODE_FORMALS    0x14
 #define AST_NODE_ARRAYLIST  0x15
 #define AST_NODE_CLASSDEF   0x16
-#define AST_NODE_SELFREF    0x17
+#define AST_NODE_WHILE      0x17
 #define AST_NODE_ARRAYVAL   0x18
 #define AST_NODE_RETURN     0x19
 #define AST_NODE_METHODAPP  0x1a
@@ -85,30 +88,35 @@
 #define AST_FLAG_REAL    0x0040
 // Ende der AST-Tags
 
-#define TYPE_INT	AST_FLAG_INT
-#define TYPE_REAL	AST_FLAG_REAL
-#define TYPE_OBJ	AST_FLAG_OBJ
-#define TYPE_VAR	AST_FLAG_VAR
+#define TYPE_INT	AST_FLAG_INT	// Integer-Zahl
+#define TYPE_REAL	AST_FLAG_REAL	// Fliesskomma-Zahl
+#define TYPE_OBJ	AST_FLAG_OBJ	// Zeiger auf Objekt
+#define TYPE_VAR	AST_FLAG_VAR	// Bitmuster mit `Tagging' zur Identifizierung
 #define TYPE_FLAGS	(TYPE_INT | TYPE_REAL | TYPE_OBJ | TYPE_VAR)
+#define TYPE_ANY	0		// Beliebiges Bitmuster (von internen Operationen verwendet)
 
-// Eingebaute Bezeichner.  NAME: nicht aufgeloester Name, ID: aufgeloester Name
+// Eingebaute Bezeichner.
 #define BUILTIN_OP_ADD     -1
-#define BUILTIN_OP_CONVERT -2
-#define BUILTIN_OP_DIV     -3
-#define BUILTIN_OP_MUL     -4
-#define BUILTIN_OP_NOT     -5
-#define BUILTIN_OP_SUB     -6
-#define BUILTIN_OP_TEST_EQ -7
-#define BUILTIN_OP_TEST_LE -8
-#define BUILTIN_OP_TEST_LT -9
+#define BUILTIN_OP_ALLOCATE -2
+#define BUILTIN_OP_CONVERT -3
+#define BUILTIN_OP_DIV     -4
+#define BUILTIN_OP_MUL     -5
+#define BUILTIN_OP_NOT     -6
+#define BUILTIN_OP_SELF    -7
+#define BUILTIN_OP_SUB     -8
+#define BUILTIN_OP_TEST_EQ -9
+#define BUILTIN_OP_TEST_LE -10
+#define BUILTIN_OP_TEST_LT -11
 
-#define BUILTIN_OPS_NR 9
+#define BUILTIN_OPS_NR 11
 
 
 typedef struct ast_node {
 	unsigned short type;
 	unsigned short children_nr;
-	void *annotations;
+	short storage;		// Speicherstelle fuer Code-Generierung
+	short source_line;	// Quellcode-Zeile
+	struct symtab_entry *sym;
 	struct ast_node * children[0]; // Kindknoten
 } ast_node_t;
 
@@ -123,7 +131,9 @@ typedef union {
 typedef struct {
 	unsigned short type;
 	unsigned short _reserved;
-	void *annotations;
+	short storage;
+	short source_location;
+	struct symtab_entry *sym;
 	ast_value_union_t v;
 } ast_value_node_t;
 

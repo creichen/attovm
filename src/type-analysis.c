@@ -35,6 +35,15 @@ int array_storage_type = TYPE_OBJ;
 int method_call_param_type = TYPE_OBJ;
 int method_call_return_type = TYPE_OBJ;
 
+// Hilfsdefinitionen, um neue AST-Objekte zu erzeugen:
+#define CONSV(TY, VALUE) value_node_alloc_generic(AST_VALUE_ ## TY, (ast_value_union_t) { .VALUE })
+#define CONS(TY, ...) ast_node_alloc_generic(AST_NODE_ ## TY, ARGS_NR(__VA_ARGS__), __VA_ARGS__)
+#define BUILTIN(ID) builtin(BUILTIN_OP_ ## ID)
+
+// Trick zum Berechnen der Laenge von VA_ARGS, basierend auf Ideen von Laurent Deniau
+#define ARGS_NR_X(_9, _8, _7, _6, _5, _4, _3, _2, _1, N, ...) N
+#define ARGS_NR(...) ARGS_NR_X(__VA_ARGS__, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+
 static int error_count = 0;
 
 int
@@ -43,12 +52,22 @@ type_analysis_errors()
 	return error_count;
 }
 
+static ast_node_t *
+builtin(int id)
+{
+	ast_node_t *retval = CONSV(ID, ident = id);
+	symtab_entry_t *sym = symtab_lookup(id);
+	retval->sym = sym;
+	retval->type |= sym->ast_flags & TYPE_FLAGS;
+	return retval;
+}
+
 static void
 error(const ast_node_t *node, char *fmt, ...)
 {
 	// Variable Anzahl von Parametern
 	va_list args;
-	fprintf(stderr, "Type error for `%s': ", AV_NAME(node));
+	fprintf(stderr, "Type error in line %d: ", node->source_line);
 	va_start(args, fmt);
 	vfprintf(stderr, fmt, args);
 	va_end(args);
@@ -57,11 +76,22 @@ error(const ast_node_t *node, char *fmt, ...)
 }
 
 
+static int
+update_type(int old, int ty)
+{
+	return (old & AST_NODE_MASK) | (ty & ~AST_NODE_MASK);
+}
+
 static void
 set_type(ast_node_t *node, int ty)
 {
-	node->type &= AST_NODE_MASK;
-	node->type |= ty & ~AST_NODE_MASK;
+	node->type = update_type(node->type, ty);
+}
+
+static void
+mutate_node(ast_node_t *node, int ty)
+{
+	node->type = ty;
 }
 
 static ast_node_t *
@@ -74,7 +104,7 @@ require_lvalue(ast_node_t *node, int const_assignment_permitted)
 	switch (NODE_TY(node)) {
 	case AST_VALUE_ID:
 		if (!const_assignment_permitted && (node->type & AST_FLAG_CONST)) {
-			error(node, "attempted assignment to constant `%s'", ((symtab_entry_t *)node->annotations)->name);
+			error(node, "attempted assignment to constant `%s'", node->sym->name);
 		}
 	case AST_NODE_MEMBER:
 	case AST_NODE_ARRAYSUB:
@@ -96,7 +126,7 @@ require_type(ast_node_t *node, int ty)
 		symtab_lookup(BUILTIN_OP_CONVERT);
 	}
 
-	if (node == NULL) {
+	if (node == NULL || ty == 0) {
 		return NULL;
 	}
 
@@ -105,29 +135,31 @@ require_type(ast_node_t *node, int ty)
 		return node;
 	}
 
-	ast_node_t *fun = value_node_alloc_generic(AST_VALUE_ID, (ast_value_union_t) { .ident = BUILTIN_OP_CONVERT });
-	fun->annotations = convert_sym;
-	ast_node_t *conversion = ast_node_alloc_generic
-		(AST_NODE_FUNAPP,
-		 2, fun,
-		 ast_node_alloc_generic(AST_NODE_ACTUALS,
-					1,
-					node));
+	ast_node_t *fun = BUILTIN(CONVERT);
+	fun->sym = convert_sym;
+	ast_node_t *conversion = CONS(FUNAPP, fun,
+				      CONS(ACTUALS, node));
 	set_type(fun, ty);
 	set_type(conversion, ty);
 	return conversion;
 }
 
 static ast_node_t *
-analyse(ast_node_t *node)
+analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 {
 	if (!node) {
 		return NULL;
 	}
 
 	if (!IS_VALUE_NODE(node)) {
+		if (NODE_TY(node) == AST_NODE_CLASSDEF) {
+			classref = node->sym;
+		} else if (NODE_TY(node) == AST_NODE_FUNDEF) {
+			function = node->sym;
+		}
+
 		for (int i = 0; i < node->children_nr; i++) {
-			node->children[i] = analyse(node->children[i]);
+			node->children[i] = analyse(node->children[i], classref, function);
 		}
 	}
 
@@ -138,27 +170,40 @@ analyse(ast_node_t *node)
 		break;
 
 	case AST_VALUE_ID:
-		if (node->annotations) {
+		if (node->sym) {
 			// Typ aktualisieren
-			set_type(node, ((symtab_entry_t *) node->annotations)->ast_flags);
+			symtab_entry_t *sym = node->sym;
+			set_type(node, sym->ast_flags);
+
+			if (function && ((sym->symtab_flags & (SYMTAB_MEMBER | SYMTAB_PARAM)) == (SYMTAB_MEMBER | SYMTAB_PARAM))) {
+				error(node, "Method bodies must not reference class constructor arguments.");
+			}
+			if (sym->symtab_flags & SYMTAB_MEMBER) {
+				// Impliziten Feldzugriff explizit machen
+				return CONS(MEMBER,
+					    BUILTIN(SELF),
+					    node);
+			}
 		}
 		break;
 
 	case AST_NODE_FUNAPP:
 		if (NODE_TY(node->children[0]) == AST_VALUE_ID) {
 			// Funktionsaufruf
-			symtab_entry_t *function = node->children[0]->annotations;
+			function = node->children[0]->sym;
 			if (!function) {
 				// Sollte nur passieren, wenn Namensanalyse fehlschlug
 				fprintf(stderr, "No function annotation on ID %d\n", AV_ID(node->children[0]));
 				return node;
 			}
 
-			if (!(function->symtab_flags & SYMTAB_TY_FUNCTION)) {
-				error(node, "Attempt to call non-function `%s'", function->name);
+			if (function->symtab_flags & SYMTAB_TY_CLASS) {
+				mutate_node(node, AST_NODE_NEWCLASS | TYPE_OBJ);
+			} else if (!(function->symtab_flags & SYMTAB_TY_FUNCTION)) {
+				error(node, "Attempt to call non-function/non-class `%s'", function->name);
 				return node;
 			}
-			node->annotations = function;
+			node->sym = function;
 
 			int min_params = function->parameters_nr;
 			ast_node_t *actuals = node->children[1];
@@ -182,8 +227,8 @@ analyse(ast_node_t *node)
 			ast_node_t *receiver = node->children[0]->children[0];
 			ast_node_t *selector_node = node->children[0]->children[1];
 			ast_node_t *actuals = node->children[1];
-			symtab_entry_t *selector = selector_node->annotations;
-			node->annotations = selector;
+			symtab_entry_t *selector = selector_node->sym;
+			node->sym = selector;
 
 			for (int i = 0; i < actuals->children_nr; i++) {
 				actuals->children[i] = require_type(actuals->children[i], method_call_param_type);
@@ -194,15 +239,171 @@ analyse(ast_node_t *node)
 			}
 
 			ast_node_free(node, 0);
-			node = ast_node_alloc_generic(AST_NODE_METHODAPP | method_call_return_type,
-						      3,
-						      require_type(receiver, TYPE_OBJ),
-						      selector_node,
-						      actuals);
+			node = CONS(METHODAPP,
+				    require_type(receiver, TYPE_OBJ),
+				    selector_node,
+				    actuals);
+		        node->type |= method_call_return_type;
 			return node;
 		} else {
 			error(node, "calls only permitted on functions and methods!");
 		}
+		break;
+
+	case AST_NODE_FUNDEF:
+		if (classref) { // In Methode
+			// Methodenparameter sind verpackt und muessen u.U. alle entpackt werden
+			int method_args_to_unpack = 0;
+			for (int i = 0; i < function->parameters_nr; i++) {
+				if (function->parameter_types[i] != method_call_param_type) {
+					++method_args_to_unpack;
+				}
+			}
+			if (method_args_to_unpack == 0) {
+				return node;
+			}
+
+			ast_node_t **formals = node->children[1]->children;
+			ast_node_t *init_body = ast_node_alloc_generic_without_init
+				(AST_NODE_BLOCK, method_args_to_unpack + 1);
+
+			// Methodenkoerper austauschen
+			init_body->children[method_args_to_unpack] = node->children[2];
+			node->children[2] = init_body;
+
+			int offset = 0;
+			for (int i = 0; i < function->parameters_nr; i++) {
+				if (function->parameter_types[i] != method_call_param_type) {
+					ast_node_t *assignment = CONS(ASSIGN, 
+								      ast_node_clone(formals[i]),
+								      ast_node_clone(formals[i]));
+					assignment = analyse(assignment, classref, function);
+					// Erzwinge Konvertierung
+					set_type(assignment->children[1], method_call_param_type);
+					assignment->children[1] = require_type(assignment->children[1],
+									       function->parameter_types[i]);
+					init_body->children[offset++] = assignment;
+				}
+			}
+		}
+		break;
+
+	case AST_NODE_CLASSDEF: {
+		classref = node->children[0]->sym;
+		node->sym = classref;
+		int class_body_size = node->children[2]->children_nr;
+		ast_node_t **class_body = node->children[2]->children;
+
+		// Konstruktor-Funktionskoerper erstellen: Groesse berechnen
+		int field_inits_nr = 0; // Anzahl der Feldinitialisierungen
+		int cons_body_size =
+			1	// initiale Allozierung
+			+ 1;	// abschliessendes `return'
+
+		for (int i = 0; i < class_body_size; i++) {
+			switch (NODE_TY(class_body[i])) {
+			case AST_NODE_FUNDEF:
+				break;
+
+			case AST_NODE_VARDECL:
+				if (class_body[i]->children[1] == NULL) {
+					break;
+				}
+				++field_inits_nr;
+			default:
+				++cons_body_size;
+			}
+		}
+
+		// Konstruktorkoerper
+		ast_node_t *cons_body_node = ast_node_alloc_generic_without_init(AST_NODE_BLOCK, cons_body_size);
+		ast_node_t **cons_body = cons_body_node->children;
+		int cons_body_offset = 0; // Schreibposition
+
+		assert(classref);
+
+		cons_body[cons_body_offset++] = CONS(ASSIGN,
+						     BUILTIN(SELF),
+						     CONS(FUNAPP,
+							  BUILTIN(ALLOCATE),
+							  CONSV(INT, num = classref->id)));
+
+		for (int i = 0; i < class_body_size; i++) {
+			ast_node_t *write = NULL;
+
+			switch (NODE_TY(class_body[i])) {
+			case AST_NODE_FUNDEF:
+				break;
+
+			case AST_NODE_VARDECL:
+				if (class_body[i]->children[1] != NULL) {
+					// Initialisierung herausziehen
+					write = CONS(ASSIGN,
+						     CONS(MEMBER,
+							  BUILTIN(SELF),
+							  ast_node_clone(class_body[i]->children[0])),
+						     class_body[i]->children[1]);
+					class_body[i]->children[1] = NULL;
+				}
+				break;
+			default:
+				write = class_body[i];
+				class_body[i] = NULL;
+			};
+
+			if (write) {
+				cons_body[cons_body_offset++] = write;
+			}
+		}
+		cons_body[cons_body_offset++] = CONS(RETURN, BUILTIN(SELF));
+
+		// Konstruktor fertigstellen
+		node->children[3] = CONS(FUNDEF,
+					 CONSV(ID, ident = classref->id),
+					 ast_node_clone(node->children[1]), // Parameter
+					 cons_body_node);
+
+
+		// Neuen Klassenkoerper erzeugen: Felder nach vorne, Methoden nach hinten
+		ast_node_t *new_class_body_node =
+			ast_node_alloc_generic_without_init(AST_NODE_BLOCK,
+							    classref->fields_nr + classref->methods_nr);
+		ast_node_t **new_class_body = new_class_body_node->children;
+		int field_ref = 0;
+		int method_ref = classref->fields_nr;
+
+		for (int i = 0; i < class_body_size; i++) {
+			ast_node_t *ref = class_body[i];
+			class_body[i] = NULL;
+			if (ref) {
+				switch (NODE_TY(ref)) {
+				case AST_NODE_FUNDEF:
+					new_class_body[method_ref++] = ref;
+					break;
+
+				case AST_NODE_VARDECL:
+					new_class_body[field_ref++] = ref;
+					break;
+				}
+			}
+		}
+
+		// Neuen Klassenkoerper einsetzen
+		ast_node_free(node->children[2], 0);
+		node->children[2] = new_class_body_node;
+	}
+		break;
+
+	case AST_NODE_RETURN:
+		if (!function) {
+			error(node, "`return' outside of a function body");
+			return node;
+		}
+		if (classref) {
+			function->ast_flags = update_type(function->ast_flags, method_call_return_type);
+		}
+		node->children[0] = require_type(node->children[0],
+						 function->ast_flags);
 		break;
 
 	case AST_NODE_VARDECL:
@@ -224,7 +425,7 @@ analyse(ast_node_t *node)
 		break;
 
 	case AST_NODE_ISINSTANCE: {
-		symtab_entry_t *classref = (symtab_entry_t *) node->children[1]->annotations;
+		symtab_entry_t *classref = node->children[1]->sym;
 		if (classref) {
 			if (!(classref->symtab_flags & SYMTAB_TY_CLASS)) {
 				error(node, "`isinstance' on non-class (%s)", classref->name);
@@ -260,5 +461,5 @@ analyse(ast_node_t *node)
 void
 type_analysis(ast_node_t **node)
 {
-	*node = analyse(*node);
+	*node = analyse(*node, NULL, NULL);
 }

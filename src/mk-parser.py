@@ -637,7 +637,7 @@ class Cons(ASTCons):
         if len(self.channels):
             args = ', ' + ', '.join(c.generateASTGen(genVar) for c in self.channels)
 
-        return ('ast_node_alloc_generic(%s, %d%s)'
+        return ('SETLINE(ast_node_alloc_generic(%s, %d%s))'
                 % (self.getASTFullName(),
                    len(self.channels),
                    args))
@@ -670,7 +670,7 @@ class Builtin(ASTCons):
         return Builtin.PREFIX + self.getBuiltinName()
 
     def generateASTGen(self, genVar):
-        return 'value_node_alloc_generic(AST_VALUE_ID, (ast_value_union_t) { .ident = %s })' % self.getBuiltinFullName()
+        return 'SETLINE(value_node_alloc_generic(AST_VALUE_ID, (ast_value_union_t) { .ident = %s }))' % self.getBuiltinFullName()
 
     def generateFreeVariable(self, p, varname):
         pass
@@ -1036,12 +1036,14 @@ rules = [
 
 # 
 OTHER_BUILTINS = {
-    'CONVERT'
+    'CONVERT',
+    'SELF',
+    'ALLOCATE',
 }
 
 OTHER_NONVALUE_NODE_TYPES = {
     'METHODAPP',
-    'SELFREF'
+    'NEWCLASS'
 }
 Attr('LVALUE')
 
@@ -1549,7 +1551,7 @@ def printParser():
 
     def token_decoding_rule(t):
         (value_union_field, ast_id, token_type_tag, yylval_field) = t
-        return ('\tcase %s:\n\t\t*node_ptr = value_node_alloc_generic(%s, (ast_value_union_t) { .%s = yylval.%s });\n\t\tbreak;'
+        return ('\tcase %s:\n\t\t*node_ptr = SETLINE(value_node_alloc_generic(%s, (ast_value_union_t) { .%s = yylval.%s }));\n\t\tbreak;'
                 % (token_type_tag, ast_id, value_union_field, yylval_field))
 
     parser_template.printFile({
@@ -1601,7 +1603,7 @@ def printUnparser():
     parser_template = TemplateFile('unparser.template.c')
     parser_template.printFile({
         'PRINT_TAGS': '\n'.join(printTag(n) for n in value_ntys.union(nonvalue_ntys)),
-        'PRINT_FLAGS': '\n'.join(printFlag(n) for n in _Attr.attr_map.itervalues()),
+        'PRINT_FLAGS': '\n'.join(printFlag(n) for n in sorted(_Attr.attr_map.itervalues())),
         'PRINT_IDS': '\n'.join(printID(n) for n in builtins),
         'PRINT_VNODES': '\n'.join(printVNode(n) for n in value_ntys) })
 

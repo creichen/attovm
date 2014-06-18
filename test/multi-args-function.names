@@ -1,37 +1,37 @@
 (BLOCK
   (FUNDEF#VAR
-    (SYM[1] f)
+    (SYM[1] f):#DECL
     (FORMALS
       (VARDECL#INT
-        (SYM[2] f.x)
+        (SYM[2] f.x):#DECL
         null
       )
       (VARDECL#INT
-        (SYM[3] f.y)
+        (SYM[3] f.y):#DECL
         null
       )
       (VARDECL#INT
-        (SYM[4] f.z)
+        (SYM[4] f.z):#DECL
         null
       )
       (VARDECL#INT
-        (SYM[5] f.a)
+        (SYM[5] f.a):#DECL
         null
       )
       (VARDECL#INT
-        (SYM[6] f.b)
+        (SYM[6] f.b):#DECL
         null
       )
       (VARDECL#INT
-        (SYM[7] f.c)
+        (SYM[7] f.c):#DECL
         null
       )
       (VARDECL#INT
-        (SYM[8] f.d)
+        (SYM[8] f.d):#DECL
         null
       )
       (VARDECL#INT
-        (SYM[9] f.e)
+        (SYM[9] f.e):#DECL
         null
       )
     )

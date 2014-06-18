@@ -1,27 +1,27 @@
 (BLOCK
   (CLASSDEF
-    (SYM[1] Record)
+    (SYM[1] Record):#DECL
     (FORMALS
       (VARDECL#VAR
-        (SYM[2] Record.x)
+        (SYM[2] Record.x):#DECL
         null
       )
       (VARDECL#VAR
-        (SYM[3] Record.y)
+        (SYM[3] Record.y):#DECL
         null
       )
     )
     (BLOCK
       (VARDECL#VAR
-        (SYM[4] Record.x$1)
+        (SYM[4] Record.x$1):#DECL
         (SYM[2] Record.x)
       )
       (VARDECL#INT
-        (SYM[5] Record.y$1)
+        (SYM[5] Record.y$1):#DECL
         (SYM[3] Record.y)
       )
       (VARDECL#INT
-        (SYM[6] Record.both)
+        (SYM[6] Record.both):#DECL
         (FUNAPP
           MUL
           (ACTUALS
@@ -31,9 +31,10 @@
         )
       )
     )
+    null
   )
   (VARDECL#VAR
-    (SYM[7] r)
+    (SYM[7] r):#DECL
     (FUNAPP
       (SYM[1] Record)
       (ACTUALS

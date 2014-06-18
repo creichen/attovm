@@ -1,13 +1,13 @@
 (BLOCK
   (VARDECL#VAR
-    (SYM[1] a)
+    (SYM[1] a):#DECL
     (ARRAYVAL
       (ARRAYLIST)
       null
     )
   )
   (VARDECL#VAR
-    (SYM[2] b)
+    (SYM[2] b):#DECL
     (ARRAYVAL
       (ARRAYLIST
         1:INT
@@ -16,7 +16,7 @@
     )
   )
   (VARDECL#VAR
-    (SYM[3] c)
+    (SYM[3] c):#DECL
     (ARRAYVAL
       (ARRAYLIST
         1:INT
@@ -25,7 +25,7 @@
     )
   )
   (VARDECL#VAR
-    (SYM[4] d)
+    (SYM[4] d):#DECL
     (ARRAYVAL
       (ARRAYLIST)
       5:INT

@@ -1,16 +1,16 @@
 #1:	fact
-	Flags:	 FUNCTION 
-	AST:	(BLOCK # # # #)
+	Flags:	 FUNCTION #INT
+	AST:	(FUNDEF # # #)
 	Args:	1:  (#INT)
 	Offset:	0
 
 #2:	fact.v
-	Flags:	 PARAM VAR #INT
+	Flags:	 PARAM VARIABLE #INT
 	AST:	(VARDECL # #)
 	Offset:	0
 
 #3:	x
-	Flags:	 VAR #VAR
+	Flags:	 VARIABLE #VAR
 	AST:	(VARDECL # #)
 	Offset:	0
 

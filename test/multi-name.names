@@ -1,17 +1,17 @@
 (BLOCK
   (VARDECL#VAR
-    (SYM[3] x)
+    (SYM[3] x):#DECL
     1:INT
   )
   (VARDECL#VAR
-    (SYM[4] x$1)
+    (SYM[4] x$1):#DECL
     2:INT
   )
   (FUNDEF#VAR
-    (SYM[1] f)
+    (SYM[1] f):#DECL
     (FORMALS
       (VARDECL#VAR
-        (SYM[5] f.y)
+        (SYM[5] f.y):#DECL
         null
       )
     )
@@ -28,14 +28,14 @@
     )
   )
   (VARDECL#VAR
-    (SYM[6] x$2)
+    (SYM[6] x$2):#DECL
     3:INT
   )
   (FUNDEF#VAR
-    (SYM[2] g)
+    (SYM[2] g):#DECL
     (FORMALS
       (VARDECL#VAR
-        (SYM[7] g.x$3)
+        (SYM[7] g.x$3):#DECL
         null
       )
     )

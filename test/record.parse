@@ -12,6 +12,7 @@
         1:INT
       )
     )
+    null
   )
   (VARDECL#VAR
     r:NAME

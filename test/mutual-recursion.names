@@ -1,9 +1,9 @@
 (BLOCK
   (FUNDEF#VAR
-    (SYM[1] even)
+    (SYM[1] even):#DECL
     (FORMALS
       (VARDECL#INT
-        (SYM[3] even.x)
+        (SYM[3] even.x):#DECL
         null
       )
     )
@@ -46,10 +46,10 @@
     )
   )
   (FUNDEF#VAR
-    (SYM[2] odd)
+    (SYM[2] odd):#DECL
     (FORMALS
       (VARDECL#INT
-        (SYM[4] odd.x)
+        (SYM[4] odd.x):#DECL
         null
       )
     )

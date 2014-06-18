@@ -1,0 +1,222 @@
+(BLOCK
+  (CLASSDEF
+    (SYM[1] C):#DECL#OBJ
+    (FORMALS
+      (VARDECL#INT
+        (SYM[2] C.x):#LVALUE#DECL#INT
+        null
+      )
+    )
+    (BLOCK
+      (VARDECL#INT
+        (SYM[9] C.xx):#LVALUE#DECL#INT
+        null
+      )
+      (VARDECL#INT
+        (SYM[10] C.xx2):#LVALUE#DECL#INT
+        null
+      )
+      (VARDECL#INT
+        (SYM[12] C.xx3):#LVALUE#DECL#INT
+        null
+      )
+      (FUNDEF#INT
+        (SYM[3] C.f):#DECL#INT
+        (FORMALS)
+        (BLOCK
+          (RETURN
+            (FUNAPP#OBJ
+              (SYM[-] *convert):#OBJ
+              (ACTUALS
+                (SYM[9] C.xx):#INT
+              )
+            )
+          )
+        )
+      )
+      (FUNDEF#INT
+        (SYM[5] C.h):#DECL#INT
+        (FORMALS)
+        (BLOCK
+          (FUNAPP#OBJ
+            (SYM[-] print):#OBJ
+            (ACTUALS
+              "five":STRING#OBJ
+            )
+          )
+          (RETURN
+            (FUNAPP#OBJ
+              (SYM[-] *convert):#OBJ
+              (ACTUALS
+                (FUNAPP#INT
+                  SUB:#INT
+                  (ACTUALS
+                    0:INT#INT
+                    1:INT#INT
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+      (FUNDEF#INT
+        (SYM[7] C.g):#DECL#INT
+        (FORMALS
+          (VARDECL#INT
+            (SYM[11] C.g.y):#LVALUE#DECL#INT
+            null
+          )
+        )
+        (BLOCK
+          (ASSIGN
+            (VARDECL#LVALUE#INT
+              (SYM[11] C.g.y):#LVALUE#DECL#INT
+              null
+            )
+            (FUNAPP#INT
+              (SYM[-] *convert):#INT
+              (ACTUALS
+                (VARDECL#OBJ
+                  (SYM[11] C.g.y):#LVALUE#DECL#INT
+                  null
+                )
+              )
+            )
+          )
+          (BLOCK
+            (RETURN
+              (FUNAPP#OBJ
+                (SYM[-] *convert):#OBJ
+                (ACTUALS
+                  (FUNAPP#INT
+                    ADD:#INT
+                    (ACTUALS
+                      (FUNAPP#INT
+                        ADD:#INT
+                        (ACTUALS
+                          (SYM[9] C.xx):#INT
+                          (SYM[11] C.g.y):#INT
+                        )
+                      )
+                      1:INT#INT
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+    (FUNDEF
+      (SYM[1] C)
+      (FORMALS
+        (VARDECL#INT
+          (SYM[2] C.x):#LVALUE#DECL#INT
+          null
+        )
+      )
+      (BLOCK
+        (ASSIGN
+          (SYM[-] *self):#OBJ
+          (FUNAPP
+            (SYM[-] *allocate):#OBJ
+            1:INT
+          )
+        )
+        (ASSIGN
+          (SYM[9] C.xx):#LVALUE#DECL#INT
+          (SYM[2] C.x):#INT
+        )
+        (FUNAPP#OBJ
+          (SYM[-] print):#OBJ
+          (ACTUALS
+            "one":STRING#OBJ
+          )
+        )
+        (FUNAPP#OBJ
+          (SYM[-] print):#OBJ
+          (ACTUALS
+            (FUNAPP#OBJ
+              (SYM[-] *convert):#OBJ
+              (ACTUALS
+                (SYM[2] C.x):#INT
+              )
+            )
+          )
+        )
+        (SKIP)
+        (ASSIGN
+          (SYM[10] C.xx2):#LVALUE#DECL#INT
+          (FUNAPP#INT
+            MUL:#INT
+            (ACTUALS
+              (SYM[2] C.x):#INT
+              2:INT#INT
+            )
+          )
+        )
+        (SKIP)
+        (FUNAPP#OBJ
+          (SYM[-] print):#OBJ
+          (ACTUALS
+            "three":STRING#OBJ
+          )
+        )
+        (FUNAPP#OBJ
+          (SYM[-] print):#OBJ
+          (ACTUALS
+            (FUNAPP#OBJ
+              (SYM[-] *convert):#OBJ
+              (ACTUALS
+                (SYM[10] C.xx2):#INT
+              )
+            )
+          )
+        )
+        (ASSIGN
+          (SYM[12] C.xx3):#LVALUE#DECL#INT
+          (FUNAPP#INT
+            (SYM[-] *convert):#INT
+            (ACTUALS
+              (FUNAPP#OBJ
+                (SYM[5] C.h):#OBJ
+                (ACTUALS)
+              )
+            )
+          )
+        )
+        (RETURN
+          (SYM[-] *self):#OBJ
+        )
+      )
+    )
+  )
+  (VARDECL#OBJ
+    (SYM[13] c):#LVALUE#DECL#OBJ
+    (NEWCLASS#OBJ
+      (SYM[1] C):#OBJ
+      (ACTUALS
+        2:INT#INT
+      )
+    )
+  )
+  (FUNAPP#OBJ
+    (SYM[-] print):#OBJ
+    (ACTUALS
+      (METHODAPP#OBJ
+        (SYM[13] c):#OBJ
+        (SYM[8] g)
+        (ACTUALS
+          (FUNAPP#OBJ
+            (SYM[-] *convert):#OBJ
+            (ACTUALS
+              1:INT#INT
+            )
+          )
+        )
+      )
+    )
+  )
+)

@@ -104,11 +104,6 @@ symtab_new(int ast_flags, int symtab_flags, char *name, ast_node_t *declaration)
 	entry->name = name;
 	entry->astref = declaration;
 
-	if (symtab_flags & SYMTAB_REGISTER) {
-		int *x = 0;
-		*x = 1;
-	}
-
 	return entry;
 }
 
@@ -171,7 +166,7 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 		fputs(" UNKNOWN", file);
 		break;
 	case SYMTAB_TY_VAR:
-		fputs(" VAR", file);
+		fputs(" VARIABLE", file);
 		break;
 	case SYMTAB_TY_FUNCTION:
 		fputs(" FUNCTION", file);
@@ -191,7 +186,6 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	PRINT_SYMVAR(SELECTOR);
 	PRINT_SYMVAR(OPT);
 	PRINT_SYMVAR(BUILTIN);
-	PRINT_SYMVAR(REGISTER);
 	PRINT_SYMVAR(HIDDEN);
 #undef PRINT_SYMVAR
 	fputs(" ", file);

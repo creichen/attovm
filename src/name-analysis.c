@@ -32,8 +32,8 @@
 #include "symbol-table.h"
 
 // Spezielle Flags bei der rekursiven Namenauflösung, die wir nicht an die Symboltabelle weiterreichen
-#define NF_SPECIAL_CHILD_FLAGS	0xf000
-#define NF_SELECTOR		0x1000
+#define NF_SPECIAL_CHILD_FLAGS	0xf0000000
+#define NF_SELECTOR		0x80000000
 
 extern int symtab_selectors_nr; // from symbol-table.c
 hashtable_t *selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufruge!)
@@ -164,11 +164,13 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		// Definitionen werden im umgebenden AST_NODE_BLOCK gemanaged
 		fix_with_parameters(node, env, (child_flags & ~SYMTAB_MEMBER) | SYMTAB_PARAM,
 				    child_flags & ~SYMTAB_MEMBER);
+		node->children[0]->type |= AST_FLAG_DECL;
 		return;
 	case AST_NODE_CLASSDEF:
 		// Definitionen werden im umgebenden AST_NODE_BLOCK gemanaged
 		fix_with_parameters(node, env, child_flags | SYMTAB_MEMBER | SYMTAB_PARAM,
 				    child_flags | SYMTAB_MEMBER);
+		node->children[0]->type |= AST_FLAG_DECL;
 		return;
 
 	case AST_NODE_FORMALS:
@@ -179,6 +181,9 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		// Definition ist in der Initialisierung noch nicht sichtbar, also erst hierhin:
 		fixnames(node->children[1], env, parent, child_flags);
 		ast_node_t *name_node = node->children[0];
+		name_node->type |= AST_FLAG_DECL;
+
+		// Wie oft haben wir diesen Namen schon definiert?
 		int occurrence_count = 0;
 		lookup = hashtable_get(env, AV_NAME(name_node));
 		if (lookup) {
@@ -229,10 +234,10 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 				if (parent && !(child_flags & SYMTAB_MEMBER)) {
 					error(name_node, "nested functions are not permitted");
 				}
-				syminfo = symtab_new(node->type & ~AST_NODE_MASK,
+				syminfo = symtab_new(cnode->type & ~AST_NODE_MASK,
 						     SYMTAB_TY_FUNCTION | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
 						     AV_NAME(name_node),
-						     node);
+						     cnode);
 
 				if (child_flags & SYMTAB_MEMBER) {
 					syminfo->selector = get_selector(cnode->children[0], 0)->selector;
@@ -247,10 +252,10 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 				if (parent) {
 					error(name_node, "nested classes are not permitted");
 				}
-				syminfo = symtab_new(node->type & ~AST_NODE_MASK,
+				syminfo = symtab_new(TYPE_OBJ,
 						     SYMTAB_TY_CLASS | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
 						     AV_NAME(name_node),
-						     node);
+						     cnode);
 				break;
 			}
 

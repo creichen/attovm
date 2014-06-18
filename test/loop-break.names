@@ -1,6 +1,6 @@
 (BLOCK
   (VARDECL#VAR
-    (SYM[1] x)
+    (SYM[1] x):#DECL
     1:INT
   )
   (WHILE

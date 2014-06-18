@@ -47,14 +47,12 @@
 #define SYMTAB_MEMBER		0x0010	// Klassenelement, also Methode oder Feld (zusammen mit TY_FUNCTION oder TY_VAR)
 #define SYMTAB_OPT		0x0020	// Mit Optimierungen übersetzt
 #define SYMTAB_BUILTIN		0x0040
-#define SYMTAB_REGISTER		0x0080	// Wird in Register gespeichert
-#define SYMTAB_HIDDEN		0x0100	// Name nicht explizit angegeben
+#define SYMTAB_HIDDEN		0x0080	// Name nicht explizit angegeben
 
 
 #define SYMTAB_TY(s)			(((s)->symtab_flags) & SYMTAB_TY_MASK)
 #define SYMTAB_IS_STATIC(s)		(!(s)->parent && (SYMTAB_TY(s) == SYMTAB_TY_VAR))	// static-alloziert
 #define SYMTAB_IS_STACK_DYNAMIC(s)	((s)->parent && (!(s)->sytmtab_flags & SYMTAB_MEMBER))	// Stack oder Register-alloziert
-#define SYMTAB_IS_STACK_VAR(s)		((s)->parent && (!(s)->symtab_flags & SYMTAB_REGISTER))	// Stack-Variable
 
 typedef struct symtab_entry {
 	char *name;
@@ -71,11 +69,14 @@ typedef struct symtab_entry {
 	ast_node_t *astref;			// CLASSDEF, FUNDEF, oder VARDECL
 	short id;				// Symboltabellennummer dieses Eintrags
 	unsigned short selector;		// Globale ID für Felder und Methoden
-	unsigned short fields_nr;
+	unsigned short vars_nr;			/* Klasse: Anzahl Felder
+						 * Methode/Funktion: Anzahl lokale Variablen
+						 */
 	unsigned short methods_nr;
 	unsigned short offset;			/* MEMBER | VAR: Offset in Speicher der Struktur
 						 * MEMBER | FUNCTION: Eindeutige Funktionsnummer
 						 * PARAM: Parameternummer
+						 * VAR: Variablennummer, entweder auf dem Stapel oder im statischen Speicher
 						 */
 } symtab_entry_t;
 

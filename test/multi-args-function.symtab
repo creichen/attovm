@@ -1,46 +1,46 @@
 #1:	f
-	Flags:	 FUNCTION 
-	AST:	(BLOCK # #)
+	Flags:	 FUNCTION #VAR
+	AST:	(FUNDEF # # #)
 	Args:	8:  (#INT) (#INT) (#INT) (#INT) (#INT) (#INT) (#INT) (#INT)
 	Offset:	0
 
 #2:	f.x
-	Flags:	 PARAM VAR #INT
+	Flags:	 PARAM VARIABLE #INT
 	AST:	(VARDECL # #)
 	Offset:	0
 
 #3:	f.y
-	Flags:	 PARAM VAR #INT
+	Flags:	 PARAM VARIABLE #INT
 	AST:	(VARDECL # #)
 	Offset:	1
 
 #4:	f.z
-	Flags:	 PARAM VAR #INT
+	Flags:	 PARAM VARIABLE #INT
 	AST:	(VARDECL # #)
 	Offset:	2
 
 #5:	f.a
-	Flags:	 PARAM VAR #INT
+	Flags:	 PARAM VARIABLE #INT
 	AST:	(VARDECL # #)
 	Offset:	3
 
 #6:	f.b
-	Flags:	 PARAM VAR #INT
+	Flags:	 PARAM VARIABLE #INT
 	AST:	(VARDECL # #)
 	Offset:	4
 
 #7:	f.c
-	Flags:	 PARAM VAR #INT
+	Flags:	 PARAM VARIABLE #INT
 	AST:	(VARDECL # #)
 	Offset:	5
 
 #8:	f.d
-	Flags:	 PARAM VAR #INT
+	Flags:	 PARAM VARIABLE #INT
 	AST:	(VARDECL # #)
 	Offset:	6
 
 #9:	f.e
-	Flags:	 PARAM VAR #INT
+	Flags:	 PARAM VARIABLE #INT
 	AST:	(VARDECL # #)
 	Offset:	7
 

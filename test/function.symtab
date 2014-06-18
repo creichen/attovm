@@ -1,16 +1,16 @@
 #1:	f
-	Flags:	 FUNCTION 
-	AST:	(BLOCK # # #)
+	Flags:	 FUNCTION #VAR
+	AST:	(FUNDEF # # #)
 	Args:	1:  (#VAR)
 	Offset:	0
 
 #2:	f.x
-	Flags:	 PARAM VAR #VAR
+	Flags:	 PARAM VARIABLE #VAR
 	AST:	(VARDECL # #)
 	Offset:	0
 
 #3:	z
-	Flags:	 VAR #VAR
+	Flags:	 VARIABLE #VAR
 	AST:	(VARDECL # #)
 	Offset:	0
 

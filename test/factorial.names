@@ -1,9 +1,9 @@
 (BLOCK
   (FUNDEF#INT
-    (SYM[1] fact)
+    (SYM[1] fact):#DECL
     (FORMALS
       (VARDECL#INT
-        (SYM[2] fact.v)
+        (SYM[2] fact.v):#DECL
         null
       )
     )
@@ -54,7 +54,7 @@
     )
   )
   (VARDECL#VAR
-    (SYM[3] x)
+    (SYM[3] x):#DECL
     (FUNAPP
       ADD
       (ACTUALS

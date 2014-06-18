@@ -1,0 +1,74 @@
+#1:	C
+	Flags:	 CLASS #OBJ
+	AST:	(CLASSDEF # # # #)
+	Args:	1:  (#INT)
+	MethNr:	3
+	FldsNr:	3
+	Offset:	0
+
+#2:	C.x
+	Flags:	 PARAM VARIABLE #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#3:	C.f
+	Flags:	 MEMBER FUNCTION #INT
+	AST:	(FUNDEF # # #)
+	Args:	0: 
+	Select:	2
+	Offset:	0
+
+#4:	f
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	2
+	Offset:	0
+
+#5:	C.h
+	Flags:	 MEMBER FUNCTION #INT
+	AST:	(FUNDEF # # #)
+	Args:	0: 
+	Select:	3
+	Offset:	1
+
+#6:	h
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	3
+	Offset:	0
+
+#7:	C.g
+	Flags:	 MEMBER FUNCTION #INT
+	AST:	(FUNDEF # # #)
+	Args:	1:  (#INT)
+	Select:	4
+	Offset:	2
+
+#8:	g
+	Flags:	 UNKNOWN SELECTOR 
+	Select:	4
+	Offset:	0
+
+#9:	C.xx
+	Flags:	 MEMBER VARIABLE #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#10:	C.xx2
+	Flags:	 MEMBER VARIABLE #INT
+	AST:	(VARDECL # #)
+	Offset:	1
+
+#11:	C.g.y
+	Flags:	 PARAM VARIABLE #INT
+	AST:	(VARDECL # #)
+	Offset:	0
+
+#12:	C.xx3
+	Flags:	 MEMBER VARIABLE #INT
+	AST:	(VARDECL # #)
+	Offset:	2
+
+#13:	c
+	Flags:	 VARIABLE #OBJ
+	AST:	(VARDECL # #)
+	Offset:	0
+

@@ -64,7 +64,7 @@ print_tag_string(FILE *file, int tag)
 		return;
 $$PRINT_TAGS$$
 	default:
-		fprintf(file, "<unknown tag: %d>", tag & AST_NODE_MASK);
+		fprintf(file, "<unknown tag: 0x%x>", tag & AST_NODE_MASK);
 	}
 }
 
@@ -77,7 +77,7 @@ print_value_node(FILE *file, ast_value_node_t *node)
 		return;
 $$PRINT_VNODES$$
 	default:
-		fprintf(file, "<unknown value node tpe %d>", node->type & AST_NODE_MASK);
+		fprintf(file, "<unknown value node tpe 0x%x>", node->type & AST_NODE_MASK);
 	}
 }
 

@@ -116,6 +116,7 @@ static unsigned short args_int_int[] = { TYPE_INT, TYPE_INT };
 static unsigned short args_int[] = { TYPE_INT };
 static unsigned short args_obj[] = { TYPE_OBJ };
 static unsigned short args_any[] = { TYPE_ANY };
+static unsigned short args_any_any[] = { TYPE_ANY };
 
 void *builtin_op_print(object_t *arg);  // Nicht statisch: Wird vom Test-Code verwendet
 static void *builtin_op_assert(long long int arg); 
@@ -127,7 +128,7 @@ static struct builtin_ops builtin_ops[] = {
 	{ BUILTIN_OP_MUL, "*", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
 	{ BUILTIN_OP_SUB, "-", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
 	{ BUILTIN_OP_DIV, "/", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_TEST_EQ, "==", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_VAR, 2, args_var_var, NULL },
+	{ BUILTIN_OP_TEST_EQ, "==", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_any_any, NULL },
 	{ BUILTIN_OP_TEST_LE, "<=", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
 	{ BUILTIN_OP_TEST_LT, "<", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
 	{ BUILTIN_OP_CONVERT, "*convert", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), 0, 1, args_any, NULL },

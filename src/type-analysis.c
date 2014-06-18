@@ -127,11 +127,11 @@ require_type(ast_node_t *node, int ty)
 	}
 
 	if (node == NULL || ty == 0) {
-		return NULL;
+		return node;
 	}
 
 	if (ty == 0 // only used for the CONVERT operation itself
-	    || (node->type & ~AST_NODE_MASK) == ty) {
+	    || (node->type & TYPE_FLAGS) == ty) {
 		return node;
 	}
 
@@ -153,9 +153,9 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 
 	if (!IS_VALUE_NODE(node)) {
 		if (NODE_TY(node) == AST_NODE_CLASSDEF) {
-			classref = node->sym;
+			classref = node->children[0]->sym;
 		} else if (NODE_TY(node) == AST_NODE_FUNDEF) {
-			function = node->sym;
+			function = node->children[0]->sym;
 		}
 
 		for (int i = 0; i < node->children_nr; i++) {
@@ -165,6 +165,14 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 
 	switch (NODE_TY(node)) {
 
+	case AST_VALUE_INT:
+		set_type(node, TYPE_INT);
+		break;
+
+	case AST_VALUE_STRING:
+		set_type(node, TYPE_OBJ);
+		break;
+
 	case AST_VALUE_REAL:
 		error(node, "Floating point numbers are not presently supported");
 		break;
@@ -173,17 +181,22 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 		if (node->sym) {
 			// Typ aktualisieren
 			symtab_entry_t *sym = node->sym;
-			set_type(node, sym->ast_flags);
+			set_type(node, sym->ast_flags | (node->type & AST_FLAG_DECL));
 
 			if (function && ((sym->symtab_flags & (SYMTAB_MEMBER | SYMTAB_PARAM)) == (SYMTAB_MEMBER | SYMTAB_PARAM))) {
 				error(node, "Method bodies must not reference class constructor arguments.");
 			}
-			if (sym->symtab_flags & SYMTAB_MEMBER) {
+
+			// Der folgende Code wird relevant, wenn Vererbung eingebaut wird
+			/*
+			if (sym->symtab_flags & SYMTAB_MEMBER &&
+			    !(node->type & AST_FLAG_DECL)) {
 				// Impliziten Feldzugriff explizit machen
 				return CONS(MEMBER,
 					    BUILTIN(SELF),
 					    node);
 			}
+			*/
 		}
 		break;
 
@@ -193,13 +206,13 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 			function = node->children[0]->sym;
 			if (!function) {
 				// Sollte nur passieren, wenn Namensanalyse fehlschlug
-				fprintf(stderr, "No function annotation on ID %d\n", AV_ID(node->children[0]));
+				error(node, "(Internal) No function annotation on ID %d\n", AV_ID(node->children[0]));
 				return node;
 			}
 
-			if (function->symtab_flags & SYMTAB_TY_CLASS) {
+			if (SYMTAB_TY(function) == SYMTAB_TY_CLASS) {
 				mutate_node(node, AST_NODE_NEWCLASS | TYPE_OBJ);
-			} else if (!(function->symtab_flags & SYMTAB_TY_FUNCTION)) {
+			} else if (!(SYMTAB_TY(function) == SYMTAB_TY_FUNCTION)) {
 				error(node, "Attempt to call non-function/non-class `%s'", function->name);
 				return node;
 			}
@@ -243,7 +256,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 				    require_type(receiver, TYPE_OBJ),
 				    selector_node,
 				    actuals);
-		        node->type |= method_call_return_type;
+			set_type(node, method_call_return_type);
 			return node;
 		} else {
 			error(node, "calls only permitted on functions and methods!");
@@ -339,9 +352,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 				if (class_body[i]->children[1] != NULL) {
 					// Initialisierung herausziehen
 					write = CONS(ASSIGN,
-						     CONS(MEMBER,
-							  BUILTIN(SELF),
-							  ast_node_clone(class_body[i]->children[0])),
+						     ast_node_clone(class_body[i]->children[0]),
 						     class_body[i]->children[1]);
 					class_body[i]->children[1] = NULL;
 				}
@@ -427,7 +438,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 	case AST_NODE_ISINSTANCE: {
 		symtab_entry_t *classref = node->children[1]->sym;
 		if (classref) {
-			if (!(classref->symtab_flags & SYMTAB_TY_CLASS)) {
+			if (!(SYMTAB_TY(classref) == SYMTAB_TY_CLASS)) {
 				error(node, "`isinstance' on non-class (%s)", classref->name);
 			}
 		} // ansonsten hat die Namensanalyse bereits einen Fehler gemeldet
@@ -440,6 +451,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 		if (NODE_FLAGS(node->children[0]) & (TYPE_INT | TYPE_REAL)) {
 			error(node, "array subscription must be on object, not number");
 		}
+		node->children[0] = require_type(node->children[0], TYPE_OBJ);
 		node->children[1] = require_type(node->children[1], TYPE_INT);
 		set_type(node, array_storage_type);
 		break;

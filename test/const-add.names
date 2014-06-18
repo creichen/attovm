@@ -1,6 +1,6 @@
 (BLOCK
   (VARDECL#INT#CONST
-    (SYM[1] x)
+    (SYM[1] x):#DECL
     3:INT
   )
   (FUNAPP

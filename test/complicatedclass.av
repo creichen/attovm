@@ -1,0 +1,30 @@
+class C(int x) {
+      int xx = x;
+
+      print("one");
+      print(x);
+
+      int f() {
+      	  return xx;
+      };
+
+      int xx2 = x * 2;
+
+      int h() {
+      	  print("five");
+	  return 0 - 1;
+      };
+
+      print("three");
+
+      int g(int y) {
+      	  return xx + y + 1;
+      }
+
+      print(xx2);
+
+      int xx3 = h();
+}
+
+obj c = C(2);
+print(c.g(1));

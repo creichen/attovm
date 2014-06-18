@@ -1,17 +1,17 @@
 (BLOCK
   (CLASSDEF
-    (SYM[1] A)
+    (SYM[1] A):#DECL
     (FORMALS)
     (BLOCK
       (VARDECL#INT
-        (SYM[6] A.v)
+        (SYM[6] A.v):#DECL
         0:INT
       )
       (FUNDEF#VAR
-        (SYM[2] A.set)
+        (SYM[2] A.set):#DECL
         (FORMALS
           (VARDECL#INT
-            (SYM[7] A.set.v2)
+            (SYM[7] A.set.v2):#DECL
             null
           )
         )
@@ -23,7 +23,7 @@
         )
       )
       (FUNDEF#INT
-        (SYM[4] A.get)
+        (SYM[4] A.get):#DECL
         (FORMALS)
         (BLOCK
           (RETURN
@@ -32,9 +32,10 @@
         )
       )
     )
+    null
   )
   (VARDECL#OBJ
-    (SYM[8] a)
+    (SYM[8] a):#DECL
     (FUNAPP
       (SYM[1] A)
       (ACTUALS)

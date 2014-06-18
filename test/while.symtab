@@ -1,5 +1,5 @@
 #1:	x
-	Flags:	 VAR #VAR
+	Flags:	 VARIABLE #VAR
 	AST:	(VARDECL # #)
 	Offset:	0
 

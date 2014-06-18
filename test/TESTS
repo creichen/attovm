@@ -1,6 +1,5 @@
 print-string
 print-addition
-string-concat
 print-nested-expr
 multi-stmt
 const-add

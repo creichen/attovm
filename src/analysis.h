@@ -63,4 +63,12 @@ int
 type_analysis_errors(void);
 
 
+/**
+ * Alloziert Speicherstellen fuer alle temporaeren Ergebnisse und globalen Variablen
+ *
+ * @return Liefert die Anzahl der globalen Variableneintraege zurueck
+ */
+int
+storage_allocation(ast_node_t *);
+
 #endif 

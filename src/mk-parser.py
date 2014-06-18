@@ -971,7 +971,7 @@ rules = [
     # Compromise: semantic analysis must disallow the constness here
     Rule(STMT,		[ MAYBECONST, TY, ID, FORMALSLIST, BLOCK ],	AddAttribute(AddAttribute(Cons('FUNDEF', [ID, FORMALSLIST, BLOCK]), TY), MAYBECONST)),
     # # Compromise: semantic analysis must ensure that we have only lvalues
-    Rule(STMT,		[ 'class', ID, FORMALSLIST, BLOCK ],		Cons('CLASSDEF', [ID, FORMALSLIST, BLOCK])),
+    Rule(STMT,		[ 'class', ID, FORMALSLIST, BLOCK ],		Cons('CLASSDEF', [ID, FORMALSLIST, BLOCK, NULL])),
     Rule(STMT,		[ EXPR, ':=', EXPR, ';' ],			Cons('ASSIGN', [EXPR(0), EXPR(1)])),
     Rule(STMT,		[ ';' ],					Cons('SKIP', [])),
     Rule(STMT,		[ EXPR, ';' ],					EXPR),
@@ -1030,6 +1030,12 @@ rules = [
     # Rule(EXPR,		[VALEXPR],					VALEXPR),
 ]
 
+ASTINFO = {
+    'FUNAPP'	: (['f', 'args'], 'Ruft Funktion "f" auf den Parametern "args" auf.  "f" kann eine globale Funktion oder eine aufgeloeste Methode sein.'),
+    'CLASSDECL'	: (['cn', 'args', 'body', 'cons'], 'Deklariert und definiert eine Klasse "cn".  Der implizite Konstruktor erhaelt Parameter "args".'
+                   + '  Im Koerper "body" sind Methoden und Felder sowie Operationen, die bei der Initialisierung angegeben werden, aufgefuehrt.'
+                   + ' "cons" ist die Konstruktorfuntkion, die waehrend der Namensanalyse erzeugt wird; bei der Erzeugung wird auch der Koerper sortiert (Felder gefolgt von Methoden).'),
+}
 
 # TODO:
 # - test that we correctly parse `1 + "foo"' with `A ::= B + STRING    B ::= INT + INT', otherwise fix
@@ -1046,6 +1052,7 @@ OTHER_NONVALUE_NODE_TYPES = {
     'NEWCLASS'
 }
 Attr('LVALUE')
+Attr('DECL')
 
 BITS_FOR_NODE_TYPE_TOTAL = 16
 TOTAL_AST_NODE_TYPES = len(Cons.cons_names) + len(Term.all) + 2 # 2 for identifiers and `invalid'
@@ -1590,6 +1597,9 @@ def printUnparser():
     def printTag(n):
         return '\tcase %s:\n\t\tfputs("%s", file);\n\t\tbreak;' % (n.getASTFullName(), n.getASTName())
 
+    def printTagN(n):
+        return '\tcase %s:\n\t\tfputs("%s", file);\n\t\tbreak;' % (ASTCons.PREFIX + n, n)
+
     def printVNode(n):
         return '\tcase %s:\n\t\tfprintf(file, "%s", node->v.%s);\n\t\tbreak;' % (
             n.getASTFullName(),
@@ -1602,7 +1612,8 @@ def printUnparser():
 
     parser_template = TemplateFile('unparser.template.c')
     parser_template.printFile({
-        'PRINT_TAGS': '\n'.join(printTag(n) for n in value_ntys.union(nonvalue_ntys)),
+        'PRINT_TAGS': '\n'.join([printTagN(n) for n in OTHER_NONVALUE_NODE_TYPES]
+                                + [printTag(n) for n in value_ntys.union(nonvalue_ntys)]),
         'PRINT_FLAGS': '\n'.join(printFlag(n) for n in sorted(_Attr.attr_map.itervalues())),
         'PRINT_IDS': '\n'.join(printID(n) for n in builtins),
         'PRINT_VNODES': '\n'.join(printVNode(n) for n in value_ntys) })

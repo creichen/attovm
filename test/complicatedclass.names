@@ -1,0 +1,140 @@
+(BLOCK
+  (CLASSDEF
+    (SYM[1] C):#DECL
+    (FORMALS
+      (VARDECL#INT
+        (SYM[2] C.x):#DECL
+        null
+      )
+    )
+    (BLOCK
+      (VARDECL#INT
+        (SYM[9] C.xx):#DECL
+        (SYM[2] C.x)
+      )
+      (FUNAPP
+        (SYM[-] print)
+        (ACTUALS
+          "one":STRING
+        )
+      )
+      (FUNAPP
+        (SYM[-] print)
+        (ACTUALS
+          (SYM[2] C.x)
+        )
+      )
+      (FUNDEF#INT
+        (SYM[3] C.f):#DECL
+        (FORMALS)
+        (BLOCK
+          (RETURN
+            (SYM[9] C.xx)
+          )
+        )
+      )
+      (SKIP)
+      (VARDECL#INT
+        (SYM[10] C.xx2):#DECL
+        (FUNAPP
+          MUL
+          (ACTUALS
+            (SYM[2] C.x)
+            2:INT
+          )
+        )
+      )
+      (FUNDEF#INT
+        (SYM[5] C.h):#DECL
+        (FORMALS)
+        (BLOCK
+          (FUNAPP
+            (SYM[-] print)
+            (ACTUALS
+              "five":STRING
+            )
+          )
+          (RETURN
+            (FUNAPP
+              SUB
+              (ACTUALS
+                0:INT
+                1:INT
+              )
+            )
+          )
+        )
+      )
+      (SKIP)
+      (FUNAPP
+        (SYM[-] print)
+        (ACTUALS
+          "three":STRING
+        )
+      )
+      (FUNDEF#INT
+        (SYM[7] C.g):#DECL
+        (FORMALS
+          (VARDECL#INT
+            (SYM[11] C.g.y):#DECL
+            null
+          )
+        )
+        (BLOCK
+          (RETURN
+            (FUNAPP
+              ADD
+              (ACTUALS
+                (FUNAPP
+                  ADD
+                  (ACTUALS
+                    (SYM[9] C.xx)
+                    (SYM[11] C.g.y)
+                  )
+                )
+                1:INT
+              )
+            )
+          )
+        )
+      )
+      (FUNAPP
+        (SYM[-] print)
+        (ACTUALS
+          (SYM[10] C.xx2)
+        )
+      )
+      (VARDECL#INT
+        (SYM[12] C.xx3):#DECL
+        (FUNAPP
+          (SYM[5] C.h)
+          (ACTUALS)
+        )
+      )
+    )
+    null
+  )
+  (VARDECL#OBJ
+    (SYM[13] c):#DECL
+    (FUNAPP
+      (SYM[1] C)
+      (ACTUALS
+        2:INT
+      )
+    )
+  )
+  (FUNAPP
+    (SYM[-] print)
+    (ACTUALS
+      (FUNAPP
+        (MEMBER
+          (SYM[13] c)
+          (SYM[8] g)
+        )
+        (ACTUALS
+          1:INT
+        )
+      )
+    )
+  )
+)

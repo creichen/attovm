@@ -80,11 +80,12 @@ struct symtab_entry; // symbol_table.h
 #define AV_NAME(n) (((ast_value_node_t *)(n))->v.str)
 
 // AST-Flags (Zusatzinformationen)
-#define AST_FLAG_INT     0x0100
-#define AST_FLAG_OBJ     0x0800
-#define AST_FLAG_CONST   0x0080
-#define AST_FLAG_VAR     0x0400
-#define AST_FLAG_LVALUE  0x0200
+#define AST_FLAG_INT     0x0200
+#define AST_FLAG_DECL    0x0080
+#define AST_FLAG_OBJ     0x1000
+#define AST_FLAG_CONST   0x0100
+#define AST_FLAG_VAR     0x0800
+#define AST_FLAG_LVALUE  0x0400
 #define AST_FLAG_REAL    0x0040
 // Ende der AST-Tags
 

@@ -117,7 +117,7 @@ static unsigned short args_int_int[] = { TYPE_INT, TYPE_INT };
 static unsigned short args_int[] = { TYPE_INT };
 static unsigned short args_obj[] = { TYPE_OBJ };
 static unsigned short args_any[] = { TYPE_ANY };
-static unsigned short args_any_any[] = { TYPE_ANY };
+static unsigned short args_any_any[] = { TYPE_ANY, TYPE_ANY };
 
 void *builtin_op_print(object_t *arg);  // Nicht statisch: Wird vom Test-Code verwendet
 static void *builtin_op_assert(long long int arg); 

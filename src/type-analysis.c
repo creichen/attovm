@@ -121,8 +121,8 @@ require_type(ast_node_t *node, int ty)
 		symtab_lookup(BUILTIN_OP_CONVERT);
 	}
 
-	if (node == NULL || ty == 0) {
-		return node;
+	if (node == NULL) {
+		return NULL;
 	}
 
 	if (ty == 0 // only used for the CONVERT operation itself
@@ -225,6 +225,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 
 			for (int i = 0; i < function->parameters_nr; i++) {
 				short expected_type = function->parameter_types[i];
+				fprintf(stderr, "Expected type at %d: %x\n", i, expected_type);
 				actuals->children[i] = require_type(actuals->children[i], expected_type);
 			}
 

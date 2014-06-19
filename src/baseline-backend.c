@@ -32,19 +32,10 @@
 #include "object.h"
 
 
-// Temp-Speicher:
-//
-// Um Zwischenwerte zu speichern, werden `Temp-Speicher' verwendet.  Diese sind Integer-Zahlen:
-// >= 0:  Registernummer
-// <= 0:  Index relativ zu $fp
-
-
-
 void
-baseline_compile_expr(buffer_t *buf, int dest_register, int spill_reg_base)
+baseline_compile_expr(buffer_t *buf, int dest_register, int temp_reg_base)
 {
 	emit_li(buf, dest_register, 42);
-	return TYPE_INT;
 }
 
 void *builtin_op_print(object_t *arg);  // builtins.c
@@ -57,7 +48,7 @@ baseline_compile(ast_node_t *root,
 	// push...
 	emit_push(&buf, REGISTER_GP);
 	emit_li(&buf, REGISTER_GP, (long long int) static_memory);
-	baseline_compile_expr(&buf, registers_argument_nr[0], root, NULL, 0);
+	baseline_compile_expr(&buf, registers_argument_nr[0], REGISTER_GP);
 	emit_li(&buf, REGISTER_V0, (long long int) new_int);
 	emit_jalr(&buf, REGISTER_V0);
 	emit_move(&buf, registers_argument_nr[0], REGISTER_V0);

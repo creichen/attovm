@@ -32,15 +32,14 @@
 
 /**
  * Ersetzt alle AST_VALUE_NAME-Knoten durch AST_VALUE_ID-Knoten
- */
-void
-name_analysis(ast_node_t *);
-
-/**
- * Anzahl der bei der Namensanalyse beobachteten Fehler
+ *
+ * Erste Analysephase
+ *
+ * @return Anzahl der beobachteten Fehler
  */
 int
-name_analysis_errors(void);
+name_analysis(ast_node_t *);
+
 
 /**
  * Fuehrt Typanalyse durch:
@@ -52,19 +51,19 @@ name_analysis_errors(void);
  * - Stellt sicher, dass keine unerlaubten Variablenzugriffe stattfinden
  * - Erstellt den Konstruktor fuer jede Klass
  * - Markiert Fehler, wenn Fliesskommazahlen verwendet werden
- */
-void
-type_analysis(ast_node_t **);
-
-/**
- * Anzahl der bei der Namensanalyse beobachteten Fehler
+ *
+ * Zweite Analysephase
+ *
+ * @return Anzahl der beobachteten Fehler
  */
 int
-type_analysis_errors(void);
+type_analysis(ast_node_t **);
 
 
 /**
  * Alloziert Speicherstellen fuer alle temporaeren Ergebnisse und globalen Variablen
+ *
+ * Dritte Analysephase
  *
  * @return Liefert die Anzahl der globalen Variableneintraege zurueck
  */

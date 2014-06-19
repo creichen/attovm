@@ -36,7 +36,7 @@ class_t *
 class_new(symtab_entry_t *entry)
 {
 	assert(entry->symtab_flags & SYMTAB_TY_CLASS);
-	const int members = entry->methods_nr + entry->fields_nr;
+	const int members = entry->methods_nr + entry->vars_nr;
 	int size = 1 << ffs(members * 3);
 	class_t *classref = calloc(1, sizeof(class_t) + sizeof(class_member_t) * size);
 	classref->table_mask = size - 1;

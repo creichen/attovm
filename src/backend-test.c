@@ -37,14 +37,15 @@
 #include "object.h"
 #include "parser.h"
 #include "registers.h"
+#include "runtime.h"
 #include "symbol-table.h"
 
 extern FILE *builtin_print_redirection; // builtins.c
 extern FILE *yyin; // lexer
 
-void *builtin_op_print(object_t *arg);  // builtins.c
-
 static int failures = 0;
+static int runs = 0;
+
 
 void
 fail(char *msg)
@@ -53,65 +54,85 @@ fail(char *msg)
 	exit(1);
 }
 
-void
-test_expr(char *source, char *expected_result, int line)
+static runtime_image_t *
+compile(char *src, int line)
 {
+	FILE *memfile = fmemopen(src, strlen(src), "r");
+	yyin = memfile;
+	ast_node_t *root;
+	if (!parse_program(&root)) {
+		fprintf(stderr, "NOPARSE");
+		fclose(memfile);
+		return NULL;
+	}
+	fclose(memfile);
+	return runtime_compile(root);
+}
+
+void
+signal_failure()
+{
+	 ++failures;
+	 printf("\033[1;31mFAILURE\033[0m\n");
+}
+
+void
+signal_success()
+{
+	 printf("\033[1;32mOK\033[0m\n");
+}
+
+void
+test_program(char *source, char *expected_result, int line)
+{
+	++runs;
+	builtins_init();
+	printf("[L%d] Testing: \t", line);
+	runtime_image_t *image = compile(source, line);
+	if (!image) {
+		signal_failure();
+		return;
+	}
+
 	const int output_buf_len = 4096 + strlen(expected_result);
 	char output_buf[output_buf_len + 1];
 	memset(output_buf, 0, output_buf_len + 1);
 	FILE *writefile = fmemopen(output_buf, output_buf_len, "w");
+
+	buffer_disassemble(image->code_buffer);	// for completeness for now...
+
 	builtin_print_redirection = writefile;
-	FILE *memfile = fmemopen(source, strlen(source), "r");
-	yyin = memfile;
-
-	ast_node_t *root;
-	if (!parse_expr(&root)) {
-		fprintf(stderr, "[%d] Parse error in `%s'\n", line, source);
-		++failures;
-		return;
-	}
-	name_analysis(root);
-	if (name_analysis_errors()) {
-		fprintf(stderr, "[%d] Name analysis failures in `%s'\n", line, source);
-		++failures;
-		return;
-	}
-
-	buffer_t outbuf = buffer_new(1024);
-	baseline_compile_expr(&outbuf, registers_argument_nr[0], root, NULL, 0);
-	emit_li(&outbuf, REGISTER_V0, (long long int) new_int);
-	emit_jalr(&outbuf, REGISTER_V0);
-	emit_move(&outbuf, registers_argument_nr[0], REGISTER_V0);
-	emit_li(&outbuf, REGISTER_V0, (long long int) builtin_op_print);
-	emit_jalr(&outbuf, REGISTER_V0);
-	emit_jreturn(&outbuf);
-	buffer_terminate(outbuf);
-	void (*f)(void);
-	f = (void (*)(void)) buffer_entrypoint(outbuf);
-	buffer_disassemble(outbuf);	// for completeness for now...
 	fprintf(stderr, "START\n");
-	f();
+	runtime_execute(image); // Engage!
 	fprintf(stderr, "DONE\n");
+	builtin_print_redirection = NULL;
+
 	if (strcmp(expected_result, output_buf)) {
-		fprintf(stderr, "[%d] Result mismatch:\n\tExpected: `%s'\n\tActual:  `%s'", line, expected_result, output_buf);
-		buffer_disassemble(outbuf);
+		signal_failure();
 		fflush(NULL);
-		fprintf(stderr, "[%d] From expression `%s'\n", line, source);
-		++failures;
-		return;
+		fprintf(stderr, "[L%d] Result mismatch:\n----- Expected:\n%s\n----- Actual:\n%s\n-----\n", line, expected_result, output_buf);
+		buffer_disassemble(image->code_buffer);
+		fflush(NULL);
+		fprintf(stderr, "[L%d] From program `%s'\n", line, source);
 	} else {
-		printf("OK\n");
+		signal_success();
 	}
 
-	ast_node_free(root, 1);
-	fclose(memfile);
+	runtime_free(image);
 	fclose(writefile);
-	builtin_print_redirection = NULL;
 }
+
+#define TEST(program, expected) test_program(program, expected, __LINE__);
 
 int
 main(int argc, char **argv)
 {
-	builtins_init();
-	test_expr("3 + 4", "7\n", __LINE__);
+	TEST("print(1);", "1\n");
+	TEST("print(3+4);", "7\n");
+	if (!failures) {
+		printf("All %d tests succeeded\n", runs);
+	} else {
+		printf("%d of %d tests failed\n", failures, runs);
+	}
+	return failures > 0;
 }

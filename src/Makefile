@@ -4,12 +4,14 @@ LEX=flex
 
 FRONTEND_HEADERS = chash.h symbol-table.h analysis.h
 FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c ast.h parser.h
-FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o symbol-table.o name-analysis.o type-analysis.o
+FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o symbol-table.o \
+		name-analysis.o type-analysis.o storage-allocation.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
-BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registers.h
+BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registers.h runtime.h
 BACKEND_GENSRC = assembler.c assembler.h
-BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o builtins.o
+BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o \
+		 builtins.o runtime.o
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 .PHONY: clean
@@ -27,8 +29,11 @@ dump: $(FRONTEND) dump.o builtins.o class.o
 test-frontend: all
 	(cd ../test ; ./test.sh)
 
-backend-test: $(BACKEND) $(FRONTEND) backend-test.o
+backend-test: $(FRONTEND_GENSRC) $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) backend-test.o
 	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) backend-test.o -o backend-test
+
+assembler-test: $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) assembler-test.o
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) assembler-test.o -o assembler-test
 
 test-backend: backend-test
 	./backend-test

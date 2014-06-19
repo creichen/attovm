@@ -31,38 +31,14 @@
 #include "ast.h"
 #include "assembler-buffer.h"
 
-
-// Temp-Speicher:
-//
-// Um Zwischenwerte zu speichern, werden `Temp-Speicher' verwendet.  Diese sind Integer-Zahlen:
-// >= 0:  Registernummer
-// <= 0:  Index relativ zu $fp
-
-
 /**
- * Erzeugt Maschinencode für einen Ausdruck
- * 
- * @param dest Zielpuffer zur Maschinencodegenerierung
- * @param node AST-Knoten zur Übersetzung
- * @param temp_stores NULL, oder ein Array der Speicher, in die Zwischenergebnisse geschrieben werden können (s.o.)
- * @param temp_stores_nr Anzahl der Temp-Speicher
- * @param dest_register Zielregister, in dem das Ergebnis gespeichert werden muß
- * @returns Eine Bitmaske mit AST_FLAG_* (für Typinformationen) und RESULT_FLAG_*
+ * Uebersetzt ein AST-Fragment in ausfuehrbaren Maschinencode
+ *
+ * @param node Der zu uebersetzende AST-Baumknoten
+ * @param static_memory Der statische Speicher fuer Variableninhalte
+ * @return Ein buffer_t mit dem Haupteinsprungpunkt
  */
-int
-baseline_compile_expr(buffer_t *dest, int dest_register, ast_node_t *node, int *temp_regs, int temp_regs_nr);
-
-
-/* /\** */
-/*  * Erzeugt Code, der von to_type nach from_type konvertiert, im angegebenen Register */
-/*  * */
-/*  * @param dest Zielpuffer zur Maschinencodegenerierung */
-/*  * @param dest_type Zieltyp */
-/*  * @param from_type Quelltyp */
-/*  * @param reg Register, in dem der zu konvertierende Wert liegen */
-/*  *\/ */
-/* void */
-/* baseline_compile_convert(buffer_t *dest, int dest_type, int from_type, int reg); */
-
+buffer_t
+baseline_compile(ast_node_t *node, void *static_memory);
 
 #endif // defined(_ATTOL_BASELINE_BACKEND_H)

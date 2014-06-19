@@ -25,7 +25,9 @@
 
 ***************************************************************************/
 
+#include <stdbool.h>
 #include <stdio.h>
+
 #include "assert.h"
 #include "class.h"
 #include "object.h"
@@ -111,7 +113,6 @@ struct builtin_ops {
 	void *function_pointer;
 };
 
-static unsigned short args_var_var[] = { TYPE_VAR, TYPE_VAR };
 static unsigned short args_int_int[] = { TYPE_INT, TYPE_INT };
 static unsigned short args_int[] = { TYPE_INT };
 static unsigned short args_obj[] = { TYPE_OBJ };
@@ -190,6 +191,12 @@ symtab_add_builtins(struct builtin_ops *builtins, int nr)
 void
 builtins_init()
 {
+	static bool builtins_initialised = false;
+
+	if (builtins_initialised) {
+		return;
+	}
+
 	// Symbol table
 	symtab_init();
 
@@ -200,6 +207,7 @@ builtins_init()
 
 	// Classes
 	classes_init();
+	builtins_initialised = true;
 }
 
 

@@ -28,6 +28,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+
 #include "registers.h"
 #include "assembler-buffer.h"
 #include "assembler.h"
@@ -40,8 +42,8 @@ fail(char *msg)
 	exit(1);
 }
 
-int
-main(int argc, char **argv)
+void
+test_0()
 {
 	buffer_t buf = buffer_new(1024);
 	emit_li(&buf, 0, 0);
@@ -50,10 +52,73 @@ main(int argc, char **argv)
 	emit_jreturn(&buf);
 	buffer_terminate(buf);
 	long (*f)(long, long) = buffer_entrypoint(buf);
-	buffer_disassemble(buf);
-	printf("%ld\n", f(2, 7));
-	return 0;
+	//	buffer_disassemble(buf);
+	//	printf("%ld\n", f(2, 7));
+	assert(9 == f(2, 7));
 }
 
-#include "assembler.c"
-#include "assembler-buffer.c"
+void
+memtest_init_n(buffer_t *buffers, int buffers_nr)
+{
+	for (int i = 0; i < buffers_nr; i++) {
+		buffer_t buf = buffer_new(100 + i);
+
+		for (int j = 0; j <= i; j++) {
+			int *iref = (int *) buffer_alloc(&buf, 4);
+			*iref = i + (j*j);
+		}
+		buffer_terminate(buf);
+		buffers[i] = buf;
+	}
+}
+
+void
+memtest_validate_i(buffer_t *buffers, int i)
+{
+	int *data = buffer_entrypoint(buffers[i]);
+
+	for (int j = 0; j <= i; j++) {
+		assert(data[j] == i + (j*j));
+	}
+}
+
+void
+memtest()
+{
+	const int buffers_nr = 300;
+	buffer_t buffers[buffers_nr];
+
+	memtest_init_n(buffers, buffers_nr);
+	for (int i = 0; i < buffers_nr; i++) {
+		memtest_validate_i(buffers, i);
+	}
+
+	for (int i = 0; i < buffers_nr; i++) {
+		if (i & 1) {
+			buffer_free(buffers[i]);
+		}
+	}
+
+	const int auxbuffers_nr = 300;
+	buffer_t auxbuffers[auxbuffers_nr];
+
+	memtest_init_n(auxbuffers, auxbuffers_nr);
+	for (int i = 0; i < auxbuffers_nr; i++) {
+		memtest_validate_i(auxbuffers, i);
+	}
+
+
+	for (int i = 0; i < buffers_nr; i++) {
+		if (!(i & 1)) {
+			buffer_free(buffers[i]);
+		}
+	}
+}
+
+int
+main(int argc, char **argv)
+{
+	test_0();
+	memtest();
+	return 0;
+}

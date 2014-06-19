@@ -27,6 +27,7 @@
 
 #define _BSD_SOURCE // Um MAP_ANONYMOUS zu aktivieren
 
+#include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,8 +38,10 @@
 #include "errors.h"
 
 #define PAGE_SIZE 0x1000
-#define INITIAL_SIZE (PAGE_SIZE * 8)
-#define MIN_INCREMENT (PAGE_SIZE * 8)
+#define INITIAL_SIZE (PAGE_SIZE * 64)
+#define MIN_INCREMENT (PAGE_SIZE * 16)
+
+//#define DEBUG
 
 void *mremap(void *old_address, size_t old_size, size_t new_size, int flags, ...);
 
@@ -90,10 +93,16 @@ code_alloc(size_t buf_size) // size does not include the header
 			// Out of memory
 			return NULL;
 		}
+#ifdef DEBUG
+		fprintf(stderr, "[ABUF] L%d: Alloc %zx at [%p]\n", __LINE__, alloc_size, code_segment);
+#endif
 		code_segment_size = alloc_size;
 		code_segment_free_list = code_segment;
 		code_segment_free_list->next = NULL;
 		code_segment_free_list->size = alloc_size - sizeof(freelist_t);
+#ifdef DEBUG
+		fprintf(stderr, "[ABUF] L%d: Freelist at %p: next=%p, size=%zx\n", __LINE__, code_segment_free_list, code_segment_free_list->next, code_segment_free_list->size);
+#endif
 	}
 
 	// NB: this will allocate the entire buffer on the first attempt, so
@@ -105,8 +114,15 @@ code_alloc(size_t buf_size) // size does not include the header
 			freelist_t *buf_freelist = *free;
 			buffer_internal_t *buf = (buffer_internal_t *) *free;
 			// unchain
-			(*free)->next = buf_freelist->next;
+			(*free) = buf_freelist->next;
 			buf->actual = 0;
+#ifdef DEBUG
+			fprintf(stderr, "[ABUF] L%d: Freelist at %p: ", __LINE__, code_segment_free_list);
+			if (code_segment_free_list) {
+				fprintf(stderr, "next=%p, size=%zx", code_segment_free_list->next, code_segment_free_list->size);
+			}
+			fprintf(stderr, "\n");
+#endif
 			return buf;
 		}
 		free = &((*free)->next);
@@ -120,22 +136,32 @@ code_alloc(size_t buf_size) // size does not include the header
 	}
 
 	// alloc executable memory
-	code_segment = (buffer_internal_t *)
-		mremap(code_segment,
-		       old_size,
-		       alloc_size,
-		       MAP_FIXED,
-		       code_segment);
-	if (code_segment == NULL) {
+	void *old_code_segment = code_segment; // error reporting
+	code_segment = (buffer_internal_t *) mremap(code_segment, old_size, alloc_size, 0);
+	if (code_segment == MAP_FAILED) {
+		perror("mremap");
+		fprintf(stderr, "Failed: mremap(%p, %zx, %zx, 0)\n", old_code_segment, old_size, alloc_size);
 		// Out of memory
 		return NULL;
 	}
+	assert(old_code_segment == code_segment);
 
-	freelist_t *new_freelist = (freelist_t *) ((unsigned char *)code_segment) + code_segment_size;
+#ifdef DEBUG
+	fprintf(stderr, "[ABUF] L%d: Freelist at %p: ", __LINE__, code_segment_free_list);
+	if (code_segment_free_list) {
+		fprintf(stderr, "next=%p, size=%zx", code_segment_free_list->next, code_segment_free_list->size);
+	}
+	fprintf(stderr, "\n");
+#endif
+
+	freelist_t *new_freelist = (freelist_t *) (((unsigned char *)code_segment) + old_size);
 	code_segment_size = alloc_size;
 	new_freelist->next = code_segment_free_list;
 	new_freelist->size = alloc_size - old_size - sizeof(freelist_t);
 	code_segment_free_list = new_freelist;
+#ifdef DEBUG
+		fprintf(stderr, "[ABUF] L%d: Freelist at %p: next=%p, size=%zx\n", __LINE__, code_segment_free_list, code_segment_free_list->next, code_segment_free_list->size);
+#endif
 	return code_alloc(buf_size);
 }
 
@@ -144,6 +170,14 @@ code_free(buffer_internal_t *buf)
 {
 	freelist_t *new_freelist = (freelist_t*) buf;
 	new_freelist->next = code_segment_free_list;
+	code_segment_free_list = new_freelist;
+#ifdef DEBUG
+	fprintf(stderr, "[ABUF] L%d: Freelist at %p: ", __LINE__, code_segment_free_list);
+	if (code_segment_free_list) {
+		fprintf(stderr, "next=%p, size=%zx", code_segment_free_list->next, code_segment_free_list->size);
+	}
+	fprintf(stderr, "\n");
+#endif
 	// size remains unchanged
 }
 
@@ -151,8 +185,17 @@ static buffer_internal_t * // only used if we _actually_ ran out of space
 code_realloc(buffer_internal_t *old_buf, size_t size)
 {
 	buffer_internal_t *new_buf = code_alloc(size);
+#ifdef DEBUG
+	fprintf(stderr, "[ABUF] L%d: Realloc'd %p ->", __LINE__, old_buf);
+	fprintf(stderr, "%p (copying %zx) for %zx, now has %zx\n", new_buf, old_buf->actual, size, new_buf->allocd);
+#endif
 	memcpy(new_buf->data, old_buf->data, old_buf->actual);
+	new_buf->actual = old_buf->actual;
+	assert(new_buf->actual <= size);
 	code_free(old_buf);
+#ifdef DEBUG
+	fprintf(stderr, "[ABUF] L%d: New buf has %zx\n", __LINE__, new_buf->allocd);
+#endif
 	return new_buf;
 }
 
@@ -161,7 +204,7 @@ buffer_terminate(buffer_internal_t *buf)
 {
 	unsigned char *end = buf->data + buf->actual;
 	end = (unsigned char *) ((((unsigned long) end) + sizeof(void *) - 1) & (~(sizeof(void *) - 1)));
-	size_t left_over = (end - buf->data);
+	size_t left_over = buf->allocd - (end - buf->data);
 	if (left_over < sizeof(freelist_t) + 4) {
 		// can't store a freelist entry? Just account it to the current entry
 		left_over = 0;
@@ -171,8 +214,16 @@ buffer_terminate(buffer_internal_t *buf)
 		// then we have a new freelist entry
 		freelist_t *new_freelist = ((freelist_t *)end);
 		new_freelist->next = code_segment_free_list;
-		new_freelist->size = left_over - sizeof(freelist_t *);
+		new_freelist->size = left_over - sizeof(freelist_t);
+		code_segment_free_list = new_freelist;
 	}
+#ifdef DEBUG
+	fprintf(stderr, "[ABUF] L%d: Freelist at %p: ", __LINE__, code_segment_free_list);
+	if (code_segment_free_list) {
+		fprintf(stderr, "next=%p, size=%zx", code_segment_free_list->next, code_segment_free_list->size);
+	}
+	fprintf(stderr, "\n");
+#endif
 }
 
 buffer_t
@@ -182,8 +233,10 @@ buffer_new(size_t expected_size)
 	if (buf == NULL) {
 		fail("Out of code memory!");
 	}
-	buf->allocd = expected_size;
 	buf->actual = 0;
+#ifdef DEBUG
+	fprintf(stderr, "[ABUF] L%d: New buffer %p starts at %p, max %x\n", __LINE__, buf, buf->data, buf->allocd);
+#endif
 	return buf;
 }
 
@@ -211,7 +264,6 @@ buffer_alloc(buffer_t *buf, size_t bytes)
 			fail("Out of code memory!");
 		}
 		*buf = buffer = newbuf;
-		newbuf->allocd = newsize;
 	}
 	unsigned char * retval = buffer->data + buffer->actual;
 	buffer->actual += bytes;

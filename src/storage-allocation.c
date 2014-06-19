@@ -25,34 +25,106 @@
 
 ***************************************************************************/
 
+#include <assert.h>
+
 #include "analysis.h"
+#include "symbol-table.h"
+
 
 static void
-storage_alloc(ast_node_t *node, short *var_counter)
+storage_alloc(ast_node_t *node, unsigned short *var_counter);
+
+static void
+recurse(ast_node_t *node, unsigned short *var_counter)
+{
+	if (!IS_VALUE_NODE(node)) {
+		for (int i = 0; i < node->children_nr; i++) {
+			storage_alloc(node->children[i], var_counter);
+		}
+	}
+}
+
+
+static void
+storage_alloc(ast_node_t *node, unsigned short *var_counter)
 {
 	if (!node) {
-		return NULL;
-	}
-
-	if (!IS_VALUE_NODE(node)) {
-		if (NODE_TY(node) == AST_NODE_CLASSDEF) {
-			classref = node->children[0]->sym;
-		} else if (NODE_TY(node) == AST_NODE_FUNDEF) {
-			function = node->children[0]->sym;
-		}
-
-		for (int i = 0; i < node->children_nr; i++) {
-			node->children[i] = analyse(node->children[i], classref, function);
-		}
+		return;
 	}
 
 	switch (NODE_TY(node)) {
+	case AST_NODE_CLASSDEF: {
+		// Felder in Klassen erhalten ihre Lokationen schon in der Namensanalyse
+		// (Ebenso Parameter)
+		recurse(node, NULL);
+	}
+		break;
 
+	case AST_NODE_FUNDEF:
+		// Parameter erhalten ihre Lokationen schon in der Namensanalyse
+		recurse(node->children[2], &node->sym->vars_nr);
+		break;
+
+	case AST_NODE_BLOCK:
+		if (!var_counter) {
+			recurse(node, NULL);
+		} else {
+		unsigned short var_counter_base = *var_counter;
+		unsigned short max_var_counter = var_counter_base;
+		ast_node_t **elements = node->children;
+		for (int i = 0; i < node->children_nr; i++) {
+			*var_counter = var_counter_base;
+
+			recurse(elements[i], var_counter);
+			if (NODE_TY(elements[i]) == AST_NODE_VARDECL) {
+				// Die einzige `echte' Variablenallozierung:  Alle anderen Allozierungen sind temporaer
+				assert(elements[i]->sym->offset == var_counter_base);
+				++var_counter_base;
+			}
+
+			if (NODE_TY(elements[i]) == AST_NODE_BLOCK) {
+				// Verschachtelter Block: Wir erben angemessen
+				var_counter_base = *var_counter;
+			}
+
+			if (*var_counter > max_var_counter) {
+				max_var_counter = *var_counter;
+			}
+		}
+		*var_counter = max_var_counter;
+		
+	}
+		break;
+
+	case AST_NODE_VARDECL:
+		if (var_counter) {
+			node->sym->offset = (*var_counter)++;
+		}
+		break;
+
+
+	case AST_NODE_FUNAPP: {
+		ast_node_t **elements = node->children[1]->children;
+		for (int i = 0; i < node->children[1]->children_nr; i++) {
+			if (!IS_VALUE_NODE(elements[i])) {
+				elements[i]->storage = (*var_counter)++;
+			}
+			recurse(elements[i], var_counter);
+		}
+	}
+		break;
+
+	default:
+		recurse(node, var_counter);
 	}
 }
+
 
 
 int
 storage_allocation(ast_node_t *n)
 {
+	unsigned short vars = 0;
+	storage_alloc(n, &vars);
+	return vars;
 }

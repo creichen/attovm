@@ -25,9 +25,11 @@
 
 ***************************************************************************/
 
+#include <stdbool.h>
 #include <stdlib.h>
 
 #include "ast.h"
+#include "chash.h"
 #include "symbol-table.h"
 
 #define INITIAL_SIZE 128
@@ -44,6 +46,7 @@ static int symtab_entries_builtin_size = 0;
 static symbol_table_t *symtab_builtin = NULL;
 
 int symtab_selectors_nr = 1; // selector #0 ist reserviert (Kein Eintrag/Fehler)
+hashtable_t *symtab_selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufruge!)
 
 #define BUILTIN_TABLE -1
 #define USER_TABLE 1
@@ -112,6 +115,7 @@ symtab_entry_t *
 symtab_builtin_new(int id, int ast_flags, int symtab_flags, char *name)
 {
 	const int nr = (id)? -id -1 : symtab_entries_builtin_nr;
+
 	while (nr >= symtab_entries_builtin_size) {
 		symtab_entries_builtin_size += INCREMENT;
 		symtab_builtin = realloc(symtab_builtin, sizeof (symtab_entry_t *) * symtab_entries_builtin_size);
@@ -148,8 +152,8 @@ symtab_entry_name_dump(FILE *file, symtab_entry_t *entry)
 void
 symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 {
-	int has_args = 0;
-	int is_class = 0;
+	bool has_args = false;
+	bool is_class = false;
 
 	fprintf(file, "#%d:\t", entry->id);
 	symtab_entry_name_dump(file, entry);
@@ -170,17 +174,17 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 		break;
 	case SYMTAB_TY_FUNCTION:
 		fputs(" FUNCTION", file);
-		has_args = 1;
+		has_args = true;
 		break;
 	case SYMTAB_TY_CLASS:
 		fputs(" CLASS", file);
-		has_args = 1;
-		is_class = 1;
+		has_args = true;
+		is_class = true;
 		break;
 	default:
 		fprintf(file, " ?ty=%d", SYMTAB_TY(entry));
-		has_args = 1;
-		is_class = 1;
+		has_args = true;
+		is_class = true;
 		break;
 	}
 	PRINT_SYMVAR(SELECTOR);
@@ -210,7 +214,7 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 
 	if (is_class) {
 		fprintf(file, "\tMethNr:\t%d\n", entry->methods_nr);
-		fprintf(file, "\tFldsNr:\t%d\n", entry->fields_nr);
+		fprintf(file, "\tFldsNr:\t%d\n", entry->vars_nr);
 	}
 
 	if (entry->selector) {
@@ -227,4 +231,13 @@ symtab_init()
 	symtab_builtin = calloc(sizeof(symtab_entry_t *), INITIAL_SIZE);
 	symtab_entries_size = INITIAL_SIZE;
 	symtab_entries_builtin_size = INITIAL_SIZE;
+}
+
+static void
+symtab_entry_free(symtab_entry_t *e)
+{
+	if (e->parameters_nr && !(e->symtab_flags & SYMTAB_BUILTIN)) {
+		free(e->parameter_types);
+	}
+	free(e);
 }

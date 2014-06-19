@@ -36,15 +36,9 @@
 #define NF_SELECTOR		0x80000000
 
 extern int symtab_selectors_nr; // from symbol-table.c
-hashtable_t *selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufruge!)
+extern hashtable_t *symtab_selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufruge!)
 
 static int error_count = 0;
-
-int
-name_analysis_errors()
-{
-	return error_count;
-}
 
 static void
 error(const ast_node_t *node, char *message)
@@ -70,7 +64,7 @@ fixnames_recursive(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, i
 static symtab_entry_t *
 get_selector(ast_node_t *node, int child_flags)
 {
-	symtab_entry_t *lookup = hashtable_get(selectors_table, AV_NAME(node));
+	symtab_entry_t *lookup = hashtable_get(symtab_selectors_table, AV_NAME(node));
 	if (lookup) {
 		return lookup;
 	}
@@ -82,7 +76,7 @@ get_selector(ast_node_t *node, int child_flags)
 			    NULL /* Selektoren werden nicht deklariert */);
 	lookup->selector = symtab_selectors_nr;
 
-	hashtable_put(selectors_table, AV_NAME(node), lookup, NULL);
+	hashtable_put(symtab_selectors_table, AV_NAME(node), lookup, NULL);
 	++symtab_selectors_nr;
 
 	return lookup;
@@ -198,7 +192,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		lookup->parent = parent;
 		// Speicherstelle in Klasse wählen
 		if (child_flags & SYMTAB_MEMBER && parent) {
-			lookup->offset = parent->fields_nr++;
+			lookup->offset = parent->vars_nr++;
 		} else if (child_flags & SYMTAB_PARAM && parent) { // parent == NULL bei Namensfehlern möglich
 			lookup->offset = parent->parameters_nr++;
 		}
@@ -297,7 +291,7 @@ populate_initial_env(hashtable_t *env)
 		symtab_entry_t *entry = symtab_lookup(-i);
 		if (! (entry->symtab_flags & SYMTAB_HIDDEN)) {
 			if (entry->symtab_flags & SYMTAB_SELECTOR) {
-				hashtable_put(selectors_table, entry->name, entry, NULL);
+				hashtable_put(symtab_selectors_table, entry->name, entry, NULL);
 			} else {
 				hashtable_put(env, entry->name, entry, NULL);
 			}
@@ -305,11 +299,12 @@ populate_initial_env(hashtable_t *env)
 	}
 }
 
-void
+int
 name_analysis(ast_node_t *node)
 {
-	if (!selectors_table) {
-		selectors_table = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 5);
+	error_count = 0;
+	if (!symtab_selectors_table) {
+		symtab_selectors_table = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 5);
 	}
 	hashtable_t *initial_env = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 5);
 
@@ -317,4 +312,6 @@ name_analysis(ast_node_t *node)
 
 	fixnames(node, initial_env, NULL, 0);
 	hashtable_free(initial_env, NULL, NULL);
+
+	return error_count;
 }

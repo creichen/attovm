@@ -46,11 +46,6 @@ int method_call_return_type = TYPE_OBJ;
 
 static int error_count = 0;
 
-int
-type_analysis_errors()
-{
-	return error_count;
-}
 
 static ast_node_t *
 builtin(int id)
@@ -378,10 +373,10 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 		// Neuen Klassenkoerper erzeugen: Felder nach vorne, Methoden nach hinten
 		ast_node_t *new_class_body_node =
 			ast_node_alloc_generic_without_init(AST_NODE_BLOCK,
-							    classref->fields_nr + classref->methods_nr);
+							    classref->vars_nr + classref->methods_nr);
 		ast_node_t **new_class_body = new_class_body_node->children;
 		int field_ref = 0;
-		int method_ref = classref->fields_nr;
+		int method_ref = classref->vars_nr;
 
 		for (int i = 0; i < class_body_size; i++) {
 			ast_node_t *ref = class_body[i];
@@ -470,8 +465,10 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 	return node;
 }
 
-void
+int
 type_analysis(ast_node_t **node)
 {
+	error_count = 0;
 	*node = analyse(*node, NULL, NULL);
+	return error_count;
 }

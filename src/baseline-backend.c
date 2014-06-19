@@ -27,43 +27,44 @@
 
 #include "baseline-backend.h"
 #include "assembler.h"
+#include "registers.h"
+#include "class.h"
+#include "object.h"
 
-int
-baseline_compile_expr(buffer_t *buf, int dest_register, ast_node_t *node, int *temp_regs, int temp_regs_nr)
+
+// Temp-Speicher:
+//
+// Um Zwischenwerte zu speichern, werden `Temp-Speicher' verwendet.  Diese sind Integer-Zahlen:
+// >= 0:  Registernummer
+// <= 0:  Index relativ zu $fp
+
+
+
+void
+baseline_compile_expr(buffer_t *buf, int dest_register, int spill_reg_base)
 {
 	emit_li(buf, dest_register, 42);
 	return TYPE_INT;
 }
 
-/* void */
-/* baseline_compile_convert(buffer_t *dest, int dest_type, int from_type, int reg) */
-/* { */
-/* 	if (dest_type == from_type) { */
-/* 		return; */
-/* 	} */
+void *builtin_op_print(object_t *arg);  // builtins.c
 
-/* 	if (dest_type & TYPE_OBJ) { */
-/* 		if (from_type & TYPE_INT) { */
-			
-/* 			return; */
-/* 		} else if (from_type & TYPE_REAL) { */
-/* 		} if (from_type & TYPE_VAR) { */
-/* 		} */
-/* 	} else if (dest_type & TYPE_INT) { */
-/* 		if (from_type & TYPE_OBJ) { */
-/* 		} else if (from_type & TYPE_REAL) { */
-/* 		} if (from_type & TYPE_VAR) { */
-/* 		} */
-/* 	} else if (dest_type & TYPE_REAL) { */
-/* 		if (from_type & TYPE_INT) { */
-/* 		} else if (from_type & TYPE_OBJ) { */
-/* 		} if (from_type & TYPE_VAR) { */
-/* 		} */
-/* 	} else if (dest_type & TYPE_VAR) { */
-/* 		if (from_type & TYPE_INT) { */
-/* 		} else if (from_type & TYPE_REAL) { */
-/* 		} if (from_type & TYPE_VAR) { */
-/* 		} */
-/* 	} */
-/* 	fprintf(stderr, "Baseline conversion failed: %x <- %x", dest_type, from_type); */
-/* } */
+buffer_t
+baseline_compile(ast_node_t *root,
+		 void *static_memory)
+{
+	buffer_t buf = buffer_new(1024);
+	// push...
+	emit_push(&buf, REGISTER_GP);
+	emit_li(&buf, REGISTER_GP, (long long int) static_memory);
+	baseline_compile_expr(&buf, registers_argument_nr[0], root, NULL, 0);
+	emit_li(&buf, REGISTER_V0, (long long int) new_int);
+	emit_jalr(&buf, REGISTER_V0);
+	emit_move(&buf, registers_argument_nr[0], REGISTER_V0);
+	emit_li(&buf, REGISTER_V0, (long long int) builtin_op_print);
+	emit_jalr(&buf, REGISTER_V0);
+	emit_pop(&buf, REGISTER_GP);
+	emit_jreturn(&buf);
+	buffer_terminate(buf);
+	return buf;
+}

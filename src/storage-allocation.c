@@ -109,7 +109,7 @@ storage_alloc(ast_node_t *node, unsigned short *var_counter)
 			if (!IS_VALUE_NODE(elements[i])) {
 				elements[i]->storage = (*var_counter)++;
 			}
-			recurse(elements[i], var_counter);
+			storage_alloc(elements[i], var_counter);
 		}
 	}
 		break;

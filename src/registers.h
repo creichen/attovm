@@ -30,15 +30,18 @@
 
 #define REGISTERS_NR 16
 
-// Spezialregister
+// Sonderregister
 #define REGISTER_V0 0 // Rueckgabe
 #define REGISTER_SP 4
 #define REGISTER_FP 5
 #define REGISTER_GP 11
 
-#define REGISTERS_TEMP_NR 1 // Caller-saved; excluding args or special
-#define REGISTERS_CALLEE_SAVED_NR 5
-#define REGISTERS_ARGUMENT_NR 6
+#define REGISTERS_TEMP_NR 1 // Vom Aufrufer gesichert (ohne Argumente/Sonderregister)
+#define REGISTERS_CALLEE_SAVED_NR 5 // Vom Aufgerufenen gesichert
+#define REGISTERS_ARGUMENT_NR 6 // Parameter
+
+// Kuerzel zum bequemen Zugriff
+#define REGISTER_T0 10 // siehe auch registers_temp[0]
 
 typedef struct {
 	char *intel; // Hardware-Name

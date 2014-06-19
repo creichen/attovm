@@ -200,6 +200,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		resolve_node(node->children[0], lookup);
 		hashtable_put(env, name, lookup, NULL);
 		assert(lookup == hashtable_get(env, name));
+		node->sym = lookup;
 		return;
 	}
 

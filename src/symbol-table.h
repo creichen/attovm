@@ -52,7 +52,7 @@
 
 #define SYMTAB_TY(s)			(((s)->symtab_flags) & SYMTAB_TY_MASK)
 #define SYMTAB_IS_STATIC(s)		(!(s)->parent && (SYMTAB_TY(s) == SYMTAB_TY_VAR))	// static-alloziert
-#define SYMTAB_IS_STACK_DYNAMIC(s)	((s)->parent && (!(s)->sytmtab_flags & SYMTAB_MEMBER))	// Stack oder Register-alloziert
+#define SYMTAB_IS_STACK_DYNAMIC(s)	((s)->parent && (!((s)->symtab_flags & SYMTAB_MEMBER)))	// Stack oder Register-alloziert
 
 typedef struct symtab_entry {
 	char *name;

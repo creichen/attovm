@@ -33,6 +33,18 @@
 struct buffer_internal;
 typedef struct buffer_internal* buffer_t;
 
+typedef struct {
+	void *label_position;
+	void *base_position;
+} relative_jump_label_t;
+
+void
+buffer_setlabel(relative_jump_label_t *label, void *target);
+
+// Setzt das Label auf den naechsten Befehl
+void
+buffer_setlabel2(relative_jump_label_t *label, buffer_t target);
+
 buffer_t
 buffer_new(size_t expected_size);
 

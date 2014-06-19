@@ -27,6 +27,7 @@
 
 #include <string.h>
 #include <assert.h>
+#include <stddef.h>
 
 #include "ast.h"
 #include "baseline-backend.h"
@@ -89,6 +90,7 @@ emit_la(buffer_t *buf, int reg, void *p)
 static void
 baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int from_ty, int dest_register, int temp_reg_base)
 {
+	// Annahme: zu konvertierendes Objekt ist in a0
 	const int a0 = registers_argument[0];
 	const int a1 = registers_argument[1];
 
@@ -118,12 +120,23 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 		break;
 	case TYPE_OBJ:
 		switch (to_ty) {
-		case TYPE_INT:
-			emit_la(buf, a1, arg);
-			emit_la(buf, a0, "attempted to convert non-Integer object to int");
+		case TYPE_INT: {
+			emit_ld(buf, REGISTER_T0, a0, 0);
+			emit_la(buf, REGISTER_V0, &class_boxed_int);
+			relative_jump_label_t jump_label;
+			// Falls Integer-Objekt: Springe zur Dekodierung
+			emit_beq(buf, REGISTER_T0, REGISTER_V0, &jump_label);
+			emit_la(buf, a0, arg);
+			emit_la(buf, a1, "attempted to convert non-Integer object to int");
 			emit_la(buf, REGISTER_V0, &fail_at_node);
 			emit_jalr(buf, REGISTER_V0);
+			// Erfolgreiche Dekodierung:
+			buffer_setlabel2(&jump_label, *buf);
+			emit_ld(buf, dest_register, a0,
+				// Int-Wert im Objekt:
+				offsetof(object_t, members[0].int_v));
 			return;
+		}
 		case TYPE_OBJ:
 			return;
 		case TYPE_VAR:
@@ -152,6 +165,7 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 {
 	const int a0 = registers_argument[0];
 	const int a1 = registers_argument[1];
+	const int a2 = registers_argument[2];
 
 	// Bestimme Anzahl der Parameter
 	int args_nr = 2;
@@ -162,10 +176,16 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 	case BUILTIN_OP_ALLOCATE:
 		args_nr = 1;
 		break;
+
+	case BUILTIN_OP_DIV:
+		args_nr = 0;
+		break;
 	}
 
 	// Parameter laden
-	baseline_compile_prepare_arguments(buf, args_nr, args, temp_reg_base);
+	if (args_nr) {
+		baseline_compile_prepare_arguments(buf, args_nr, args, temp_reg_base);
+	}
 
 	switch (op) {
 	case BUILTIN_OP_ADD:
@@ -180,6 +200,14 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 	case BUILTIN_OP_SUB:
 		emit_sub(buf, a0, a1);
 		emit_optmove(buf, dest_register, a0);
+		break;
+
+	case BUILTIN_OP_DIV:
+		baseline_compile_expr(buf, args[0], REGISTER_V0, temp_reg_base);
+		baseline_compile_expr(buf, args[1], REGISTER_T0, temp_reg_base);
+		emit_li(buf, a2, 0); // muss vor Division auf 0 gesetzt werden
+		emit_div_a2v0(buf, registers_temp[0]);
+		emit_optmove(buf, dest_register, REGISTER_V0); // Ergebnis in $v0
 		break;
 
 	case BUILTIN_OP_MUL:
@@ -244,10 +272,10 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 
 			if (i >=  REGISTERS_ARGUMENT_NR) {
 				// In Ziel speichern
-				emit_sw(buf, reg, REGISTER_SP, 8 * (i - REGISTERS_ARGUMENT_NR));
+				emit_sd(buf, reg, REGISTER_SP, 8 * (i - REGISTERS_ARGUMENT_NR));
 			} else if (i != last_nonsimple) {
 				// Muss in temporaerem Speicher ablegen
-				emit_sw(buf, reg, temp_reg_base, children[i]->storage * 8);
+				emit_sd(buf, reg, temp_reg_base, children[i]->storage * 8);
 			}
 		}
 	}
@@ -257,12 +285,12 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 		if (is_simple(children[i])) {
 			if (i >= REGISTERS_ARGUMENT_NR) {
 				baseline_compile_expr(buf, children[i], REGISTER_V0, temp_reg_base);
-				emit_sw(buf, REGISTER_V0, REGISTER_SP, 8 * (i - REGISTERS_ARGUMENT_NR));
+				emit_sd(buf, REGISTER_V0, REGISTER_SP, 8 * (i - REGISTERS_ARGUMENT_NR));
 			} else {
 				baseline_compile_expr(buf, children[i], registers_argument[i], temp_reg_base);
 			}
 		} else if (i < REGISTERS_ARGUMENT_NR && i != last_nonsimple) {
-			emit_lw(buf, registers_argument[i], temp_reg_base, children[i]->storage * 8);
+			emit_ld(buf, registers_argument[i], temp_reg_base, children[i]->storage * 8);
 		}
 	}
 
@@ -281,6 +309,43 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, int tem
 	case AST_VALUE_STRING:
 		emit_la(buf, dest_register, new_string(AV_STRING(ast), strlen(AV_STRING(ast))));
 		break;
+
+	case AST_VALUE_ID: {
+		int reg;
+		symtab_entry_t *sym = ast->sym;
+		const int offset = 8 * sym->offset;
+		if (SYMTAB_IS_STATIC(sym)) {
+			reg = REGISTER_GP;
+		} else if (SYMTAB_IS_STACK_DYNAMIC(sym)) {
+			reg = REGISTER_FP;
+		} else {
+			fprintf(stderr, "Don't know how to load this variable:");
+			symtab_entry_dump(stderr, sym);
+			FAIL("Unable to load variable");
+		}
+		if (ast->type & AST_FLAG_LVALUE) {
+			// Wir wollen nur die Adresse:
+			emit_li(buf, dest_register, offset);
+			emit_add(buf, dest_register, reg);
+		} else {
+			emit_ld(buf, dest_register, reg, offset);
+		}
+	}
+		break;
+
+	case AST_NODE_VARDECL:
+		if (ast->children[1] == NULL) {
+			// Keine Initialisierung?
+			break;
+		}
+	case AST_NODE_ASSIGN:
+		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, temp_reg_base);
+		emit_push(buf, REGISTER_V0);
+		baseline_compile_expr(buf, ast->children[1], REGISTER_V0, temp_reg_base);
+		emit_pop(buf, REGISTER_T0);
+		emit_sd(buf, REGISTER_V0, REGISTER_T0, 0);
+		break;
+
 
 	case AST_NODE_FUNAPP: {
 		// Annahme: Funktionsaufrufe (noch keine Unterstuetzung fuer Selektoren)

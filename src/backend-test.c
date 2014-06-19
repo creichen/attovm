@@ -65,8 +65,9 @@ compile(char *src, int line)
 		return NULL;
 	}
 	fclose(memfile);
-	ast_node_dump(stderr, root, 0x6); 
-	return runtime_compile(root);
+	runtime_image_t *img = runtime_compile(root);
+	ast_node_dump(stderr, img->ast, AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_ADDRESS | AST_NODE_DUMP_FLAGS);
+	return img;
 }
 
 void
@@ -143,6 +144,18 @@ main(int argc, char **argv)
 {
 	TEST("print(1);", "1\n");
 	TEST("print(3+4);", "7\n");
+	TEST("print(3+4+1);", "8\n");
+	TEST("print(4-1);", "3\n");
+	TEST("print(4*6);", "24\n");
+	TEST("print(7/2);", "3\n");
+	TEST("print(((2*3)+(1+1))*((3+2)-(2+1)));", "16\n");
+	TEST("{print(1);print(2);}", "1\n2\n");
+	TEST("{ int x = 17; print(x); }", "17\n");
+	TEST("{ int x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
+	TEST("{ obj x = 17; print(x); }", "17\n");
+	TEST("{ obj x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
+	TEST("{ var x = 17; print(x); }", "17\n");
+	TEST("{ var x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
 	if (!failures) {
 		printf("All %d tests succeeded\n", runs);
 	} else {

@@ -134,21 +134,23 @@ class PCRelative(Arg):
         return (self.byte, self.byte + self.width - 1)
 
     def strGenericName(self):
-        return 'ptr'
+        return 'label'
 
     def strType(self):
-        return 'void *'
+        return 'relative_jump_label_t *'
 
     def printCopyToExclusiveRegion(self, p, dataptr):
-        p('int %s_offset = (char *)data + %d - (char *)%s;' % (self.strName(), self.delta, self.strName()))
-        p('memcpy(%s + %d, &%s_offset, %d);' % (dataptr, self.byte, self.strName(), self.width))
+        p('%s->label_position = %s + %d;' % (self.strName(), dataptr, self.byte))
+        p('%s->base_position = %s + machine_code_len;' % (self.strName(), dataptr))
+        #p('int %s_offset = (char *)data + %d - (char *)%s;' % (self.strName(), self.delta, self.strName()))
+        #p('memcpy(%s + %d, &%s_offset, %d);' % (dataptr, self.byte, self.strName(), self.width))
 
     def printDisassemble(self, dataptr, offset_shift, p):
         if (self.byte + offset_shift < 0):
             return
         p('int relative_%s;'% self.strName())
         p('memcpy(&relative_%s, data + %d, %d);' % (self.strName(), self.byte, self.byte))
-        p('unsigned char *%s = data + %d + relative_%s;' % (self.strName(), self.delta, self.strName()))
+        p('unsigned char *%s = data + relative_%s + machine_code_len;' % (self.strName(), self.strName()))
         return (["%p"], [self.strName()])
 
 
@@ -314,7 +316,8 @@ class Insn(object):
         print '{'
         p = mkp(1)
         self.prepareMachineCodeLen(p)
-        p('unsigned char *data = buffer_alloc(buf, %s);' % self.machineCodeLen())
+        p('const int machine_code_len = %s;' % self.machineCodeLen())
+        p('unsigned char *data = buffer_alloc(buf, machine_code_len);')
         self.postprocessMachineCodeLen(p)
 
         # Basic machine code generation: copy from machine code string and or in any suitable arg bits
@@ -359,17 +362,19 @@ class Insn(object):
         p(('if (%s >= %d && ' % (max_len_name, len(machine_code))) + ' && '.join(checks) + ') {')
         pp = mkp(2)
         
+        pp('const int machine_code_len = %d;' % len(machine_code));
         formats = []
         format_args = []
         for arg in self.args:
             (format_addition, format_args_addition) = arg.printDisassemble('data', -offset_shift, pp)
             formats = formats + format_addition
             format_args = format_args + format_args_addition
+        pp('if (file)');
         if len(formats) == 0:
-            pp('fprintf(file, "%s");' % self.name)
+            pp('\tfprintf(file, "%s");' % self.name)
         else:
-            pp(('fprintf(file, "%s\\t' % self.name) + ', '.join(formats) + '", ' + ', '.join(format_args) + ');');
-        pp('return %d;' % len(machine_code));
+            pp(('\tfprintf(file, "%s\\t' % self.name) + ', '.join(formats) + '", ' + ', '.join(format_args) + ');');
+        pp('return machine_code_len;')
         p('}')
 
 
@@ -461,29 +466,29 @@ instructions = [
     Insn("add", [0x48, 0x01, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
     Insn("sub", [0x48, 0x29, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
     Insn(Name(mips="move", intel="mov"), [0x48, 0x89, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
-    Insn(Name(mips="mul", intel="imul"), [0x48, 0x0f, 0xaf], [ArithmeticDestReg(3), ArithmeticSrcReg(3)]),
-    Insn(Name(mips="div_a2v0", intel="idiv"), [0x48, 0xf7, 0xf8], [ArithmeticSrcReg(2)]),
+    Insn(Name(mips="mul", intel="imul"), [0x48, 0x0f, 0xaf, 0xc0], [ArithmeticSrcReg(3), ArithmeticDestReg(3)]),
+    Insn(Name(mips="div_a2v0", intel="idiv"), [0x48, 0xf7, 0xf8], [ArithmeticDestReg(2)]),
     Insn(Name(mips="li", intel="mov_imm"), [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
     Insn(Name(mips="jreturn", intel="ret"), [0xc3], []),
     Insn(Name(mips="jal", intel="callq"), [0xe8, 0xe3, 0x00, 0x00, 0x00, 0x00], [PCRelative(2, 4, -6)]),
     OptPrefixInsn(Name(mips="jalr", intel="callq"), 0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
-    Insn(Name(mips="bgt", intel="cmp;jg"), [0x48, 0x39, 0xf8, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="bge", intel="cmp;jge"), [0x48, 0x39, 0xf8, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="blt", intel="cmp;jl"), [0x48, 0x39, 0xf8, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="ble", intel="cmp;jle"), [0x48, 0x39, 0xf8, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="beq", intel="cmp;je"), [0x48, 0x39, 0xf8, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="bne", intel="cmp;jne"), [0x48, 0x39, 0xf8, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="bgtz", intel="cmp-0;jg"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="bgez", intel="cmp-0;jge"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="bltz", intel="cmp-0;jl"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="blez", intel="cmp-0;jle"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="bnez", intel="cmp-0;jnz"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="beqz", intel="cmp-0;jz"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bgt", intel="cmp;jg"), [0x48, 0x39, 0xc0, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bge", intel="cmp;jge"), [0x48, 0x39, 0xc0, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="blt", intel="cmp;jl"), [0x48, 0x39, 0xc0, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="ble", intel="cmp;jle"), [0x48, 0x39, 0xc0, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="beq", intel="cmp;je"), [0x48, 0x39, 0xc0, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bne", intel="cmp;jne"), [0x48, 0x39, 0xc0, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bgtz", intel="cmp-0;jg"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bgez", intel="cmp-0;jge"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bltz", intel="cmp-0;jl"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="blez", intel="cmp-0;jle"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bnez", intel="cmp-0;jnz"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="beqz", intel="cmp-0;jz"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
     Insn(Name(mips="push", intel="push"), [0x48, 0x50], [ArithmeticDestReg(1)]),
     Insn(Name(mips="pop", intel="pop"), [0x48, 0x58], [ArithmeticDestReg(1)]),
     Insn(Name(mips="addi", intel="add"), [0x48, 0x81, 0xc0, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmInt(3)]),
-    Insn(Name(mips="sw", intel="mov-qword[],r"), [0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), ImmInt(3)]),
-    Insn(Name(mips="lw", intel="mov-r,qword[]"), [0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), ImmInt(3)]),
+    Insn(Name(mips="sd", intel="mov-qword[],r"), [0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
+    Insn(Name(mips="ld", intel="mov-r,qword[]"), [0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
     Insn(Name(mips="j", intel="jmp"), [0xe9, 0xcd, 0, 0, 0, 0], [PCRelative(2, 4, -6)]),
 ]
 

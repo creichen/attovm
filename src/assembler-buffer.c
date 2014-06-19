@@ -41,6 +41,9 @@
 #define INITIAL_SIZE (PAGE_SIZE * 64)
 #define MIN_INCREMENT (PAGE_SIZE * 16)
 
+#define MAX_ASM_WIDTH 11
+#define DISASSEMBLE_PRINT_MACHINE_CODE
+
 //#define DEBUG
 
 void *mremap(void *old_address, size_t old_size, size_t new_size, int flags, ...);
@@ -287,7 +290,21 @@ buffer_disassemble(buffer_t buf)
 
 	while (size > 0) {
 		printf("[%p]\t", data);
-		int disasmd = disassemble_one(stdout, data, size);
+		int disasmd = disassemble_one(NULL, data, size);
+
+#ifdef DISASSEMBLE_PRINT_MACHINE_CODE
+		int i;
+		for (i = 0; i < disasmd; i++) {
+			printf(" %02x", data[i]);
+		}
+
+		for (; i < MAX_ASM_WIDTH; i++) {
+			printf("   ");
+		}
+		printf("\t");
+#endif
+
+		disassemble_one(stdout, data, size);
 		putchar('\n');
 		if (!disasmd) {
 			puts("Dissassembly failed:");
@@ -302,4 +319,17 @@ buffer_disassemble(buffer_t buf)
 		data += disasmd;
 		size -= disasmd;
 	}
+}
+
+void
+buffer_setlabel(relative_jump_label_t *label, void *target)
+{
+	int delta = (char *)target - (char*) label->base_position;
+	memcpy(label->label_position, &delta, 4);
+}
+
+void
+buffer_setlabel2(relative_jump_label_t *label, buffer_t target)
+{
+	buffer_setlabel(label, target->data + target->actual);
 }

@@ -61,10 +61,7 @@ typedef struct symtab_entry {
 	unsigned short ast_flags;
 	unsigned short symtab_flags;
 	unsigned short parameters_nr;
-	union {
-		void *r_text;
-		void *r_static;
-	} location;
+	void *r_mem;				// Zeiger auf Funktion / Klassenobjekt
 	unsigned short *parameter_types;
 	ast_node_t *astref;			// CLASSDEF, FUNDEF, oder VARDECL
 	short id;				// Symboltabellennummer dieses Eintrags

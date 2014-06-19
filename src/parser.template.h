@@ -45,6 +45,10 @@ $$VALUES$$
 
 extern yylval_t yylval;
 
+// Bereitet den Parser auf das Parsen der angegebenen Datei vor
+void
+parser_restart(FILE *data);
+
 $$PARSER_DECLS$$
 
 #endif // !defined(_CMINOR_SRC_RD_PARSER_H)

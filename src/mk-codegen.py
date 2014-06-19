@@ -481,6 +481,9 @@ instructions = [
     Insn(Name(mips="beqz", intel="cmp-0;jz"), [0x48, 0x83, 0xf8, 0x00, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
     Insn(Name(mips="push", intel="push"), [0x48, 0x50], [ArithmeticDestReg(1)]),
     Insn(Name(mips="pop", intel="pop"), [0x48, 0x58], [ArithmeticDestReg(1)]),
+    Insn(Name(mips="addi", intel="add"), [0x48, 0x81, 0xc0, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmInt(3)]),
+    Insn(Name(mips="sw", intel="mov-qword[],r"), [0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), ImmInt(3)]),
+    Insn(Name(mips="lw", intel="mov-r,qword[]"), [0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), ImmInt(3)]),
     Insn(Name(mips="j", intel="jmp"), [0xe9, 0xcd, 0, 0, 0, 0], [PCRelative(2, 4, -6)]),
 ]
 

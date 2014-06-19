@@ -59,7 +59,7 @@ class_t *
 class_initialise_and_link(class_t *classref, symtab_entry_t *entry)
 {
 	classref->id = entry;
-	entry->location.r_static = classref;
+	entry->r_mem = classref;
 
 	if (entry->astref) {
 		for (int i = 0; i < entry->astref->children_nr; i++) {

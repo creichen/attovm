@@ -118,7 +118,7 @@ require_type(ast_node_t *node, int ty)
 {
 	static symtab_entry_t *convert_sym = NULL;
 	if (!convert_sym) {
-		symtab_lookup(BUILTIN_OP_CONVERT);
+		convert_sym = symtab_lookup(BUILTIN_OP_CONVERT);
 	}
 
 	if (node == NULL) {
@@ -225,7 +225,6 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 
 			for (int i = 0; i < function->parameters_nr; i++) {
 				short expected_type = function->parameter_types[i];
-				fprintf(stderr, "Expected type at %d: %x\n", i, expected_type);
 				actuals->children[i] = require_type(actuals->children[i], expected_type);
 			}
 

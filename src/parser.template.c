@@ -35,7 +35,6 @@ typedef ast_node_t node_t;
 
 int yylex();
 yylval_t yylval;
-extern int yy_xflag;
 extern int yy_line_nr;
 
 static ast_node_t *
@@ -237,6 +236,19 @@ update_line_nr(ast_node_t *n)
 {
 	n->source_line = yy_line_nr;
 	return n;
+}
+
+void
+yyrestart(FILE *new_file);
+
+void
+parser_restart(FILE *data)
+{
+	yy_line_nr = 1;
+	yyrestart(data);
+	yydone = 0;
+	error_status = 0;
+	node_stack_pos = 0;
 }
 
 $$PARSING$$

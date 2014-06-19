@@ -184,6 +184,7 @@ symtab_add_builtins(struct builtin_ops *builtins, int nr)
 			e->parameters_nr = b->args_nr;
 			e->parameter_types = b->args;
 		}
+		e->r_mem = b->function_pointer;
 	}
 }
 

@@ -286,6 +286,7 @@ buffer_disassemble(buffer_t buf)
 	unsigned char *data = buffer_entrypoint(buf);
 
 	while (size > 0) {
+		printf("[%p]\t", data);
 		int disasmd = disassemble_one(stdout, data, size);
 		putchar('\n');
 		if (!disasmd) {

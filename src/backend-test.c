@@ -41,7 +41,6 @@
 #include "symbol-table.h"
 
 extern FILE *builtin_print_redirection; // builtins.c
-extern FILE *yyin; // lexer
 
 static int failures = 0;
 static int runs = 0;
@@ -58,7 +57,7 @@ static runtime_image_t *
 compile(char *src, int line)
 {
 	FILE *memfile = fmemopen(src, strlen(src), "r");
-	yyin = memfile;
+	parser_restart(memfile);
 	ast_node_t *root;
 	if (!parse_program(&root)) {
 		fprintf(stderr, "NOPARSE");
@@ -66,6 +65,7 @@ compile(char *src, int line)
 		return NULL;
 	}
 	fclose(memfile);
+	ast_node_dump(stderr, root, 0x6); 
 	return runtime_compile(root);
 }
 
@@ -102,15 +102,29 @@ test_program(char *source, char *expected_result, int line)
 	buffer_disassemble(image->code_buffer);	// for completeness for now...
 
 	builtin_print_redirection = writefile;
-	fprintf(stderr, "START\n");
 	runtime_execute(image); // Engage!
-	fprintf(stderr, "DONE\n");
 	builtin_print_redirection = NULL;
 
+	fflush(NULL); // Outputs might not be written until we flush
 	if (strcmp(expected_result, output_buf)) {
 		signal_failure();
-		fflush(NULL);
 		fprintf(stderr, "[L%d] Result mismatch:\n----- Expected:\n%s\n----- Actual:\n%s\n-----\n", line, expected_result, output_buf);
+		size_t expected_len = strlen(expected_result);
+		size_t output_len = strlen(output_buf);
+		if (expected_len != output_len) {
+			fprintf(stderr, "Output size mismatch: Expected %zu, got %zu\n", expected_len, output_len);
+		}
+		size_t len = output_len < expected_len? output_len : expected_len;
+		for (int i = 0; i < len; i++) {
+			if (output_buf[i] != expected_result[i]) {
+				fprintf(stderr, "First mismatch at offset %d: expected %02x/`%c', got %02x/`%c'\n",
+					i,
+					expected_result[i], expected_result[i], 
+					output_buf[i], output_buf[i]);
+				break;
+			}
+		}
+
 		buffer_disassemble(image->code_buffer);
 		fflush(NULL);
 		fprintf(stderr, "[L%d] From program `%s'\n", line, source);

@@ -30,23 +30,25 @@
 
 #define REGISTERS_NR 16
 
-// Special registers
-#define REGISTER_V0 0 // return value
+// Spezialregister
+#define REGISTER_V0 0 // Rueckgabe
 #define REGISTER_SP 4
 #define REGISTER_FP 5
 #define REGISTER_GP 11
 
-#define REGISTERS_CALLEE_SAVED_NR 6
+#define REGISTERS_TEMP_NR 1 // Caller-saved; excluding args or special
+#define REGISTERS_CALLEE_SAVED_NR 5
 #define REGISTERS_ARGUMENT_NR 6
 
 typedef struct {
-	char *intel; // real name
-	char *mips;  // pseudo-name for students more familiar with MIPS naming
+	char *intel; // Hardware-Name
+	char *mips;  // Pseudo-Name fuer 2-Op-Pseudo-MIPS
 } regname_t;
 
 extern regname_t register_names[REGISTERS_NR];
+extern int registers_temp[REGISTERS_TEMP_NR];
 extern int registers_callee_saved[REGISTERS_CALLEE_SAVED_NR];
-extern int registers_argument_nr[REGISTERS_ARGUMENT_NR];
+extern int registers_argument[REGISTERS_ARGUMENT_NR];
 
 
 #endif // !defined(REGISTERS_H_)

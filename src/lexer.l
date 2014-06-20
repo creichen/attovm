@@ -120,8 +120,8 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 	return T_L_EQEQ;
 }
 
-"do" {
-	return T_L_DO;
+"is" {
+	return T_L_IS;
 }
 
 "\*" {
@@ -134,10 +134,6 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 
 "class" {
 	return T_L_CLASS;
-}
-
-"is" {
-	return T_L_IS;
 }
 
 ">" {

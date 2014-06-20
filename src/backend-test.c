@@ -84,6 +84,11 @@ signal_success()
 }
 
 void
+start_dynamic()
+{
+}
+
+void
 test_program(char *source, char *expected_result, int line)
 {
 	++runs;
@@ -156,6 +161,61 @@ main(int argc, char **argv)
 	TEST("{ obj x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
 	TEST("{ var x = 17; print(x); }", "17\n");
 	TEST("{ var x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
+
+	TEST("{ if (1) print(\"1\"); print(2);}", "1\n2\n");
+	TEST("{ if (0) {print(\"0\");} print(2);}", "2\n");
+	TEST("{ if (0) {print(\"0\");} else {print(\"1\");} print(2);}", "1\n2\n");
+
+	TEST("{ if (1) print(\"0\"); else print(\"1\"); print(2);}", "0\n2\n");
+	TEST("{ if (not 0) print(\"0\"); else print(\"1\"); print(2);}", "0\n2\n");
+	TEST("{ if (not 1) print(\"0\"); else print(\"1\"); print(2);}", "1\n2\n");
+
+	TEST("{ if (1 > 2) print(\"0\"); else print(\"1\"); print(2);}", "1\n2\n");
+	TEST("{ if (1 >= 2) print(\"0\"); else print(\"1\"); print(2);}", "1\n2\n");
+	TEST("{ if (2 > 2) print(\"0\"); else print(\"1\"); print(2);}", "1\n2\n");
+	TEST("{ if (2 >= 2) print(\"0\"); else print(\"1\"); print(2);}", "0\n2\n");
+	TEST("{ if (3 > 2) print(\"0\"); else print(\"1\"); print(2);}", "0\n2\n");
+	TEST("{ if (3 >= 2) print(\"0\"); else print(\"1\"); print(2);}", "0\n2\n");
+
+	TEST("{ if (1 < 2) print(\"0\"); else print(\"1\"); print(2);}", "0\n2\n");
+	TEST("{ if (1 <= 2) print(\"0\"); else print(\"1\"); print(2);}", "0\n2\n");
+	TEST("{ if (2 < 2) print(\"0\"); else print(\"1\"); print(2);}", "1\n2\n");
+	TEST("{ if (2 <= 2) print(\"0\"); else print(\"1\"); print(2);}", "0\n2\n");
+	TEST("{ if (3 < 2) print(\"0\"); else print(\"1\"); print(2);}", "1\n2\n");
+	TEST("{ if (3 <= 2) print(\"0\"); else print(\"1\"); print(2);}", "1\n2\n");
+
+	TEST("{ if (0 == \"foo\") print(\"0\"); print(2);}", "2\n");
+	TEST("{ if (\"bar\" == \"foo\") print(\"0\"); print(2);}", "2\n");
+	TEST("{ if (\"bar\" == \"bar\") print(\"0\"); print(2);}", "0\n2\n");
+	TEST("{ obj v = 0; if (0 == v) print(\"0\"); print(2);}", "0\n2\n");
+	TEST("{ obj v = 0; if (v == 0) print(\"0\"); print(2);}", "0\n2\n");
+	TEST("{ obj v = 0; if (1 == v) print(\"0\"); print(2);}", "2\n");
+	TEST("{ obj v = 0; if (v == 1) print(\"0\"); print(2);}", "2\n");
+	TEST("{ obj v = 0; obj v2 = 0; if (v2 == v) print(\"0\"); print(2);}", "0\n2\n");
+	TEST("{ obj v = 0; obj v2 = 1; if (v2 == v) print(\"0\"); print(2);}", "2\n");
+
+	TEST("{ int x = 0; while(x < 3) { print(x); x := x + 1; } } ", "0\n1\n2\n");
+	//TEST("{ int x = 0; do { print(x); x := x + 1; } while(x < 3);} ", "0\n1\n2\n");
+	TEST("{ int x = 0; while (x < 0) { print(x); x := x + 1; } } ", "");
+	//TEST("{ int x = 0; do { print(x); x := x + 1; } while(x < 0);} ", "0\n");
+
+	TEST("{ int x = 10; while(x > 4) { x := x - 1; if (x == 7) continue; print(x); } } ", "9\n8\n6\n5\n4\n");
+	//TEST("{ int x = 10; do { x := x - 1; if (x == 7) continue; print(x); } while(x > 4);} ", "9\n8\n6\n5\n4\n");
+	TEST("{ int x = 10; while(x > 4) { x := x - 1; if (x == 7) break; print(x); } } ", "9\n8\n");
+	//TEST("{ int x = 10; do { x := x - 1; if (x == 7) break; print(x); } while(x > 4);} ", "9\n8");
+
+	TEST("{ int x = 0; int y; while(x < 5) { y := x; x := x + 1; while (y < 4) { y := y + 1; if (y == 2) continue; print(y); } if (x == 3) break; } } ", "1\n3\n4\n3\n4\n3\n4\n");
+	TEST("{ int x = 0; int y; while(x < 3) { y := x; x := x + 1; while (y < 5) { if (y == 3) break; print(y); y := y + 1; } if (x == 2) continue; print(\"+\");} } ", "0\n1\n2\n+\n1\n2\n2\n+\n");
+
+	// next: arrays
+	// next: functions
+	// next: object instance creation
+	// next: field read/write (outside)
+	// next: nontrivial constructor
+	// next: method call
+	// next: method call within class
+	// next: field access within class
+
 	if (!failures) {
 		printf("All %d tests succeeded\n", runs);
 	} else {

@@ -119,6 +119,10 @@ class Arg(object):
         '''
         return ([], [])
 
+    def isDisabled(self):
+        return False
+
+
 
 class PCRelative(Arg):
     '''
@@ -149,7 +153,7 @@ class PCRelative(Arg):
         if (self.byte + offset_shift < 0):
             return
         p('int relative_%s;'% self.strName())
-        p('memcpy(&relative_%s, data + %d, %d);' % (self.strName(), self.byte, self.byte))
+        p('memcpy(&relative_%s, data + %d, %d);' % (self.strName(), self.byte, self.width))
         p('unsigned char *%s = data + relative_%s + machine_code_len;' % (self.strName(), self.strName()))
         return (["%p"], [self.strName()])
 
@@ -208,6 +212,46 @@ class Reg(Arg):
         p('int %s = %s;' % (self.strName(), ' | ' .join(decoding)))
         return (['%s'], ['register_names[' + self.strName() + '].mips'])
 
+class JointReg(Arg):
+    '''
+    Multiple destinations for a single register argument (no exclusive range)
+    '''
+    def __init__(self, subs):
+        self.subs = subs
+
+    def setName(self, name):
+        self.name = name
+        for n in self.subs:
+            n.setName(name)
+
+    def getExclusiveRegion(self):
+        return None
+
+    def getBuilderFor(self, offset):
+        builders = []
+        for n in self.subs:
+            b = n.getBuilderFor(offset)
+            if b is not None:
+                builders.append(b)
+        if builders == []:
+            return None
+        return ' | '.join('(%s)' % builder for builder in builders)
+
+    def maskOut(self, offset):
+        mask = 0xff
+        for n in self.subs:
+            mask = mask & n.maskOut(offset)
+        return mask
+
+    def strGenericName(self):
+        return 'r'
+
+    def strType(self):
+        return 'int'
+
+    def printDisassemble(self, dataptr, offset_shift, p):
+        return self.subs[0].printDisassemble(dataptr, offset_shift, p)
+
 
 class Imm(Arg):
     '''
@@ -239,17 +283,44 @@ class Imm(Arg):
         return ([self.cformatstr], [self.strName()])
 
 
+class DisabledArg(Arg):
+    '''
+    Disables an argument.  The argument will still be pretty-print for disassembly (with the provided
+    default value) but won't be decoded or encoded.
+    '''
+    def __init__(self, arg, defaultvalue):
+        self.arg = arg
+        self.arg.setName(defaultvalue)
+
+    def getExclusiveRegion(self):
+        return None
+
+    def strGenericName(self):
+        return None
+
+    def printDisassemble(self, d, o, p):
+        def skip(s):
+            pass
+        return self.arg.printDisassemble(d, o, skip)
+
+    def isDisabled(self):
+        return True
+
+
 def mkp(indent):
     '''Helper for indented printing'''
     def p(s):
         print ('\t' * indent) + s
     return p
 
+
 class Insn(object):
     emit_prefix = "emit_"
 
     def __init__(self, name, machine_code, args):
         self.name = name
+        self.function_name = name
+        self.is_static = False
         self.machine_code = machine_code
         assert type(machine_code) is list
         self.args = args
@@ -257,11 +328,12 @@ class Insn(object):
 
         arg_type_counts = {}
         for arg in self.args:
-            n = arg.strGenericName()
-            if n not in arg_type_counts:
-                arg_type_counts[n] = 1
-            else:
-                arg_type_counts[n] += 1
+            if arg is not None:
+                n = arg.strGenericName()
+                if n not in arg_type_counts:
+                    arg_type_counts[n] = 1
+                else:
+                    arg_type_counts[n] += 1
 
         arg_type_multiplicity = dict(arg_type_counts)
 
@@ -269,20 +341,27 @@ class Insn(object):
         revargs = list(args)
         revargs.reverse()
         for arg in revargs:
-            n = arg.strGenericName()
-            if arg_type_multiplicity[n] > 1:
-                arg.setName(n + str(arg_type_counts[n]))
-                arg_type_counts[n] -= 1
-            else:
-                arg.setName(n) # only one of these here
+            if arg is not None:
+                n = arg.strGenericName()
+                if arg_type_multiplicity[n] > 1:
+                    arg.setName(n + str(arg_type_counts[n]))
+                    arg_type_counts[n] -= 1
+                else:
+                    arg.setName(n) # only one of these here
 
+    def allEncodings(self):
+        return [self]
 
     def printHeader(self, trail=';'):
         arglist = []
         for arg in self.args:
-            arglist.append(arg.strType() + ' ' + arg.strName())
-        print 'void'
-        print Insn.emit_prefix + self.name + '(' + ', '.join(["buffer_t *buf"] + arglist) + ')' + trail
+            if not arg.isDisabled():
+                arglist.append(arg.strType() + ' ' + arg.strName())
+        if self.is_static:
+            print 'static void'
+        else:
+            print 'void'
+        print Insn.emit_prefix + self.function_name + '(' + ', '.join(["buffer_t *buf"] + arglist) + ')' + trail
 
     def machineCodeLen(self):
         return '%d' % len(self.machine_code)
@@ -303,12 +382,13 @@ class Insn(object):
         builders = []
         build_this_byte = True
         for arg in self.args:
-            if arg.inExclusiveRegion(offset):
-                return None
+            if arg is not None:
+                if arg.inExclusiveRegion(offset):
+                    return None
 
-            builder = arg.getBuilderFor(offset)
-            if builder is not None:
-                builders.append('(' + builder + ')')
+                builder = arg.getBuilderFor(offset)
+                if builder is not None:
+                    builders.append('(' + builder + ')')
         return builders
 
     def printGenerator(self):
@@ -332,8 +412,9 @@ class Insn(object):
             offset += 1
 
         for arg in self.args:
-            if arg.getExclusiveRegion() is not None:
-                arg.printCopyToExclusiveRegion(p, 'data')
+            if arg is not None:
+                if arg.getExclusiveRegion() is not None:
+                    arg.printCopyToExclusiveRegion(p, 'data')
 
         print '}'
 
@@ -347,7 +428,8 @@ class Insn(object):
         for byte in machine_code:
             bitmask = 0xff
             for arg in self.args:
-                bitmask = bitmask & arg.maskOut(offset)
+                if arg is not None:
+                    bitmask = bitmask & arg.maskOut(offset)
 
             if bitmask != 0:
                 if bitmask == 0xff:
@@ -366,9 +448,10 @@ class Insn(object):
         formats = []
         format_args = []
         for arg in self.args:
-            (format_addition, format_args_addition) = arg.printDisassemble('data', -offset_shift, pp)
-            formats = formats + format_addition
-            format_args = format_args + format_args_addition
+            if arg is not None:
+                (format_addition, format_args_addition) = arg.printDisassemble('data', -offset_shift, pp)
+                formats = formats + format_addition
+                format_args = format_args + format_args_addition
         pp('if (file)');
         if len(formats) == 0:
             pp('\tfprintf(file, "%s");' % self.name)
@@ -378,6 +461,78 @@ class Insn(object):
         p('}')
 
 
+
+class InsnAlternatives(Insn):
+    '''
+    Multiple alternative instruction encodings wrapped into the same call
+    '''
+    def __init__(self, name, default, options):
+        '''
+        name: Name of the joint instruction
+        default: Default instruction encoding, a pair of (machine_code, args) as for Insn
+        options: Alternative instrucion encodings, a tuple (cond, (machine_code, args)) where
+                 "cond" is a C conditional that may refer to arguments (of the "default") by "{arg0}" .. "{argn}"
+        
+                 Alternative encodings may skip args (specify as "None").  Make sure to
+                 maintain the order of the original argument list, though.
+        '''
+        Insn.__init__(self, name, default[0], default[1])
+        self.options = {opt : Insn(name, machine_code, args) for (opt, (machine_code, args)) in options}
+
+        name_nr = 0
+
+        for o in self.options.itervalues():
+            o.is_static = True
+            o.function_name = o.name + '__%d' % name_nr
+            name_nr += 1
+
+        self.default_option = Insn(name, default[0], default[1])
+        self.default_option.is_static = True
+        self.default_option.function_name = self.default_option.name + '__%d' % name_nr
+
+    def allEncodings(self):
+        return list(self.options.itervalues()) + [self]
+
+    def printGenerator(self):
+        self.default_option.printGenerator()
+        print ''
+        for o in self.options.itervalues():
+            o.printGenerator()
+            print ''
+
+        # Print selection function
+        argdict = {}
+        arglist = []
+        count = 0
+
+        def invoke(insn):
+            ma = ['buf']
+            mc = 0
+            for arg in insn.args:
+                if not arg.isDisabled():
+                    ma.append(arglist[mc])
+                mc += 1
+            return Insn.emit_prefix + insn.function_name + '(' + ', '.join(ma) + ');'
+
+        for arg in self.args:
+            n = arg.strName()
+            argdict['arg%d' % count] = n
+            arglist.append(n)
+            count += 1
+
+        self.printHeader(trail='')
+        print '{'
+        p = mkp(1)
+        pp = mkp(2)
+        for (condition, option) in self.options.iteritems():
+            p('if (%s) {' % (condition.format(**argdict)))
+            pp(invoke(option));
+            pp('return;')
+            p('}')
+        # otherwise default
+        p(invoke(self.default_option))
+        print '}'
+        
 
 class OptPrefixInsn (Insn):
     '''
@@ -418,6 +573,9 @@ class OptPrefixInsn (Insn):
 def ImmInt(offset):
     return Imm('int', '%x', offset, 4)
 
+def ImmUInt(offset):
+    return Imm('unsigned int', '%x', offset, 4)
+
 def ImmLongLong(offset):
     return Imm('long long', '%llx', offset, 8)
 
@@ -432,10 +590,10 @@ def Name(mips, intel=None):
     return mips
 
 
-def ArithmeticDestReg(offset):
-    return Reg([BitPattern(0, 0, 1), BitPattern(offset, 0, 3)])
-def ArithmeticSrcReg(offset):
-    return Reg([BitPattern(0, 2, 1), BitPattern(offset, 3, 3)])
+def ArithmeticDestReg(offset, baseoffset=0):
+    return Reg([BitPattern(baseoffset, 0, 1), BitPattern(offset, 0, 3)])
+def ArithmeticSrcReg(offset, baseoffset=0):
+    return Reg([BitPattern(baseoffset, 2, 1), BitPattern(offset, 3, 3)])
 def OptionalArithmeticDestReg(offset):
     return Reg([BitPattern(-1, 0, 1), BitPattern(offset, 0, 3)])
 
@@ -455,8 +613,9 @@ def printDisassemblerHeader(trail=';'):
 def printDisassembler(instructions):
     printDisassemblerHeader(trail='')
     print '{'
-    for insn in instructions:
-        insn.printTryDisassemble('data', 'max_len')
+    for preinsn in instructions:
+        for insn in preinsn.allEncodings():
+            insn.printTryDisassemble('data', 'max_len')
     p = mkp(1)
     p('return 0; // failure')
     print '}'
@@ -468,28 +627,47 @@ instructions = [
     Insn(Name(mips="move", intel="mov"), [0x48, 0x89, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
     Insn(Name(mips="mul", intel="imul"), [0x48, 0x0f, 0xaf, 0xc0], [ArithmeticSrcReg(3), ArithmeticDestReg(3)]),
     Insn(Name(mips="div_a2v0", intel="idiv"), [0x48, 0xf7, 0xf8], [ArithmeticDestReg(2)]),
-    Insn(Name(mips="li", intel="mov_imm"), [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
+    Insn(Name(mips="li", intel="mov"), [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
     Insn(Name(mips="jreturn", intel="ret"), [0xc3], []),
     Insn(Name(mips="jal", intel="callq"), [0xe8, 0xe3, 0x00, 0x00, 0x00, 0x00], [PCRelative(2, 4, -6)]),
     OptPrefixInsn(Name(mips="jalr", intel="callq"), 0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
-    Insn(Name(mips="bgt", intel="cmp;jg"), [0x48, 0x39, 0xc0, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="bge", intel="cmp;jge"), [0x48, 0x39, 0xc0, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="blt", intel="cmp;jl"), [0x48, 0x39, 0xc0, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="ble", intel="cmp;jle"), [0x48, 0x39, 0xc0, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="beq", intel="cmp;je"), [0x48, 0x39, 0xc0, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="bne", intel="cmp;jne"), [0x48, 0x39, 0xc0, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="bgtz", intel="cmp-0;jg"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="bgez", intel="cmp-0;jge"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="bltz", intel="cmp-0;jl"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="blez", intel="cmp-0;jle"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="bnez", intel="cmp-0;jnz"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="beqz", intel="cmp-0;jz"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bgt", intel="cmp_jg"), [0x48, 0x39, 0xc0, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bge", intel="cmp_jge"), [0x48, 0x39, 0xc0, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="blt", intel="cmp_jl"), [0x48, 0x39, 0xc0, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="ble", intel="cmp_jle"), [0x48, 0x39, 0xc0, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="beq", intel="cmp_je"), [0x48, 0x39, 0xc0, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bne", intel="cmp_jne"), [0x48, 0x39, 0xc0, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bgtz", intel="cmp0_jg"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bgez", intel="cmp0_jge"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bltz", intel="cmp0_jl"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="blez", intel="cmp0_jle"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bnez", intel="cmp0_jnz"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="beqz", intel="cmp0_jz"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+
+    Insn(Name(mips="not", intel="xor_test_sete"),  [0x48, 0x85, 0xc0, 0x40, 0xb8, 0,0,0,0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2)])]),
+    Insn(Name(mips="slt", intel="xor_cmp_setl"),  [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x9c, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5), ArithmeticSrcReg(5)]),
+    Insn(Name(mips="sle", intel="xor_cmp_setle"), [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x9e, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5), ArithmeticSrcReg(5)]),
+    Insn(Name(mips="seq", intel="xor_cmp_sete"),  [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5), ArithmeticSrcReg(5)]),
+    Insn(Name(mips="sne", intel="xor_cmp_setne"), [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x95, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5), ArithmeticSrcReg(5)]),
+
+# xor: 0x48, 0x31, 0xc0
+# cmp: 0x48, 0x39, 0xc0
+# setl: 0x40 0x0f 0x9c 0xc0
+# setle: 0x40 0x0f 0x9e 0xc0
+# sete: 0x40 0x0f 0x94 0xc0
+# setne: 0x40 0x0f 0x95 0xc0
+
     Insn(Name(mips="push", intel="push"), [0x48, 0x50], [ArithmeticDestReg(1)]),
     Insn(Name(mips="pop", intel="pop"), [0x48, 0x58], [ArithmeticDestReg(1)]),
-    Insn(Name(mips="addi", intel="add"), [0x48, 0x81, 0xc0, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmInt(3)]),
-    Insn(Name(mips="sd", intel="mov-qword[],r"), [0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
+    Insn(Name(mips="addiu", intel="add"), [0x48, 0x81, 0xc0, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
+    Insn(Name(mips="subiu", intel="add"), [0x48, 0x81, 0xe8, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
+    InsnAlternatives(Name(mips="sd", intel="mov-qword[],r"),
+                     ([0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]), [
+                         ('{arg1} == 4', ([0x48, 0x89, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), DisabledArg(ArithmeticDestReg(2), '4'), ImmInt(4)]))
+                     ]),
+    #    Insn(Name(mips="sd", intel="mov-qword[],r"), [0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
     Insn(Name(mips="ld", intel="mov-r,qword[]"), [0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
-    Insn(Name(mips="j", intel="jmp"), [0xe9, 0xcd, 0, 0, 0, 0], [PCRelative(2, 4, -6)]),
+    Insn(Name(mips="j", intel="jmp"), [0xe9, 0, 0, 0, 0], [PCRelative(1, 4, -5)]),
 ]
 
 

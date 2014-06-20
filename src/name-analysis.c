@@ -34,6 +34,7 @@
 // Spezielle Flags bei der rekursiven Namenauflösung, die wir nicht an die Symboltabelle weiterreichen
 #define NF_SPECIAL_CHILD_FLAGS	0xf0000000
 #define NF_SELECTOR		0x80000000
+#define NF_WITHIN_LOOP		0x40000000
 
 extern int symtab_selectors_nr; // from symbol-table.c
 extern hashtable_t *symtab_selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufruge!)
@@ -203,6 +204,22 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		node->sym = lookup;
 		return;
 	}
+
+	case AST_NODE_WHILE:
+		child_flags |= NF_WITHIN_LOOP;
+		break;
+
+	case AST_NODE_CONTINUE:
+		if (!(child_flags & NF_WITHIN_LOOP)) {
+			error(node, "'continue' outside of loop");
+		}
+		break;
+
+	case AST_NODE_BREAK:
+		if (!(child_flags & NF_WITHIN_LOOP)) {
+			error(node, "'break' outside of loop");
+		}
+		break;
 
 	case AST_NODE_MEMBER:
 		fixnames(node->children[0], env, parent, child_flags);

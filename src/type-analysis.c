@@ -455,6 +455,10 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 		node->children[0] = require_type(node->children[0], TYPE_INT);
 		break;
 
+	/* case AST_NODE_DOWHILE: */
+	/* 	node->children[1] = require_type(node->children[0], TYPE_INT); */
+	/* 	break; */
+
 	case AST_NODE_IF:
 		node->children[0] = require_type(node->children[0], TYPE_INT);
 		break;

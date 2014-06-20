@@ -28,6 +28,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #include "ast.h"
 #include "baseline-backend.h"
@@ -42,12 +43,56 @@
 
 #define FAIL(...) { fprintf(stderr, "[baseline-backend] L%d: Compilation failed:", __LINE__); fprintf(stderr, __VA_ARGS__); exit(1); }
 
+typedef struct relative_jump_label_list {
+	relative_jump_label_t label;
+	struct relative_jump_label_list *next;
+} relative_jump_label_list_t;
+
+// Uebersetzungskontext
+typedef struct {
+	// Fuer den aktuellen Ausfuehrungsrahmen:  Welches Register indiziert temporaere Variablen?
+	int temp_reg_base;
+
+	// Falls verfuegbar/in Schleife: Sprungmarken 
+	relative_jump_label_list_t *continue_labels, *break_labels;
+} context_t;
+
+
 static void
-baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, int temp_reg_base);
+context_copy(context_t *dest, context_t *src)
+{
+	memcpy(dest, src, sizeof(context_t));
+}
+
+static relative_jump_label_t *
+jll_add_label(relative_jump_label_list_t **list)
+{
+	relative_jump_label_list_t *node = (relative_jump_label_list_t *) malloc(sizeof (relative_jump_label_list_t));
+	node->next = *list;
+	*list = node;
+	return &node->label;
+}
+
+static void
+jll_labels_resolve(relative_jump_label_list_t **list, void *addr)
+{
+	while (*list) {
+		relative_jump_label_list_t *node = *list;
+		*list = node->next;
+		buffer_setlabel(&node->label, addr);
+		free(node);
+	}
+}
+
+static void
+baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context_t *context);
+
+long long int builtin_op_obj_test_eq(object_t *a0, object_t *a1);
+
 
 // Gibt Groesse des Stapelrahmens (in Bytes) zurueck
 static int
-baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, int temp_reg_base);
+baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context);
 
 
 static void
@@ -88,7 +133,7 @@ emit_la(buffer_t *buf, int reg, void *p)
 }
 
 static void
-baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int from_ty, int dest_register, int temp_reg_base)
+baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int from_ty, int dest_register, context_t *context)
 {
 	// Annahme: zu konvertierendes Objekt ist in a0
 	const int a0 = registers_argument[0];
@@ -131,7 +176,7 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 			emit_la(buf, REGISTER_V0, &fail_at_node);
 			emit_jalr(buf, REGISTER_V0);
 			// Erfolgreiche Dekodierung:
-			buffer_setlabel2(&jump_label, *buf);
+			buffer_setlabel2(&jump_label, buf);
 			emit_ld(buf, dest_register, a0,
 				// Int-Wert im Objekt:
 				offsetof(object_t, members[0].int_v));
@@ -161,7 +206,71 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 }
 
 static void
-baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **args, int dest_register, int temp_reg_base)
+baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
+			    int a0, int a0_ty,
+			    int a1, int a1_ty)
+{
+	//#ifdef VAR_IS_OBJ
+	if (a0_ty == TYPE_VAR) {
+		a0_ty = TYPE_OBJ;
+	}
+	if (a1_ty == TYPE_VAR) {
+		a1_ty = TYPE_OBJ;
+	}
+	//#endif
+
+	bool temp_object = false;
+	if (a0_ty != a1_ty) {
+		// Int -> Object
+		if (a0_ty == TYPE_INT || a1_ty == TYPE_INT) {
+			// Einer der Typen muss nach Obj konvertiert werden
+			int conv_reg;
+			if (a0_ty == TYPE_INT) {
+				conv_reg = a0;
+				a0_ty = TYPE_OBJ;
+			} else {
+				conv_reg = a1;
+				a1_ty = TYPE_OBJ;
+			}
+			temp_object = true;
+			// Temporaeres Objekt auf dem Stapel erzeugen
+			emit_push(buf, conv_reg);
+			emit_la(buf, conv_reg, &class_boxed_int);
+			emit_push(buf, conv_reg);
+			emit_move(buf, conv_reg, REGISTER_SP);
+		}
+
+		// Noch nicht implementiert
+		assert(a0_ty != TYPE_VAR && a1_ty != TYPE_VAR);
+	}
+
+	// Beide Typen sind nun gleich
+	switch (a0_ty) {
+
+	case TYPE_INT:
+		emit_seq(buf, dest_register, a0, a1);
+		break;
+
+	case TYPE_OBJ:
+		emit_la(buf, REGISTER_V0, builtin_op_obj_test_eq);
+		emit_jalr(buf, REGISTER_V0);
+		break;
+
+	case TYPE_VAR:
+	default:
+		 FAIL("Unsupported type equality check: %x\n", a0_ty);
+	}
+
+	if (temp_object) {
+		// Temporaeres Objekt vom Stapel deallozieren
+		emit_addiu(buf, REGISTER_SP, 16);
+	}
+
+}
+
+
+static void
+baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **args, int dest_register, context_t *context)
 {
 	const int a0 = registers_argument[0];
 	const int a1 = registers_argument[1];
@@ -184,7 +293,7 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 
 	// Parameter laden
 	if (args_nr) {
-		baseline_compile_prepare_arguments(buf, args_nr, args, temp_reg_base);
+		baseline_compile_prepare_arguments(buf, args_nr, args, context);
 	}
 
 	switch (op) {
@@ -202,9 +311,27 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 		emit_optmove(buf, dest_register, a0);
 		break;
 
+	case BUILTIN_OP_NOT:
+		emit_not(buf, dest_register, a0);
+		break;
+
+	case BUILTIN_OP_TEST_EQ:
+		baseline_compile_builtin_eq(buf, dest_register,
+					    a0, args[0]->type & TYPE_FLAGS,
+					    a1, args[1]->type & TYPE_FLAGS);
+		break;
+
+	case BUILTIN_OP_TEST_LE:
+		emit_sle(buf, dest_register, a0, a1);
+		break;
+
+	case BUILTIN_OP_TEST_LT:
+		emit_slt(buf, dest_register, a0, a1);
+		break;
+
 	case BUILTIN_OP_DIV:
-		baseline_compile_expr(buf, args[0], REGISTER_V0, temp_reg_base);
-		baseline_compile_expr(buf, args[1], REGISTER_T0, temp_reg_base);
+		baseline_compile_expr(buf, args[0], REGISTER_V0, context);
+		baseline_compile_expr(buf, args[1], REGISTER_T0, context);
 		emit_li(buf, a2, 0); // muss vor Division auf 0 gesetzt werden
 		emit_div_a2v0(buf, registers_temp[0]);
 		emit_optmove(buf, dest_register, REGISTER_V0); // Ergebnis in $v0
@@ -220,7 +347,7 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 		break;
 
 	case BUILTIN_OP_CONVERT:
-		baseline_compile_builtin_convert(buf, args[0], result_ty, args[0]->type & TYPE_FLAGS, dest_register, temp_reg_base);
+		baseline_compile_builtin_convert(buf, args[0], result_ty, args[0]->type & TYPE_FLAGS, dest_register, context);
 		break;
 
 	default:
@@ -231,7 +358,7 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 
 // Gibt Groesse des Stapelrahmens (in Bytes) zurueck
 static int
-baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, int temp_reg_base)
+baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context)
 {
 	// Optimierung:  letzter nichtrivialer Parameter muss nicht zwischengesichert werden...
 	int start_of_trailing_simple = children_nr;
@@ -257,7 +384,7 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 			++stack_frame_size; // 16-Byte-Ausrichtung, gem. AMD64-ABI
 		}
 
-		emit_addi(buf, REGISTER_SP, -(stack_frame_size * 8));
+		emit_addiu(buf, REGISTER_SP, -(stack_frame_size * 8));
 	}
 
 	// Nichttriviale Werte und Werte, die ohnehin auf den Stapel muessen, rekursiv ausrechnen
@@ -268,14 +395,14 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 			if (i == last_nonsimple) { // Opt: [non_simple]
 				reg = registers_argument[i];
 			}
-			baseline_compile_expr(buf, children[i], reg, temp_reg_base);
+			baseline_compile_expr(buf, children[i], reg, context);
 
 			if (i >=  REGISTERS_ARGUMENT_NR) {
 				// In Ziel speichern
 				emit_sd(buf, reg, REGISTER_SP, 8 * (i - REGISTERS_ARGUMENT_NR));
 			} else if (i != last_nonsimple) {
 				// Muss in temporaerem Speicher ablegen
-				emit_sd(buf, reg, temp_reg_base, children[i]->storage * 8);
+				emit_sd(buf, reg, context->temp_reg_base, children[i]->storage * 8);
 			}
 		}
 	}
@@ -284,13 +411,13 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 	for (int i = 0; i < children_nr; i++) {
 		if (is_simple(children[i])) {
 			if (i >= REGISTERS_ARGUMENT_NR) {
-				baseline_compile_expr(buf, children[i], REGISTER_V0, temp_reg_base);
+				baseline_compile_expr(buf, children[i], REGISTER_V0, context);
 				emit_sd(buf, REGISTER_V0, REGISTER_SP, 8 * (i - REGISTERS_ARGUMENT_NR));
 			} else {
-				baseline_compile_expr(buf, children[i], registers_argument[i], temp_reg_base);
+				baseline_compile_expr(buf, children[i], registers_argument[i], context);
 			}
 		} else if (i < REGISTERS_ARGUMENT_NR && i != last_nonsimple) {
-			emit_ld(buf, registers_argument[i], temp_reg_base, children[i]->storage * 8);
+			emit_ld(buf, registers_argument[i], context->temp_reg_base, children[i]->storage * 8);
 		}
 	}
 
@@ -299,7 +426,7 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 
 // Der Aufrufer speichert; der Aufgerufene haelt sich immer an dest_register
 static void
-baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, int temp_reg_base)
+baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context_t *context)
 {
 	switch (NODE_TY(ast)) {
 	case AST_VALUE_INT:
@@ -338,14 +465,69 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, int tem
 			// Keine Initialisierung?
 			break;
 		}
+		// fall through
 	case AST_NODE_ASSIGN:
-		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, temp_reg_base);
+		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
 		emit_push(buf, REGISTER_V0);
-		baseline_compile_expr(buf, ast->children[1], REGISTER_V0, temp_reg_base);
+		baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
 		emit_pop(buf, REGISTER_T0);
 		emit_sd(buf, REGISTER_V0, REGISTER_T0, 0);
 		break;
 
+	case AST_NODE_IF: {
+		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
+		relative_jump_label_t false_label, end_label;
+		emit_beqz(buf, REGISTER_V0, &false_label);
+		baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
+		if (ast->children[2]) {
+			emit_j(buf, &end_label);
+			buffer_setlabel2(&false_label, buf);
+			baseline_compile_expr(buf, ast->children[2], REGISTER_V0, context);
+			buffer_setlabel2(&end_label, buf);
+		} else {
+			buffer_setlabel2(&false_label, buf);
+		}
+		break;
+	}
+
+	case AST_NODE_WHILE: {
+		relative_jump_label_t loop_label, exit_label;
+		void *loop_target = buffer_target(buf);
+
+		// Schleife beendet?
+		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
+		emit_beqz(buf, REGISTER_V0, &exit_label);
+
+		// Schleifenkoerper
+		context_t context_backup;  // Kontext sichern (s.u.)
+		context_copy(&context_backup, context);
+		context->continue_labels = NULL;
+		context->break_labels = NULL;
+		baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
+		emit_j(buf, &loop_label);
+
+		// Schleifenende, und Sprungmarken einsetzen
+		void *exit_target = buffer_target(buf);
+		buffer_setlabel(&loop_label, loop_target);
+		buffer_setlabel(&exit_label, exit_target);
+		// Break-Continue-Sprungmarken binden
+		jll_labels_resolve(&context->continue_labels, loop_target);
+		jll_labels_resolve(&context->break_labels, exit_target);
+
+		// Kontext wiederherstellen, damit umgebende Schleifen wieder Zugriff auf ihre `continue_label' und `break_label' erhalten
+		context_copy(context, &context_backup);
+	}
+		break;
+
+	case AST_NODE_CONTINUE:
+		// Sprungbefehl fuer spaeter merken
+		emit_j(buf, jll_add_label(&context->continue_labels));
+		break;
+
+	case AST_NODE_BREAK:
+		// Sprungbefehl fuer spaeter merken
+		emit_j(buf, jll_add_label(&context->break_labels));
+		break;
 
 	case AST_NODE_FUNAPP: {
 		// Annahme: Funktionsaufrufe (noch keine Unterstuetzung fuer Selektoren)
@@ -354,11 +536,11 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, int tem
 		// Besondere eingebaute Operationen werden in einer separaten Funktion behandelt
 		if (sym->id < 0 && sym->symtab_flags & SYMTAB_HIDDEN) {
 			baseline_compile_builtin_op(buf, ast->type & TYPE_FLAGS, sym->id,
-						    ast->children[1]->children, dest_register, temp_reg_base);
+						    ast->children[1]->children, dest_register, context);
 		} else {
 			// Normaler Funktionsaufruf
 			// Argumente laden
-			int stack_frame_size = baseline_compile_prepare_arguments(buf, ast->children[1]->children_nr, ast->children[1]->children, temp_reg_base);
+			int stack_frame_size = baseline_compile_prepare_arguments(buf, ast->children[1]->children_nr, ast->children[1]->children, context);
 
 			if (!sym->r_mem) {
 				fail_at_node(ast, "No code known");
@@ -369,7 +551,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, int tem
 
 			// Stapelrahmen nachbereiten, soweit noetig
 			if (stack_frame_size) {
-				emit_addi(buf, REGISTER_SP, stack_frame_size);
+				emit_addiu(buf, REGISTER_SP, stack_frame_size);
 			}
 		}
 	}
@@ -377,7 +559,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, int tem
 
 	case AST_NODE_BLOCK:
 		for (int i = 0; i < ast->children_nr; i++) {
-			baseline_compile_expr(buf, ast->children[i], dest_register, temp_reg_base);
+			baseline_compile_expr(buf, ast->children[i], dest_register, context);
 		}
 		break;
 
@@ -393,10 +575,15 @@ buffer_t
 baseline_compile(ast_node_t *root,
 		 void *static_memory)
 {
+	context_t context;
+	context.temp_reg_base = REGISTER_GP;
+	context.continue_labels = NULL;
+	context.break_labels = NULL;
+
 	buffer_t buf = buffer_new(1024);
 	emit_push(&buf, REGISTER_GP);
 	emit_la(&buf, REGISTER_GP, static_memory);
-	baseline_compile_expr(&buf, root, REGISTER_V0, REGISTER_GP);
+	baseline_compile_expr(&buf, root, REGISTER_V0, &context);
 	/* emit_move(&buf, registers_argument_nr[0], REGISTER_V0); */
 	emit_pop(&buf, REGISTER_GP);
 	emit_jreturn(&buf);

@@ -57,7 +57,7 @@ new_real(double v)
 object_t *
 new_string(char *string, size_t len)
 {
-	object_t *obj = heap_allocate_object(&class_string, (len + 1) & ~(sizeof (void*) - 1));
+	object_t *obj = heap_allocate_object(&class_string, (len + sizeof(void*) - 1) & ~(sizeof (void*) - 1));
 	memcpy(&obj->members[0], string, len + 1);
 	return obj;
 }
@@ -71,3 +71,29 @@ new_array(size_t len)
 	return obj;
 }
 
+
+long long int
+builtin_op_obj_test_eq(object_t *a0, object_t *a1)
+{
+	fprintf(stderr, "IAMA object comparison function.  AMA. (types: %p, %p)\n", a0->classref, a1->classref);
+	if (a0 == a1) {
+		return 1;
+	}
+	if (a0 == NULL || a1 == NULL) {
+		return 0;
+	}
+	if (a0->classref != a1->classref) {
+		return 0;
+	}
+	if (a0->classref == &class_boxed_int) {
+		return a0->members[0].int_v == a1->members[0].int_v;
+	}
+	if (a0->classref == &class_boxed_real) {
+		return a0->members[0].real_v == a1->members[0].real_v;
+	}
+	if (a0->classref == &class_string) {
+		return !strcmp(&a0->members[0].string, &a1->members[0].string);
+	}
+	// Ansonsten immer ungleich
+	return 0;
+}

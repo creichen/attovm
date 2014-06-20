@@ -978,7 +978,7 @@ rules = [
     Rule(STMT,		[ BLOCK ],					BLOCK),
     Rule(STMT,		[ 'if', EXPR, STMT, OPTELSE ],			Cons('IF', [EXPR, STMT, OPTELSE])),
     Rule(STMT,		[ 'while', '(', EXPR,')', STMT ],		Cons('WHILE', [EXPR, STMT])),
-    Rule(STMT,		[ 'do', STMT, 'while', EXPR, ';' ],		Cons('BLOCK', [STMT, Cons('WHILE', [EXPR, STMT])])),
+    #    Rule(STMT,		[ 'do', STMT, 'while', EXPR, ';' ],		Cons('DOWHILE', [EXPR, STMT])), #Cons('BLOCK', [STMT, Cons('WHILE', [EXPR, STMT])])),
     Rule(STMT,		[ 'break', ';' ],				Cons('BREAK', [])),
     Rule(STMT,		[ 'continue', ';' ],				Cons('CONTINUE', [])),
     Rule(STMT,		[ 'return', ';' ],				Cons('RETURN', NULL)),

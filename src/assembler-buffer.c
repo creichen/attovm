@@ -328,8 +328,14 @@ buffer_setlabel(relative_jump_label_t *label, void *target)
 	memcpy(label->label_position, &delta, 4);
 }
 
-void
-buffer_setlabel2(relative_jump_label_t *label, buffer_t target)
+void *
+buffer_target(buffer_t *target)
 {
-	buffer_setlabel(label, target->data + target->actual);
+	return (*target)->data + (*target)->actual;
+}
+
+void
+buffer_setlabel2(relative_jump_label_t *label, buffer_t *buffer)
+{
+	buffer_setlabel(label, buffer_target(buffer));
 }

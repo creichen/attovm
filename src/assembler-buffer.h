@@ -33,9 +33,10 @@
 struct buffer_internal;
 typedef struct buffer_internal* buffer_t;
 
-typedef struct {
-	void *label_position;
-	void *base_position;
+// Relative Sprungmarke in einem Sprungbefehl.  Kann verzoegert gesetzt werden.
+typedef struct relative_jump_label {
+	void *label_position; // Speicherstelle, an der die relative Sprungadresse stehen soll
+	void *base_position; // Position, relativ zu der der Sprung angegeben werden muss
 } relative_jump_label_t;
 
 void
@@ -43,7 +44,11 @@ buffer_setlabel(relative_jump_label_t *label, void *target);
 
 // Setzt das Label auf den naechsten Befehl
 void
-buffer_setlabel2(relative_jump_label_t *label, buffer_t target);
+buffer_setlabel2(relative_jump_label_t *label, buffer_t *target);
+
+// Sprungziel: naechster Befehl
+void *
+buffer_target(buffer_t *target);
 
 buffer_t
 buffer_new(size_t expected_size);

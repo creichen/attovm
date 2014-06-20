@@ -39,18 +39,18 @@ regname_t register_names[REGISTERS_NR] = {
 	{"%r8",  "$a4"}, // 8
 	{"%r9",  "$a5"},
 	{"%r10", "$t0"}, 
-	{"%r11", "$gp"},
+	{"%r11", "$t1"},
 	{"%r12", "$s1"}, // 12
 	{"%r13", "$s2"},
 	{"%r14", "$s3"},
-	{"%r15", "$s4"}};
+	{"%r15", "$gp"}};
 
 int registers_callee_saved[REGISTERS_CALLEE_SAVED_NR] = {
-	3, 12, 13, 14, 15
+	3, 12, 13, 14
 };
 
 int registers_temp[REGISTERS_TEMP_NR] = {
-	10
+	10, 11
 };
 
 int registers_argument[REGISTERS_ARGUMENT_NR] = {

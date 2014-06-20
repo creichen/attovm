@@ -109,7 +109,6 @@ fail_at_node(ast_node_t *node, char *msg)
 	fail("execution halted on error");
 }
 
-
 // Kann dieser Knoten ohne temporaere Register berechnet werden?
 static int
 is_simple(ast_node_t *n)
@@ -133,11 +132,20 @@ emit_la(buffer_t *buf, int reg, void *p)
 }
 
 static void
+emit_fail_at_node(buffer_t *buf, ast_node_t *node, char *msg)
+{
+	emit_la(buf, REGISTER_A0, node);
+	emit_la(buf, REGISTER_A1, msg);
+	emit_la(buf, REGISTER_V0, &fail_at_node);
+	emit_jalr(buf, REGISTER_V0);
+}
+
+
+
+static void
 baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int from_ty, int dest_register, context_t *context)
 {
 	// Annahme: zu konvertierendes Objekt ist in a0
-	const int a0 = registers_argument[0];
-	const int a1 = registers_argument[1];
 
 #ifdef VAR_IS_OBJ
 	if (to_ty == TYPE_VAR) {
@@ -166,18 +174,15 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 	case TYPE_OBJ:
 		switch (to_ty) {
 		case TYPE_INT: {
-			emit_ld(buf, REGISTER_T0, a0, 0);
+			emit_ld(buf, REGISTER_T0, REGISTER_A0, 0);
 			emit_la(buf, REGISTER_V0, &class_boxed_int);
 			relative_jump_label_t jump_label;
 			// Falls Integer-Objekt: Springe zur Dekodierung
 			emit_beq(buf, REGISTER_T0, REGISTER_V0, &jump_label);
-			emit_la(buf, a0, arg);
-			emit_la(buf, a1, "attempted to convert non-Integer object to int");
-			emit_la(buf, REGISTER_V0, &fail_at_node);
-			emit_jalr(buf, REGISTER_V0);
+			emit_fail_at_node(buf, arg, "attempted to convert non-Integer object to int");
 			// Erfolgreiche Dekodierung:
 			buffer_setlabel2(&jump_label, buf);
-			emit_ld(buf, dest_register, a0,
+			emit_ld(buf, dest_register, REGISTER_A0,
 				// Int-Wert im Objekt:
 				offsetof(object_t, members[0].int_v));
 			return;
@@ -272,10 +277,6 @@ baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
 static void
 baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **args, int dest_register, context_t *context)
 {
-	const int a0 = registers_argument[0];
-	const int a1 = registers_argument[1];
-	const int a2 = registers_argument[2];
-
 	// Bestimme Anzahl der Parameter
 	int args_nr = 2;
 
@@ -298,51 +299,51 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 
 	switch (op) {
 	case BUILTIN_OP_ADD:
-		if (dest_register == a0) {
-			emit_add(buf, a0, a1);
+		if (dest_register == REGISTER_A0) {
+			emit_add(buf, REGISTER_A0, REGISTER_A1);
 		} else {
-			emit_add(buf, a1, a0);
-			emit_optmove(buf, dest_register, a1);
+			emit_add(buf, REGISTER_A1, REGISTER_A0);
+			emit_optmove(buf, dest_register, REGISTER_A1);
 		}
 		break;
 
 	case BUILTIN_OP_SUB:
-		emit_sub(buf, a0, a1);
-		emit_optmove(buf, dest_register, a0);
+		emit_sub(buf, REGISTER_A0, REGISTER_A1);
+		emit_optmove(buf, dest_register, REGISTER_A0);
 		break;
 
 	case BUILTIN_OP_NOT:
-		emit_not(buf, dest_register, a0);
+		emit_not(buf, dest_register, REGISTER_A0);
 		break;
 
 	case BUILTIN_OP_TEST_EQ:
 		baseline_compile_builtin_eq(buf, dest_register,
-					    a0, args[0]->type & TYPE_FLAGS,
-					    a1, args[1]->type & TYPE_FLAGS);
+					    REGISTER_A0, args[0]->type & TYPE_FLAGS,
+					    REGISTER_A1, args[1]->type & TYPE_FLAGS);
 		break;
 
 	case BUILTIN_OP_TEST_LE:
-		emit_sle(buf, dest_register, a0, a1);
+		emit_sle(buf, dest_register, REGISTER_A0, REGISTER_A1);
 		break;
 
 	case BUILTIN_OP_TEST_LT:
-		emit_slt(buf, dest_register, a0, a1);
+		emit_slt(buf, dest_register, REGISTER_A0, REGISTER_A1);
 		break;
 
 	case BUILTIN_OP_DIV:
 		baseline_compile_expr(buf, args[0], REGISTER_V0, context);
 		baseline_compile_expr(buf, args[1], REGISTER_T0, context);
-		emit_li(buf, a2, 0); // muss vor Division auf 0 gesetzt werden
+		emit_li(buf, REGISTER_A2, 0); // muss vor Division auf 0 gesetzt werden
 		emit_div_a2v0(buf, registers_temp[0]);
 		emit_optmove(buf, dest_register, REGISTER_V0); // Ergebnis in $v0
 		break;
 
 	case BUILTIN_OP_MUL:
-		if (dest_register == a0) {
-			emit_mul(buf, a0, a1);
+		if (dest_register == REGISTER_A0) {
+			emit_mul(buf, REGISTER_A0, REGISTER_A1);
 		} else {
-			emit_mul(buf, a1, a0);
-			emit_optmove(buf, dest_register, a1);
+			emit_mul(buf, REGISTER_A1, REGISTER_A0);
+			emit_optmove(buf, dest_register, REGISTER_A1);
 		}
 		break;
 
@@ -472,6 +473,74 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
 		emit_pop(buf, REGISTER_T0);
 		emit_sd(buf, REGISTER_V0, REGISTER_T0, 0);
+		break;
+
+	case AST_NODE_ARRAYVAL: {
+		if (ast->children[1]) {
+			// Laden mit expliziter Groessenangabe
+			baseline_compile_expr(buf, ast->children[1], REGISTER_A0, context);
+			emit_li(buf, REGISTER_T0, ast->children[0]->children_nr);
+			relative_jump_label_t jl;
+			emit_ble(buf, REGISTER_T0, REGISTER_A0, &jl);
+			emit_fail_at_node(buf, ast, "Requested array size is smaller than number of array elements");
+			buffer_setlabel2(&jl, buf);
+		} else {
+			// Laden mit impliziter Groesse
+			emit_li(buf, REGISTER_A0, ast->children[0]->children_nr);
+		}
+		emit_la(buf, REGISTER_V0, &new_array);
+		emit_jalr(buf, REGISTER_V0);
+		// We now have the allocated array in REGISTER_V0
+		emit_push(buf, REGISTER_V0);
+		for (int i = 0; i < ast->children[0]->children_nr; i++) {
+			ast_node_t *child = ast->children[0]->children[i];
+			baseline_compile_expr(buf, child, REGISTER_T0, context);
+			if (!is_simple(child)) {
+				emit_ld(buf, REGISTER_V0, REGISTER_SP, 0);
+			}
+			emit_sd(buf, REGISTER_T0, REGISTER_V0, 16 /* header + groesse */ + 8 * i);
+		}
+		emit_pop(buf, dest_register);
+	}
+		break;
+
+	case AST_NODE_ARRAYSUB: {
+		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
+		emit_la(buf, REGISTER_T1, &class_array);
+		emit_ld(buf, REGISTER_T0, REGISTER_V0, 0);
+
+		relative_jump_label_t jl;
+		emit_beq(buf, REGISTER_T0, REGISTER_T1, &jl);
+		emit_fail_at_node(buf, ast, "Attempted to index non-array");
+		buffer_setlabel2(&jl, buf);
+
+		emit_push(buf, REGISTER_V0);
+		baseline_compile_expr(buf, ast->children[1], REGISTER_T0, context);
+		emit_pop(buf, REGISTER_V0);
+		emit_ld(buf, REGISTER_T1, REGISTER_V0, 8);
+		// v0: Array
+		// t0: offset
+		// t1: size
+		
+		emit_bgez(buf, REGISTER_T0, &jl);
+		emit_fail_at_node(buf, ast, "Negative index into array");
+		buffer_setlabel2(&jl, buf);
+
+		emit_blt(buf, REGISTER_T0, REGISTER_T1, &jl);
+		emit_fail_at_node(buf, ast, "Index into array out of bounds");
+		buffer_setlabel2(&jl, buf);
+
+		emit_slli(buf, REGISTER_T0, REGISTER_T0, 3);
+		emit_add(buf, REGISTER_V0, REGISTER_T0);
+
+		// index is valid
+		if (ast->type & AST_FLAG_LVALUE) {
+			emit_addiu(buf, REGISTER_V0, 16); // +16 um ueber Typ-ID und Arraygroesse zu springen
+			emit_optmove(buf, dest_register, REGISTER_V0);
+		} else {
+			emit_ld(buf, dest_register, REGISTER_V0, 16);
+		}
+	}
 		break;
 
 	case AST_NODE_IF: {

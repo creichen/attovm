@@ -87,7 +87,7 @@ new_string(char *value, size_t len);
  * @return Ein Zeiger auf das allozierte Objekt
  */
 object_t *
-heap_allocate_array(size_t len);
+new_array(size_t len);
 
 #endif // !defined(_ATTOL_OBJECT_H)
 

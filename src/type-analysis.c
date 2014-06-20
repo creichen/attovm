@@ -426,7 +426,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 		break;
 
 	case AST_NODE_ARRAYVAL:
-		node->children[1] = require_type(node->children[1], array_storage_type);
+		node->children[1] = require_type(node->children[1], TYPE_INT /* Maximalgroesse */);
 		set_type(node, TYPE_OBJ);
 		break;
 

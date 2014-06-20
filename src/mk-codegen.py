@@ -576,6 +576,9 @@ def ImmInt(offset):
 def ImmUInt(offset):
     return Imm('unsigned int', '%x', offset, 4)
 
+def ImmByte(offset):
+    return Imm('unsigned char', '%x', offset, 1)
+
 def ImmLongLong(offset):
     return Imm('long long', '%llx', offset, 8)
 
@@ -627,6 +630,9 @@ instructions = [
     Insn(Name(mips="move", intel="mov"), [0x48, 0x89, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
     Insn(Name(mips="mul", intel="imul"), [0x48, 0x0f, 0xaf, 0xc0], [ArithmeticSrcReg(3), ArithmeticDestReg(3)]),
     Insn(Name(mips="div_a2v0", intel="idiv"), [0x48, 0xf7, 0xf8], [ArithmeticDestReg(2)]),
+
+    Insn(Name(mips="slli", intel="shld"), [0x48, 0x0f, 0xa4, 0xc0, 0], [ArithmeticDestReg(3), ArithmeticSrcReg(3), ImmByte(4)]),
+
     Insn(Name(mips="li", intel="mov"), [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
     Insn(Name(mips="jreturn", intel="ret"), [0xc3], []),
     Insn(Name(mips="jal", intel="callq"), [0xe8, 0xe3, 0x00, 0x00, 0x00, 0x00], [PCRelative(2, 4, -6)]),
@@ -661,12 +667,16 @@ instructions = [
     Insn(Name(mips="pop", intel="pop"), [0x48, 0x58], [ArithmeticDestReg(1)]),
     Insn(Name(mips="addiu", intel="add"), [0x48, 0x81, 0xc0, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
     Insn(Name(mips="subiu", intel="add"), [0x48, 0x81, 0xe8, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
-    InsnAlternatives(Name(mips="sd", intel="mov-qword[],r"),
+    InsnAlternatives(Name(mips="sd", intel="mov_qword_r"),
                      ([0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]), [
                          ('{arg1} == 4', ([0x48, 0x89, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), DisabledArg(ArithmeticDestReg(2), '4'), ImmInt(4)]))
                      ]),
     #    Insn(Name(mips="sd", intel="mov-qword[],r"), [0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
-    Insn(Name(mips="ld", intel="mov-r,qword[]"), [0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
+    InsnAlternatives(Name(mips="ld", intel="mov_r_qword"),
+                     ([0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]), [
+                         ('{arg1} == 4', ([0x48, 0x8b, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), DisabledArg(ArithmeticDestReg(2), '4'), ImmInt(4)]))
+                     ]),
+    # Insn(Name(mips="ld", intel="mov-r,qword[]"), [0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
     Insn(Name(mips="j", intel="jmp"), [0xe9, 0, 0, 0, 0], [PCRelative(1, 4, -5)]),
 ]
 

@@ -207,7 +207,12 @@ main(int argc, char **argv)
 	TEST("{ int x = 0; int y; while(x < 5) { y := x; x := x + 1; while (y < 4) { y := y + 1; if (y == 2) continue; print(y); } if (x == 3) break; } } ", "1\n3\n4\n3\n4\n3\n4\n");
 	TEST("{ int x = 0; int y; while(x < 3) { y := x; x := x + 1; while (y < 5) { if (y == 3) break; print(y); y := y + 1; } if (x == 2) continue; print(\"+\");} } ", "0\n1\n2\n+\n1\n2\n2\n+\n");
 
-	// next: arrays
+	TEST("{ obj a = [1]; print(a[0]); }", "1\n");
+	TEST("{ obj a = [1,7]; print(a[1]); print(a[0]);}", "7\n1\n");
+	TEST("{ obj a = [1,[3,7]]; print(a[1][0]); print(a[0]);}", "3\n1\n");
+	TEST("{ obj a = [1,7]; print(a[1]); a[1] := 2; print(a[1]); print(a[0]); }", "7\n2\n1\n");
+	TEST("{ obj a = [1,\"foo\", /5]; print(a[1]); a[4] := 2; print(a[0]); print(a[4]); }", "foo\n1\n2\n");
+
 	// next: functions
 	// next: object instance creation
 	// next: field read/write (outside)

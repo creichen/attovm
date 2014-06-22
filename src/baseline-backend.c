@@ -29,14 +29,16 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdio.h>
 
+#include "address-store.h"
+#include "assembler.h"
 #include "ast.h"
 #include "baseline-backend.h"
-#include "assembler.h"
-#include "registers.h"
 #include "class.h"
-#include "object.h"
 #include "errors.h"
+#include "object.h"
+#include "registers.h"
 
 
 #define VAR_IS_OBJ
@@ -452,8 +454,11 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_li(buf, dest_register, AV_INT(ast));
 		break;
 
-	case AST_VALUE_STRING:
-		emit_la(buf, dest_register, new_string(AV_STRING(ast), strlen(AV_STRING(ast))));
+	case AST_VALUE_STRING: {
+		void *addr = new_string(AV_STRING(ast), strlen(AV_STRING(ast)));
+		emit_la(buf, dest_register, addr);
+		addrstore_put(addr, ADDRSTORE_KIND_STRING_LITERAL, AV_STRING(ast));
+	}
 		break;
 
 	case AST_VALUE_ID: {
@@ -680,6 +685,21 @@ buffer_t
 baseline_compile(ast_node_t *root,
 		 void *static_memory)
 {
+	static bool initialised_address_store = false;
+	if (!initialised_address_store) {
+		initialised_address_store = true;
+		ADDRSTORE_PUT(fail_at_node, SPECIAL);
+		ADDRSTORE_PUT(new_int, SPECIAL);
+		ADDRSTORE_PUT(new_array, SPECIAL);
+		ADDRSTORE_PUT(new_real, SPECIAL);
+		ADDRSTORE_PUT(new_string, SPECIAL);
+		ADDRSTORE_PUT(builtin_op_obj_test_eq, SPECIAL);
+	}
+
+	if (static_memory) {
+		addrstore_put(static_memory, ADDRSTORE_KIND_SPECIAL, ".static segment");
+	}
+
 	context_t context;
 	context.temp_reg_base = REGISTER_GP;
 	context.continue_labels = NULL;

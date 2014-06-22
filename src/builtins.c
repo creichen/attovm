@@ -28,11 +28,11 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "address-store.h"
 #include "assert.h"
 #include "class.h"
 #include "object.h"
 #include "symbol-table.h"
-
 
 class_t class_boxed_int = {
 	.id = NULL,
@@ -185,6 +185,9 @@ symtab_add_builtins(struct builtin_ops *builtins, int nr)
 			e->parameter_types = b->args;
 		}
 		e->r_mem = b->function_pointer;
+		if (e->r_mem) {
+			addrstore_put(e->r_mem, ADDRSTORE_KIND_BUILTIN, e->name);
+		}
 	}
 }
 

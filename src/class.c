@@ -28,6 +28,7 @@
 #include "assert.h"
 #include "class.h"
 #include "symbol-table.h"
+#include "address-store.h"
 
 int ffs(int i);
 
@@ -40,6 +41,9 @@ class_new(symtab_entry_t *entry)
 	int size = 1 << ffs(members * 3);
 	class_t *classref = calloc(1, sizeof(class_t) + sizeof(class_member_t) * size);
 	classref->table_mask = size - 1;
+
+	addrstore_put(classref, ADDRSTORE_KIND_TYPE, entry->name);
+
 	return class_initialise_and_link(classref, entry);
 }
 

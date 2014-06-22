@@ -256,12 +256,15 @@ class JointReg(Arg):
 class Imm(Arg):
     '''
     Represents an immediate value as parameter.
+
+    name_lookup: should this number be looked up in the address store to check for special meanings?
     '''
-    def __init__(self, ctype, cformatstr, bytenr, bytelen):
+    def __init__(self, ctype, cformatstr, bytenr, bytelen, name_lookup=True):
         self.ctype = ctype
         self.cformatstr = cformatstr
         self.bytenr = bytenr
         self.bytelen = bytelen
+        self.name_lookup = name_lookup
 
     def getExclusiveRegion(self):
         return (self.bytenr, self.bytenr + self.bytelen - 1)
@@ -280,7 +283,18 @@ class Imm(Arg):
             return
         p('%s %s;' % (self.ctype, self.strName()))
         p('memcpy(&%s, %s + %d, %d);' % (self.strName(), dataptr, self.bytenr + offset_shift, self.bytelen))
-        return ([self.cformatstr], [self.strName()])
+        maxsize = 128
+        p('char %s_buf[%d];' % (self.strName(), maxsize))
+        if (self.name_lookup):
+            p('if (addrstore_get_suffix((void *) %s)) {' % self.strName())
+            p('\tsnprintf(%s_buf, %d, "%%-10%s\t; %%s`%%s\'", %s, addrstore_get_prefix((void *) %s), addrstore_get_suffix((void *) %s));' % (
+                self.strName(), maxsize, self.cformatstr, self.strName(), self.strName(), self.strName()))
+            p('} else {')
+            p('\tsnprintf(%s_buf, %d, "%%%s", %s);' % (self.strName(), maxsize, self.cformatstr, self.strName()))
+            p('}')
+        else:
+            p('snprintf(%s_buf, %d, "%%%s", %s);' % (self.strName(), maxsize, self.cformatstr, self.strName()))
+        return (['%s'], ['%s_buf' % self.strName()])
 
 
 class DisabledArg(Arg):
@@ -579,19 +593,19 @@ class OptPrefixInsn (Insn):
 
 
 def ImmInt(offset):
-    return Imm('int', '%x', offset, 4)
+    return Imm('int', 'x', offset, 4, name_lookup = False)
 
 def ImmUInt(offset):
-    return Imm('unsigned int', '%x', offset, 4)
+    return Imm('unsigned int', 'x', offset, 4, name_lookup = False)
 
 def ImmByte(offset):
-    return Imm('unsigned char', '%x', offset, 1)
+    return Imm('unsigned char', 'x', offset, 1, name_lookup = False)
 
 def ImmLongLong(offset):
-    return Imm('long long', '%llx', offset, 8)
+    return Imm('long long', 'llx', offset, 8)
 
 def ImmReal(offset):
-    return Imm('double', '%f', offset, 8)
+    return Imm('double', 'f', offset, 8, name_lookup = False)
 
 
 def Name(mips, intel=None):
@@ -699,12 +713,14 @@ def printWarning():
 
 def printHeaderHeader():
     print '#include "assembler-buffer.h"'
+    print '#include <stdio.h>'
     
 def printCodeHeader():
     print '#include <string.h>'
     print '#include <stdio.h>'
     print ''
     print '#include "assembler-buffer.h"'
+    print '#include "address-store.h"'
     print '#include "registers.h"'
     
 

@@ -28,6 +28,8 @@
 #ifndef _ATTOL_RUNTIME_H
 #define _ATTOL_RUNTIME_H
 
+/* Zentraler Sammelpunkt fuer Laufzeitsystem und Uebersetzer */
+
 #include "ast.h"
 #include "assembler-buffer.h"
 

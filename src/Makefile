@@ -9,10 +9,10 @@ FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o symbol-table.o \
 		name-analysis.o type-analysis.o storage-allocation.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
-BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registers.h runtime.h
+BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registers.h runtime.h address-store.h
 BACKEND_GENSRC = assembler.c assembler.h
 BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o \
-		 builtins.o runtime.o
+		 builtins.o runtime.o address-store.o
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 .PHONY: clean

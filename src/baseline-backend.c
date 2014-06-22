@@ -402,7 +402,7 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 			++stack_frame_size; // 16-Byte-Ausrichtung, gem. AMD64-ABI
 		}
 
-		emit_addiu(buf, REGISTER_SP, -(stack_frame_size * 8));
+		emit_subiu(buf, REGISTER_SP, stack_frame_size * 8);
 	}
 
 	// Nichttriviale Werte und Werte, die ohnehin auf den Stapel muessen, rekursiv ausrechnen

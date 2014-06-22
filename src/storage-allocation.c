@@ -78,8 +78,8 @@ storage_alloc(ast_node_t *node, unsigned short *var_counter)
 			recurse(elements[i], var_counter);
 			if (NODE_TY(elements[i]) == AST_NODE_VARDECL) {
 				// Die einzige `echte' Variablenallozierung:  Alle anderen Allozierungen sind temporaer
-				assert(elements[i]->sym->offset == var_counter_base);
-				++var_counter_base;
+				//ast_node_dump(stderr, elements[i], 6);
+				elements[i]->sym->offset = var_counter_base++;
 			}
 
 			if (NODE_TY(elements[i]) == AST_NODE_BLOCK) {

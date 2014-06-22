@@ -39,7 +39,7 @@ struct compiler_options compiler_options;
 runtime_image_t *
 runtime_prepare(ast_node_t *ast, unsigned int action)
 {
-	runtime_image_t *image = malloc(sizeof(runtime_image_t));
+	runtime_image_t *image = calloc(1, sizeof(runtime_image_t));
 	image->ast = ast;
 	if (action == RUNTIME_ACTION_NONE) {
 		return image;
@@ -95,7 +95,9 @@ runtime_free(runtime_image_t *img)
 		free(img->static_memory);
 		img->static_memory = NULL;
 	}
-	buffer_free(img->code_buffer);
+	if (img->code_buffer) {
+		buffer_free(img->code_buffer);
+	}
 	ast_node_free(img->ast, 1);
 	free(img);
 }

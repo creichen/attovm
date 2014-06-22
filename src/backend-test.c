@@ -147,7 +147,7 @@ test_program(char *source, char *expected_result, int line)
 int
 main(int argc, char **argv)
 {
-//#define ALL
+#define ALL
 #ifdef ALL
 	TEST("print(1);", "1\n");
 	TEST("print(3+4);", "7\n");

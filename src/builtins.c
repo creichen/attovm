@@ -240,7 +240,9 @@ builtin_op_print(object_t *arg)
 		output_stream = builtin_print_redirection;
 	}
 
-	if (arg->classref == &class_boxed_int) {
+	if (arg == NULL) {
+		fprintf(output_stream, "(null)\n");
+	} else if (arg->classref == &class_boxed_int) {
 		fprintf(output_stream, "%lld\n", arg->members[0].int_v);
 	} else if (arg->classref == &class_boxed_real) {
 		fprintf(output_stream, "%f\n", arg->members[0].real_v);

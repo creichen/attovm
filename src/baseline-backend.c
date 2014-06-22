@@ -665,6 +665,10 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		}
 		break;
 
+	case AST_NODE_SKIP:
+		// Nichts zu tun
+		break;
+
 	case AST_NODE_NULL:
 		emit_la(buf, dest_register, NULL);
 		break;

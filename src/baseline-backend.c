@@ -184,7 +184,7 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 		case TYPE_INT: {
 			label_t null_label;
 			emit_beqz(buf, REGISTER_A0, &null_label); // NULL-Parameter?
-			emit_ld(buf, REGISTER_T0, REGISTER_A0, 0);
+			emit_ld(buf, REGISTER_T0, 0, REGISTER_A0);
 			emit_la(buf, REGISTER_V0, &class_boxed_int);
 			label_t jump_label;
 			// Falls Integer-Objekt: Springe zur Dekodierung
@@ -193,9 +193,10 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 			emit_fail_at_node(buf, arg, "attempted to convert non-Integer object to int");
 			// Erfolgreiche Dekodierung:
 			buffer_setlabel2(&jump_label, buf);
-			emit_ld(buf, dest_register, REGISTER_A0,
+			emit_ld(buf, dest_register,
 				// Int-Wert im Objekt:
-				offsetof(object_t, members[0].int_v));
+				offsetof(object_t, members[0].int_v),
+				REGISTER_A0);
 			return;
 		}
 		case TYPE_OBJ:
@@ -413,10 +414,12 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 
 			if (i >=  REGISTERS_ARGUMENT_NR) {
 				// In Ziel speichern
-				emit_sd(buf, reg, REGISTER_SP, 8 * (i - REGISTERS_ARGUMENT_NR));
+				emit_sd(buf, reg,
+					8 * (i - REGISTERS_ARGUMENT_NR),
+					REGISTER_SP);
 			} else if (i != last_nonsimple) {
 				// Muss in temporaerem Speicher ablegen
-				emit_sd(buf, reg, context->temp_reg_base, children[i]->storage * 8);
+				emit_sd(buf, reg, children[i]->storage * 8, context->temp_reg_base);
 			}
 		}
 	}
@@ -426,12 +429,14 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 		if (is_simple(children[i])) {
 			if (i >= REGISTERS_ARGUMENT_NR) {
 				baseline_compile_expr(buf, children[i], REGISTER_V0, context);
-				emit_sd(buf, REGISTER_V0, REGISTER_SP, 8 * (i - REGISTERS_ARGUMENT_NR));
+				emit_sd(buf, REGISTER_V0, 8 * (i - REGISTERS_ARGUMENT_NR), REGISTER_SP);
 			} else {
 				baseline_compile_expr(buf, children[i], registers_argument[i], context);
 			}
 		} else if (i < REGISTERS_ARGUMENT_NR && i != last_nonsimple) {
-			emit_ld(buf, registers_argument[i], context->temp_reg_base, children[i]->storage * 8);
+			emit_ld(buf, registers_argument[i],
+				children[i]->storage * 8,
+				context->temp_reg_base);
 		}
 	}
 
@@ -469,7 +474,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			emit_li(buf, dest_register, offset);
 			emit_add(buf, dest_register, reg);
 		} else {
-			emit_ld(buf, dest_register, reg, offset);
+			emit_ld(buf, dest_register, offset, reg);
 		}
 	}
 		break;
@@ -485,7 +490,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_push(buf, REGISTER_V0);
 		baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
 		emit_pop(buf, REGISTER_T0);
-		emit_sd(buf, REGISTER_V0, REGISTER_T0, 0);
+		emit_sd(buf, REGISTER_V0, 0, REGISTER_T0);
 		break;
 
 	case AST_NODE_ARRAYVAL: {
@@ -509,9 +514,11 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			ast_node_t *child = ast->children[0]->children[i];
 			baseline_compile_expr(buf, child, REGISTER_T0, context);
 			if (!is_simple(child)) {
-				emit_ld(buf, REGISTER_V0, REGISTER_SP, 0);
+				emit_ld(buf, REGISTER_V0, 0, REGISTER_SP);
 			}
-			emit_sd(buf, REGISTER_T0, REGISTER_V0, 16 /* header + groesse */ + 8 * i);
+			emit_sd(buf, REGISTER_T0,
+				16 /* header + groesse */ + 8 * i,
+				REGISTER_V0);
 		}
 		emit_pop(buf, dest_register);
 	}
@@ -520,7 +527,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 	case AST_NODE_ARRAYSUB: {
 		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
 		emit_la(buf, REGISTER_T1, &class_array);
-		emit_ld(buf, REGISTER_T0, REGISTER_V0, 0);
+		emit_ld(buf, REGISTER_T0, 0, REGISTER_V0);
 
 		label_t jl;
 		emit_beq(buf, REGISTER_T0, REGISTER_T1, &jl);
@@ -530,7 +537,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_push(buf, REGISTER_V0);
 		baseline_compile_expr(buf, ast->children[1], REGISTER_T0, context);
 		emit_pop(buf, REGISTER_V0);
-		emit_ld(buf, REGISTER_T1, REGISTER_V0, 8);
+		emit_ld(buf, REGISTER_T1, 8, REGISTER_V0);
 		// v0: Array
 		// t0: offset
 		// t1: size
@@ -551,7 +558,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			emit_addiu(buf, REGISTER_V0, 16); // +16 um ueber Typ-ID und Arraygroesse zu springen
 			emit_optmove(buf, dest_register, REGISTER_V0);
 		} else {
-			emit_ld(buf, dest_register, REGISTER_V0, 16);
+			emit_ld(buf, dest_register, 16, REGISTER_V0);
 		}
 	}
 		break;
@@ -654,7 +661,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		baseline_compile_expr(buf, ast->children[0], REGISTER_T0, context);
 		emit_li(buf, dest_register, 0);
 		emit_beqz(buf, REGISTER_T0, &null_label);
-		emit_ld(buf, REGISTER_T1, REGISTER_T0, 0);
+		emit_ld(buf, REGISTER_T1, 0, REGISTER_T0);
 		emit_la(buf, REGISTER_T0, ast->children[1]->sym->r_mem);
 		emit_seq(buf, dest_register, REGISTER_T0, REGISTER_T1);
 		buffer_setlabel2(&null_label, buf);

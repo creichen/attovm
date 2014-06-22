@@ -325,6 +325,7 @@ class Insn(object):
         assert type(machine_code) is list
         self.args = args
         assert type(args) is list
+        self.format_string = None # optional format string override
 
         arg_type_counts = {}
         for arg in self.args:
@@ -421,6 +422,10 @@ class Insn(object):
     def printTryDisassemble(self, data_name, max_len_name):
         self.printTryDisassembleOne(data_name, max_len_name, self.machine_code, 0)
 
+    def setFormat(self, string):
+        self.format_string = string
+        return self
+
     def printTryDisassembleOne(self, data_name, max_len_name, machine_code, offset_shift):
         checks = []
 
@@ -456,7 +461,10 @@ class Insn(object):
         if len(formats) == 0:
             pp('\tfprintf(file, "%s");' % self.name)
         else:
-            pp(('\tfprintf(file, "%s\\t' % self.name) + ', '.join(formats) + '", ' + ', '.join(format_args) + ');');
+            format_string = ', '.join(formats)
+            if self.format_string is not None:
+                format_string = self.format_string % tuple(formats)
+            pp(('\tfprintf(file, "%s\\t' % self.name) + format_string + '", ' + ', '.join(format_args) + ');');
         pp('return machine_code_len;')
         p('}')
 
@@ -668,14 +676,14 @@ instructions = [
     Insn(Name(mips="addiu", intel="add"), [0x48, 0x81, 0xc0, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
     Insn(Name(mips="subiu", intel="add"), [0x48, 0x81, 0xe8, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
     InsnAlternatives(Name(mips="sd", intel="mov_qword_r"),
-                     ([0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]), [
-                         ('{arg1} == 4', ([0x48, 0x89, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), DisabledArg(ArithmeticDestReg(2), '4'), ImmInt(4)]))
-                     ]),
+                     ([0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(3), ArithmeticDestReg(2)]), [
+                         ('{arg2} == 4', ([0x48, 0x89, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(4), DisabledArg(ArithmeticDestReg(2), '4')]))
+                     ]).setFormat('%s, %s(%s)'),
     #    Insn(Name(mips="sd", intel="mov-qword[],r"), [0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
     InsnAlternatives(Name(mips="ld", intel="mov_r_qword"),
-                     ([0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]), [
-                         ('{arg1} == 4', ([0x48, 0x8b, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), DisabledArg(ArithmeticDestReg(2), '4'), ImmInt(4)]))
-                     ]),
+                     ([0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(3), ArithmeticDestReg(2)]), [
+                         ('{arg2} == 4', ([0x48, 0x8b, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(4), DisabledArg(ArithmeticDestReg(2), '4')]))
+                     ]).setFormat('%s, %s(%s)'),
     # Insn(Name(mips="ld", intel="mov-r,qword[]"), [0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
     Insn(Name(mips="j", intel="jmp"), [0xe9, 0, 0, 0, 0], [PCRelative(1, 4, -5)]),
 ]

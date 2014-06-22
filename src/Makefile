@@ -13,6 +13,7 @@ BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registe
 BACKEND_GENSRC = assembler.c assembler.h
 BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o \
 		 builtins.o runtime.o address-store.o
+FINAL_OBJS = atl.o atl backend-test.o backend-test
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 .PHONY: clean
@@ -22,7 +23,7 @@ BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 all: atl backend-test
 
 clean:
-	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) $(FRONTEND_GENSRC) $(BACKEND_GENSRC)
+	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) $(FRONTEND_GENSRC) $(BACKEND_GENSRC) ${FINAL_OBJS}
 
 atl: ${FRONTEND_GENSRC} $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) atl.o
 	$(CC) $(CFLAGS) $(FRONTEND_OBJS) ${BACKEND_OBJS} atl.o -o atl

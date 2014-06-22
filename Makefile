@@ -10,4 +10,4 @@ clean:
 	(cd src; make clean)
 
 test:
-	(cd src; make backend-test)
+	(cd src; make backend-test; ./backend-test)

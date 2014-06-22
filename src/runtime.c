@@ -34,15 +34,32 @@
 
 
 runtime_image_t *
-runtime_compile(ast_node_t *ast)
+runtime_prepare(ast_node_t *ast, unsigned int action)
 {
-	if (name_analysis(ast)) {
-		return NULL;
-	}
-	if (type_analysis(&ast)) {
-		return NULL;
-	}
 	runtime_image_t *image = malloc(sizeof(runtime_image_t));
+	image->ast = ast;
+	if (action == RUNTIME_ACTION_NONE) {
+		return image;
+	}
+
+	if (name_analysis(ast)) {
+		free(image);
+		return NULL;
+	}
+
+	if (action == RUNTIME_ACTION_NAME_ANALYSIS) {
+		return image;
+	}
+
+	if (type_analysis(&image->ast)) {
+		free(image);
+		return NULL;
+	}
+
+	if (action == RUNTIME_ACTION_SEMANTIC_ANALYSIS) {
+		return image;
+	}
+
 	image->ast = ast;
 	image->static_memory_size = storage_allocation(ast);
 	if (image->static_memory_size) {

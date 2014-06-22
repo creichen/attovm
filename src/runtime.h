@@ -31,7 +31,6 @@
 #include "ast.h"
 #include "assembler-buffer.h"
 
-
 typedef struct {
 	// Laufzeitinformationen
 
@@ -44,14 +43,22 @@ typedef struct {
 } runtime_image_t;
 
 
+#define RUNTIME_ACTION_NONE			0 // only allocate the image and put in the AST
+#define RUNTIME_ACTION_NAME_ANALYSIS		1
+#define RUNTIME_ACTION_TYPE_ANALYSIS		2 // includes name analysis
+#define RUNTIME_ACTION_SEMANTIC_ANALYSIS	3 // all semantic analysis passes
+#define RUNTIME_ACTION_COMPILE			4 // do everything
+
 /**
- * Erzeugt ein runtime_image_t aus einem AST
+ * Bereitet ein runtime_image_t aus einem AST vor
  *
  * @param ast Der einzubettende abstrakte Syntaxbaum
- * @return Ein runtime_image_t, oder NULL, falls bei der Programmanalyse ein Fehler entdeckt wurde 
+ * @param action RUNTIME_ACTION_* um anzugeben, bis wohin die Vorbereitung durchgefuehrt werden soll
+ * @return Ein runtime_image_t, oder NULL, falls bei der Programmanalyse ein Fehler entdeckt wurde.
+ * Wenn RUNTIME_ACTION_COMPILE verwendet wurde, kann das image danach ausgefuhert werden.
  */
 runtime_image_t *
-runtime_compile(ast_node_t *ast);
+runtime_prepare(ast_node_t *ast, unsigned int action);
 
 
 /**

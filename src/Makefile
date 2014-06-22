@@ -1,4 +1,5 @@
 CFLAGS=-O0 -g -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200809 -std=c11
+#CFLAGS=-O3 -mcpu=native -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200809 -std=c11
 PYTHON=python
 LEX=flex
 
@@ -18,13 +19,13 @@ BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 # ========================================
 
-all: dump backend-test
+all: atl backend-test
 
 clean:
 	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) $(FRONTEND_GENSRC) $(BACKEND_GENSRC)
 
-dump: $(FRONTEND) dump.o builtins.o class.o
-	$(CC) $(CFLAGS) $(FRONTEND_OBJS) class.o builtins.o dump.o -o dump
+atl: ${FRONTEND_GENSRC} $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) atl.o
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) ${BACKEND_OBJS} atl.o -o atl
 
 test-frontend: all
 	(cd ../test ; ./test.sh)

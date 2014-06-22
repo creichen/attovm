@@ -65,7 +65,7 @@ compile(char *src, int line)
 		return NULL;
 	}
 	fclose(memfile);
-	runtime_image_t *img = runtime_compile(root);
+	runtime_image_t *img = runtime_prepare(root, RUNTIME_ACTION_COMPILE);
 	ast_node_dump(stderr, img->ast, AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_ADDRESS | AST_NODE_DUMP_FLAGS);
 	return img;
 }

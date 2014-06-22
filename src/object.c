@@ -53,7 +53,6 @@ new_real(double v)
 	return obj;
 }
 
-
 object_t *
 new_string(char *string, size_t len)
 {
@@ -75,7 +74,6 @@ new_array(size_t len)
 long long int
 builtin_op_obj_test_eq(object_t *a0, object_t *a1)
 {
-	fprintf(stderr, "IAMA object comparison function.  AMA. (types: %p, %p)\n", a0->classref, a1->classref);
 	if (a0 == a1) {
 		return 1;
 	}

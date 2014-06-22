@@ -55,19 +55,20 @@ struct symtab_entry; // symbol_table.h
 #define AST_NODE_ACTUALS    0x0c
 #define AST_NODE_ARRAYSUB   0x0d
 #define AST_NODE_VARDECL    0x0e
-#define AST_NODE_ASSIGN     0x0f
-#define AST_NODE_IF         0x10
-#define AST_NODE_NEWCLASS   0x11
-#define AST_NODE_FUNAPP     0x12
-#define AST_NODE_ISINSTANCE 0x13
-#define AST_NODE_FORMALS    0x14
-#define AST_NODE_ARRAYLIST  0x15
-#define AST_NODE_CLASSDEF   0x16
-#define AST_NODE_WHILE      0x17
-#define AST_NODE_ARRAYVAL   0x18
-#define AST_NODE_RETURN     0x19
-#define AST_NODE_METHODAPP  0x1a
-#define AST_NODE_BLOCK      0x1b
+#define AST_NODE_NULL       0x0f
+#define AST_NODE_ASSIGN     0x10
+#define AST_NODE_IF         0x11
+#define AST_NODE_NEWCLASS   0x12
+#define AST_NODE_FUNAPP     0x13
+#define AST_NODE_ISINSTANCE 0x14
+#define AST_NODE_FORMALS    0x15
+#define AST_NODE_ARRAYLIST  0x16
+#define AST_NODE_CLASSDEF   0x17
+#define AST_NODE_WHILE      0x18
+#define AST_NODE_ARRAYVAL   0x19
+#define AST_NODE_RETURN     0x1a
+#define AST_NODE_METHODAPP  0x1b
+#define AST_NODE_BLOCK      0x1c
 
 #define NODE_TY(n) ((n)->type & AST_NODE_MASK)
 #define NODE_FLAGS(n) ((n)->type & ~AST_NODE_MASK)

@@ -50,7 +50,6 @@ extern class_t class_boxed_real;// Ein Eintrag: real_v
 extern class_t class_string;	// Zeichenkette beginnt ab member[0]
 extern class_t class_array;	// len+1 Eintraege, mit member[0].int_v=len
 
-
 /**
  * Erzeugt und bindet eine Klassenstruktur aus bzw. and einen Symboltabelleneintrag
  *

@@ -30,6 +30,7 @@
 
 #include "analysis.h"
 #include "symbol-table.h"
+#include "class.h"
 
 int array_storage_type = TYPE_OBJ;
 int method_call_param_type = TYPE_OBJ;
@@ -193,6 +194,10 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 			}
 			*/
 		}
+		break;
+
+	case AST_NODE_NULL:
+		set_type(node, TYPE_OBJ);
 		break;
 
 	case AST_NODE_FUNAPP:
@@ -412,6 +417,49 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 						 function->ast_flags);
 		break;
 
+	case AST_NODE_ISPRIMTY: { // Umwandeln nach ISINSTANCE oder vereinfachen
+		ast_node_t *child = node->children[0];
+		// Hack: der eingebaute Typ wird als Annotation an diesem Knoten mitangegeben
+		int type = node->type & TYPE_FLAGS;
+
+		switch (type) {
+		case TYPE_OBJ:
+		case TYPE_VAR: // immer wahr
+			ast_node_free(node, 1);
+			node = CONSV(INT, num = 1);
+			set_type(node, TYPE_INT);
+			return node;
+
+		case TYPE_INT:
+			ast_node_free(node, 0);
+			ast_node_t *class_node = CONSV(ID, ident = class_boxed_int.id->id );
+			class_node->sym = class_boxed_int.id;
+			node = CONS(ISINSTANCE,
+				    require_type(child, TYPE_OBJ),
+				    class_node);
+			set_type(node, TYPE_INT);
+			return node;
+
+		default:
+			fprintf(stderr, "Unsupported builtin type in `is': %x", type);
+			exit(1);
+		}
+	}
+
+	case AST_NODE_ISINSTANCE: {
+		symtab_entry_t *classref = node->children[1]->sym;
+		if (classref) {
+			if (!(SYMTAB_TY(classref) == SYMTAB_TY_CLASS)) {
+				error(node, "`isinstance' on non-class (%s)", classref->name);
+			}
+		} // ansonsten hat die Namensanalyse bereits einen Fehler gemeldet
+
+		node->children[0] = require_type(node->children[0],
+						 TYPE_OBJ);
+		set_type(node, TYPE_INT);
+	}
+		break;
+
 	case AST_NODE_VARDECL:
 	case AST_NODE_ASSIGN:
 		node->children[1] = require_type(node->children[1], NODE_FLAGS(node->children[0]) & TYPE_FLAGS);
@@ -428,18 +476,6 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 	case AST_NODE_ARRAYVAL:
 		node->children[1] = require_type(node->children[1], TYPE_INT /* Maximalgroesse */);
 		set_type(node, TYPE_OBJ);
-		break;
-
-	case AST_NODE_ISINSTANCE: {
-		symtab_entry_t *classref = node->children[1]->sym;
-		if (classref) {
-			if (!(SYMTAB_TY(classref) == SYMTAB_TY_CLASS)) {
-				error(node, "`isinstance' on non-class (%s)", classref->name);
-			}
-		} // ansonsten hat die Namensanalyse bereits einen Fehler gemeldet
-	}
-	case AST_NODE_ISPRIMTY:
-		set_type(node, TYPE_INT);
 		break;
 
 	case AST_NODE_ARRAYSUB:

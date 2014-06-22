@@ -41,10 +41,10 @@
 
 #define VAR_IS_OBJ
 
-#define FAIL(...) { fprintf(stderr, "[baseline-backend] L%d: Compilation failed:", __LINE__); fprintf(stderr, __VA_ARGS__); exit(1); }
+#define FAIL(...) { fprintf(stderr, "[baseline-backend] L%d: Compilation failed: ", __LINE__); fprintf(stderr, __VA_ARGS__); exit(1); }
 
 typedef struct relative_jump_label_list {
-	relative_jump_label_t label;
+	label_t label;
 	struct relative_jump_label_list *next;
 } relative_jump_label_list_t;
 
@@ -64,7 +64,7 @@ context_copy(context_t *dest, context_t *src)
 	memcpy(dest, src, sizeof(context_t));
 }
 
-static relative_jump_label_t *
+static label_t *
 jll_add_label(relative_jump_label_list_t **list)
 {
 	relative_jump_label_list_t *node = (relative_jump_label_list_t *) malloc(sizeof (relative_jump_label_list_t));
@@ -107,6 +107,14 @@ fail_at_node(ast_node_t *node, char *msg)
 	ast_node_dump(stderr, node, AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_ADDRESS | AST_NODE_DUMP_FLAGS);
 	fprintf(stderr, "\n");
 	fail("execution halted on error");
+}
+
+static void
+dump_ast(char *msg, ast_node_t *ast)
+{
+	fprintf(stderr, "[baseline-backend] %s\n", msg);
+	ast_node_dump(stderr, ast, AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_FLAGS | AST_NODE_DUMP_ADDRESS);
+	fprintf(stderr, "\n");
 }
 
 // Kann dieser Knoten ohne temporaere Register berechnet werden?
@@ -174,10 +182,13 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 	case TYPE_OBJ:
 		switch (to_ty) {
 		case TYPE_INT: {
+			label_t null_label;
+			emit_beqz(buf, REGISTER_A0, &null_label); // NULL-Parameter?
 			emit_ld(buf, REGISTER_T0, REGISTER_A0, 0);
 			emit_la(buf, REGISTER_V0, &class_boxed_int);
-			relative_jump_label_t jump_label;
+			label_t jump_label;
 			// Falls Integer-Objekt: Springe zur Dekodierung
+			buffer_setlabel2(&null_label, buf);
 			emit_beq(buf, REGISTER_T0, REGISTER_V0, &jump_label);
 			emit_fail_at_node(buf, arg, "attempted to convert non-Integer object to int");
 			// Erfolgreiche Dekodierung:
@@ -207,6 +218,8 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 		}
 		break;
 	}
+
+	dump_ast("Trouble with AST during type conversion", arg);
 	FAIL("Unsupported conversion: %x to %x\n", from_ty, to_ty);
 }
 
@@ -480,7 +493,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			// Laden mit expliziter Groessenangabe
 			baseline_compile_expr(buf, ast->children[1], REGISTER_A0, context);
 			emit_li(buf, REGISTER_T0, ast->children[0]->children_nr);
-			relative_jump_label_t jl;
+			label_t jl;
 			emit_ble(buf, REGISTER_T0, REGISTER_A0, &jl);
 			emit_fail_at_node(buf, ast, "Requested array size is smaller than number of array elements");
 			buffer_setlabel2(&jl, buf);
@@ -509,7 +522,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_la(buf, REGISTER_T1, &class_array);
 		emit_ld(buf, REGISTER_T0, REGISTER_V0, 0);
 
-		relative_jump_label_t jl;
+		label_t jl;
 		emit_beq(buf, REGISTER_T0, REGISTER_T1, &jl);
 		emit_fail_at_node(buf, ast, "Attempted to index non-array");
 		buffer_setlabel2(&jl, buf);
@@ -545,7 +558,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 
 	case AST_NODE_IF: {
 		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
-		relative_jump_label_t false_label, end_label;
+		label_t false_label, end_label;
 		emit_beqz(buf, REGISTER_V0, &false_label);
 		baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
 		if (ast->children[2]) {
@@ -560,7 +573,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 	}
 
 	case AST_NODE_WHILE: {
-		relative_jump_label_t loop_label, exit_label;
+		label_t loop_label, exit_label;
 		void *loop_target = buffer_target(buf);
 
 		// Schleife beendet?
@@ -632,8 +645,24 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		}
 		break;
 
+	case AST_NODE_NULL:
+		emit_la(buf, dest_register, NULL);
+		break;
+
+	case AST_NODE_ISINSTANCE: {
+		label_t null_label;
+		baseline_compile_expr(buf, ast->children[0], REGISTER_T0, context);
+		emit_li(buf, dest_register, 0);
+		emit_beqz(buf, REGISTER_T0, &null_label);
+		emit_ld(buf, REGISTER_T1, REGISTER_T0, 0);
+		emit_la(buf, REGISTER_T0, ast->children[1]->sym->r_mem);
+		emit_seq(buf, dest_register, REGISTER_T0, REGISTER_T1);
+		buffer_setlabel2(&null_label, buf);
+	}
+		break;
+
 	default:
-		ast_node_dump(stderr, ast, 0);
+		dump_ast("Trouble with AST:", ast);
 		fail("Unsupported AST fragment");
 	}
 }

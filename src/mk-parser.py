@@ -994,7 +994,7 @@ rules = [
     Rule(EXPR0,		[EXPR1, '>', EXPR1],				ast_funapp(Builtin('TEST_LT'), [EXPR1(1), EXPR1(0)])),
     Rule(EXPR0,		[EXPR1, '>=', EXPR1],				ast_funapp(Builtin('TEST_LE'), [EXPR1(1), EXPR1(0)])),
     Rule(EXPR0,		[EXPR1, 'is', ID],				Cons('ISINSTANCE', [EXPR1, ID])),
-    Rule(EXPR0,		[EXPR1, 'is', TY],				Cons('ISPRIMTY', [EXPR1, TY])),
+    Rule(EXPR0,		[EXPR1, 'is', TY],				AddAttribute(Cons('ISPRIMTY', [EXPR1]), TY)), # Hack
     Rule(EXPR0,		[EXPR1],					EXPR1),
 
     Rule(EXPR1,		[EXPR1, '+', EXPR2],				Cons('FUNAPP', [Builtin('ADD'), Cons('ACTUALS', [EXPR1, EXPR2])])),
@@ -1019,6 +1019,7 @@ rules = [
     Rule(VALEXPR,	[ARRAYVAL],					ARRAYVAL),
     Rule(VALEXPR,	[INT],						INT),
     Rule(VALEXPR,	[STRING],					STRING),
+    Rule(VALEXPR,	['NULL'],					Cons('NULL', [])),
     Rule(VALEXPR,	[REAL],						REAL),
     Rule(VALEXPR,	[ID],						ID),
     Rule(VALEXPR,	['(', EXPR, ')'],				EXPR),

@@ -164,6 +164,10 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 	return '/';
 }
 
+"NULL" {
+	return T_L_NULL;
+}
+
 "not" {
 	return T_L_NOT;
 }

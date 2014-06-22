@@ -322,7 +322,7 @@ buffer_disassemble(buffer_t buf)
 }
 
 void
-buffer_setlabel(relative_jump_label_t *label, void *target)
+buffer_setlabel(label_t *label, void *target)
 {
 	int delta = (char *)target - (char*) label->base_position;
 	memcpy(label->label_position, &delta, 4);
@@ -335,7 +335,7 @@ buffer_target(buffer_t *target)
 }
 
 void
-buffer_setlabel2(relative_jump_label_t *label, buffer_t *buffer)
+buffer_setlabel2(label_t *label, buffer_t *buffer)
 {
 	buffer_setlabel(label, buffer_target(buffer));
 }

@@ -141,7 +141,7 @@ class PCRelative(Arg):
         return 'label'
 
     def strType(self):
-        return 'relative_jump_label_t *'
+        return 'label_t *'
 
     def printCopyToExclusiveRegion(self, p, dataptr):
         p('%s->label_position = %s + %d;' % (self.strName(), dataptr, self.byte))
@@ -651,10 +651,10 @@ instructions = [
     Insn(Name(mips="beqz", intel="cmp0_jz"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
 
     Insn(Name(mips="not", intel="xor_test_sete"),  [0x48, 0x85, 0xc0, 0x40, 0xb8, 0,0,0,0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2)])]),
-    Insn(Name(mips="slt", intel="xor_cmp_setl"),  [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x9c, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5), ArithmeticSrcReg(5)]),
-    Insn(Name(mips="sle", intel="xor_cmp_setle"), [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x9e, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5), ArithmeticSrcReg(5)]),
-    Insn(Name(mips="seq", intel="xor_cmp_sete"),  [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5), ArithmeticSrcReg(5)]),
-    Insn(Name(mips="sne", intel="xor_cmp_setne"), [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x95, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5), ArithmeticSrcReg(5)]),
+    Insn(Name(mips="slt", intel="xor_cmp_setl"),  [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x9c, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
+    Insn(Name(mips="sle", intel="xor_cmp_setle"), [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x9e, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
+    Insn(Name(mips="seq", intel="xor_cmp_sete"),  [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
+    Insn(Name(mips="sne", intel="xor_cmp_setne"), [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x95, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
 
 # xor: 0x48, 0x31, 0xc0
 # cmp: 0x48, 0x39, 0xc0

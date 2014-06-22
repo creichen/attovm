@@ -42,8 +42,6 @@ class_new(symtab_entry_t *entry)
 	class_t *classref = calloc(1, sizeof(class_t) + sizeof(class_member_t) * size);
 	classref->table_mask = size - 1;
 
-	addrstore_put(classref, ADDRSTORE_KIND_TYPE, entry->name);
-
 	return class_initialise_and_link(classref, entry);
 }
 
@@ -64,6 +62,8 @@ class_initialise_and_link(class_t *classref, symtab_entry_t *entry)
 {
 	classref->id = entry;
 	entry->r_mem = classref;
+
+	addrstore_put(classref, ADDRSTORE_KIND_TYPE, entry->name);
 
 	if (entry->astref) {
 		for (int i = 0; i < entry->astref->children_nr; i++) {

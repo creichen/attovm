@@ -33,11 +33,11 @@
 #define KIND_MASK 0x7
 
 static char *kind_names[] = {
-	[ADDRSTORE_KIND_TYPE] = "type: ",
-	[ADDRSTORE_KIND_FUNCTION] = "function: ",
-	[ADDRSTORE_KIND_BUILTIN] = "builtin: ",
-	[ADDRSTORE_KIND_SPECIAL] = "special: ",
-	[ADDRSTORE_KIND_STRING_LITERAL] = "string: "
+	[ADDRSTORE_KIND_TYPE] = "type ",
+	[ADDRSTORE_KIND_FUNCTION] = "&",
+	[ADDRSTORE_KIND_BUILTIN] = "",
+	[ADDRSTORE_KIND_SPECIAL] = "",
+	[ADDRSTORE_KIND_STRING_LITERAL] = "string "
 };
 
 static hashtable_t *name_table = NULL;;

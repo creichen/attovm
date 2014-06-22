@@ -31,6 +31,9 @@
 #include "runtime.h"
 #include "analysis.h"
 #include "baseline-backend.h"
+#include "compiler-options.h"
+
+struct compiler_options compiler_options;
 
 
 runtime_image_t *

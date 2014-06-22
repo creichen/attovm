@@ -30,6 +30,7 @@
 
 #include "analysis.h"
 #include "symbol-table.h"
+#include "compiler-options.h"
 #include "class.h"
 
 int array_storage_type = TYPE_OBJ;
@@ -508,6 +509,10 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 int
 type_analysis(ast_node_t **node)
 {
+	if (compiler_options.int_arrays) {
+		array_storage_type = TYPE_INT;
+	}
+
 	error_count = 0;
 	*node = analyse(*node, NULL, NULL);
 	return error_count;

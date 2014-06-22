@@ -287,7 +287,7 @@ class Imm(Arg):
         p('char %s_buf[%d];' % (self.strName(), maxsize))
         if (self.name_lookup):
             p('if (addrstore_get_suffix((void *) %s)) {' % self.strName())
-            p('\tsnprintf(%s_buf, %d, "%%-10%s\t; %%s`%%s\'", %s, addrstore_get_prefix((void *) %s), addrstore_get_suffix((void *) %s));' % (
+            p('\tsnprintf(%s_buf, %d, "%%-10%s\t; %%s%%s", %s, addrstore_get_prefix((void *) %s), addrstore_get_suffix((void *) %s));' % (
                 self.strName(), maxsize, self.cformatstr, self.strName(), self.strName(), self.strName()))
             p('} else {')
             p('\tsnprintf(%s_buf, %d, "%%%s", %s);' % (self.strName(), maxsize, self.cformatstr, self.strName()))

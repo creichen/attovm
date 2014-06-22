@@ -36,6 +36,7 @@
 #include "ast.h"
 #include "baseline-backend.h"
 #include "class.h"
+#include "compiler-options.h"
 #include "errors.h"
 #include "object.h"
 #include "registers.h"
@@ -502,11 +503,14 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		if (ast->children[1]) {
 			// Laden mit expliziter Groessenangabe
 			baseline_compile_expr(buf, ast->children[1], REGISTER_A0, context);
-			emit_li(buf, REGISTER_T0, ast->children[0]->children_nr);
-			label_t jl;
-			emit_ble(buf, REGISTER_T0, REGISTER_A0, &jl);
-			emit_fail_at_node(buf, ast, "Requested array size is smaller than number of array elements");
-			buffer_setlabel2(&jl, buf);
+			if (!compiler_options.no_bounds_checks) {
+				// Arraygrenzenpruefung
+				emit_li(buf, REGISTER_T0, ast->children[0]->children_nr);
+				label_t jl;
+				emit_ble(buf, REGISTER_T0, REGISTER_A0, &jl);
+				emit_fail_at_node(buf, ast, "Requested array size is smaller than number of array elements");
+				buffer_setlabel2(&jl, buf);
+			}
 		} else {
 			// Laden mit impliziter Groesse
 			emit_li(buf, REGISTER_A0, ast->children[0]->children_nr);
@@ -542,18 +546,22 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_push(buf, REGISTER_V0);
 		baseline_compile_expr(buf, ast->children[1], REGISTER_T0, context);
 		emit_pop(buf, REGISTER_V0);
-		emit_ld(buf, REGISTER_T1, 8, REGISTER_V0);
-		// v0: Array
-		// t0: offset
-		// t1: size
-		
-		emit_bgez(buf, REGISTER_T0, &jl);
-		emit_fail_at_node(buf, ast, "Negative index into array");
-		buffer_setlabel2(&jl, buf);
 
-		emit_blt(buf, REGISTER_T0, REGISTER_T1, &jl);
-		emit_fail_at_node(buf, ast, "Index into array out of bounds");
-		buffer_setlabel2(&jl, buf);
+		if (!compiler_options.no_bounds_checks) {
+			// Arraygrenzenpruefung
+			emit_ld(buf, REGISTER_T1, 8, REGISTER_V0);
+			// v0: Array
+			// t0: offset
+			// t1: size
+		
+			emit_bgez(buf, REGISTER_T0, &jl);
+			emit_fail_at_node(buf, ast, "Negative index into array");
+			buffer_setlabel2(&jl, buf);
+
+			emit_blt(buf, REGISTER_T0, REGISTER_T1, &jl);
+			emit_fail_at_node(buf, ast, "Index into array out of bounds");
+			buffer_setlabel2(&jl, buf);
+		}
 
 		emit_slli(buf, REGISTER_T0, REGISTER_T0, 3);
 		emit_add(buf, REGISTER_V0, REGISTER_T0);

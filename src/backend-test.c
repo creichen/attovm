@@ -162,6 +162,7 @@ main(int argc, char **argv)
 	TEST("{ var x = 17; print(x); }", "17\n");
 	TEST("{ var x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
 
+
 	TEST("{ if (1) print(\"1\"); print(2);}", "1\n2\n");
 	TEST("{ if (0) {print(\"0\");} print(2);}", "2\n");
 	TEST("{ if (0) {print(\"0\");} else {print(\"1\");} print(2);}", "1\n2\n");
@@ -183,6 +184,8 @@ main(int argc, char **argv)
 	TEST("{ if (2 <= 2) print(\"0\"); else print(\"1\"); print(2);}", "0\n2\n");
 	TEST("{ if (3 < 2) print(\"0\"); else print(\"1\"); print(2);}", "1\n2\n");
 	TEST("{ if (3 <= 2) print(\"0\"); else print(\"1\"); print(2);}", "1\n2\n");
+	TEST("{ if (3 != 2) print(\"0\"); else print(\"1\"); print(2);}", "0\n2\n");
+	TEST("{ if (3 != 3) print(\"0\"); else print(\"1\"); print(2);}", "1\n2\n");
 
 	TEST("{ if (0 == \"foo\") print(\"0\"); print(2);}", "2\n");
 	TEST("{ if (\"bar\" == \"foo\") print(\"0\"); print(2);}", "2\n");

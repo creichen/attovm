@@ -20,7 +20,7 @@ BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 # ========================================
 
-all: atl backend-test backend-test assembler-buffer-test
+all: atl backend-test assembler-buffer-test
 
 clean:
 	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) ${FINAL_OBJS}
@@ -61,7 +61,7 @@ lexer.l: mk-parser.py lexer.template.l
 	${PYTHON} mk-parser.py lexer.l > lexer.l
 
 lexer.c: lexer.l
-	$(LEX) $(LFLAGS) -o $@ $^
+	if [ x`which ${FLEX}` != x ]; then $(LEX) $(LFLAGS) -o $@ $^; fi
 
 ast.h: mk-parser.py ast.template.h
 	${PYTHON} mk-parser.py ast.h > ast.h

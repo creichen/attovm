@@ -84,11 +84,6 @@ signal_success()
 }
 
 void
-start_dynamic()
-{
-}
-
-void
 test_program(char *source, char *expected_result, int line)
 {
 	++runs;

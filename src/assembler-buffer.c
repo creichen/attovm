@@ -45,16 +45,15 @@
 #include "assembler-buffer.h"
 #include "errors.h"
 
+#define BIN_PAGES_START 0xb000000000 // Startadresse des Binaercodes im Speicher
 #define PAGE_SIZE 0x1000
 #define INITIAL_SIZE (PAGE_SIZE * 64)
-#define MIN_INCREMENT (PAGE_SIZE * 16)
+#define MIN_INCREMENT (PAGE_SIZE * 64)
 
 #define MAX_ASM_WIDTH 14
 #define DISASSEMBLE_PRINT_MACHINE_CODE
 
 //#define DEBUG
-
-void *mremap(void *old_address, size_t old_size, size_t new_size, int flags, ...);
 
 typedef struct freelist {
 	size_t size;  // excluding header
@@ -89,12 +88,13 @@ code_alloc(size_t buf_size) // size does not include the header
 		}
 
 		// alloc executable memory
-		code_segment = mmap(NULL,
+		code_segment = mmap((void *) BIN_PAGES_START,
 				    alloc_size,
 				    PROT_READ | PROT_WRITE | PROT_EXEC,
 				    MAP_PRIVATE | MAP_ANONYMOUS,
 				    -1,
 				    0);
+		fprintf(stderr, "mmap <= %p--%p, size=%zu\n", code_segment, ((char *) code_segment) + alloc_size, alloc_size);
 		if (code_segment == MAP_FAILED) {
 			perror("code segment mmap");
 			return NULL;
@@ -148,10 +148,22 @@ code_alloc(size_t buf_size) // size does not include the header
 
 	// alloc executable memory
 	void *old_code_segment = code_segment; // error reporting
-	code_segment = (buffer_internal_t *) mremap(code_segment, old_size, alloc_size, 0);
-	if (code_segment == MAP_FAILED) {
-		perror("mremap");
-		fprintf(stderr, "Failed: mremap(%p, %zx, %zx, 0)\n", old_code_segment, old_size, alloc_size);
+
+	// Dieser Code funktioniert nicht auf OS X:
+	//void *mremap(void *old_address, size_t old_size, size_t new_size, int flags, ...);
+	//code_segment = (buffer_internal_t *) mremap(code_segment, old_size, alloc_size, 0);
+	// Daher verwenden wir diesen:
+	void *code_segment2 = mmap(((char *) code_segment) + old_size,
+				   alloc_size - old_size,
+				   PROT_READ | PROT_WRITE | PROT_EXEC,
+				   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED,
+				   -1,
+				   0);
+	fprintf(stderr, "mmap2 <= %p--%p, size=%zu\n", code_segment2, ((char *) code_segment2) + alloc_size - old_size, alloc_size - old_size);
+	exit(0);
+	if (code_segment2 == MAP_FAILED) {
+		perror("mmap");
+		fprintf(stderr, "Failed: mmap(%p, %zx, ...)\n", ((char *) code_segment) + old_size, alloc_size);
 		// Out of memory
 		return NULL;
 	}

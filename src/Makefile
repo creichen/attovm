@@ -13,17 +13,20 @@ BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registe
 BACKEND_GENSRC = assembler.c assembler.h
 BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o \
 		 builtins.o runtime.o address-store.o
-FINAL_OBJS = atl.o atl backend-test.o backend-test
+FINAL_OBJS = atl.o atl backend-test.o backend-test assembler-buffer-test
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
-.PHONY: clean
+.PHONY: clean tidy all
 
 # ========================================
 
-all: atl backend-test
+all: atl backend-test assembler-test test-frontend test-backend test-assembler-buffer
 
 clean:
-	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) $(FRONTEND_GENSRC) $(BACKEND_GENSRC) ${FINAL_OBJS}
+	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) ${FINAL_OBJS}
+
+tidy: clean
+	rm -f $(FRONTEND_GENSRC) $(BACKEND_GENSRC)
 
 atl: ${FRONTEND_GENSRC} $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) atl.o
 	$(CC) $(CFLAGS) $(FRONTEND_OBJS) ${BACKEND_OBJS} atl.o -o atl
@@ -34,11 +37,14 @@ test-frontend: all
 backend-test: $(FRONTEND_GENSRC) $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) backend-test.o
 	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) backend-test.o -o backend-test
 
-assembler-test: $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) assembler-test.o
-	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) assembler-test.o -o assembler-test
+assembler-buffer-test: $(FRONTEND_GENSRC) $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) assembler-buffer-test.o
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) assembler-buffer-test.o -o assembler-buffer-test
 
 test-backend: backend-test
 	./backend-test
+
+test-assembler-buffer: assembler-buffer-test
+	./assembler-buffer-test
 
 test: test-frontend test-backend
 

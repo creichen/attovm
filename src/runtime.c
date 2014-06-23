@@ -76,8 +76,9 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	return image;
 }
 
-extern void
-start_dynamic();
+// Helfer fuer gdb-breakpoints
+void
+start_dynamic() {};
 
 void
 runtime_execute(runtime_image_t *img)

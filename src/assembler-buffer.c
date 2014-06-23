@@ -94,7 +94,6 @@ code_alloc(size_t buf_size) // size does not include the header
 				    MAP_PRIVATE | MAP_ANONYMOUS,
 				    -1,
 				    0);
-		fprintf(stderr, "mmap <= %p--%p, size=%zu\n", code_segment, ((char *) code_segment) + alloc_size, alloc_size);
 		if (code_segment == MAP_FAILED) {
 			perror("code segment mmap");
 			return NULL;
@@ -159,7 +158,6 @@ code_alloc(size_t buf_size) // size does not include the header
 				   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED,
 				   -1,
 				   0);
-	fprintf(stderr, "mmap2 <= %p--%p, size=%zu\n", code_segment2, ((char *) code_segment2) + alloc_size - old_size, alloc_size - old_size);
 	exit(0);
 	if (code_segment2 == MAP_FAILED) {
 		perror("mmap");

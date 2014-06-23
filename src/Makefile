@@ -20,7 +20,7 @@ BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 # ========================================
 
-all: atl backend-test test-backend test-assembler-buffer
+all: atl backend-test backend-test assembler-buffer-test
 
 clean:
 	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) ${FINAL_OBJS}

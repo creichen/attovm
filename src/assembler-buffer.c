@@ -26,6 +26,7 @@
 ***************************************************************************/
 
 #define _BSD_SOURCE // Um MAP_ANONYMOUS zu aktivieren
+#define _DARWIN_C_SOURCE // Um MAP_ANON zu aktivieren
 
 #include <assert.h>
 #include <errno.h>
@@ -33,6 +34,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+
+#ifndef MAP_ANONYMOUS
+#  ifndef MAP_ANON
+#    error "need MAP_ANONYMOUS or MAP_ANON"
+#  endif
+#  define MAP_ANONYMOUS MAP_ANON
+#endif
 
 #include "assembler-buffer.h"
 #include "errors.h"

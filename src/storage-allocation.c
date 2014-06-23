@@ -62,36 +62,36 @@ storage_alloc(ast_node_t *node, unsigned short *var_counter)
 
 	case AST_NODE_FUNDEF:
 		// Parameter erhalten ihre Lokationen schon in der Namensanalyse
-		recurse(node->children[2], &node->sym->vars_nr);
+		storage_alloc(node->children[2], &node->sym->vars_nr);
 		break;
 
 	case AST_NODE_BLOCK:
 		if (!var_counter) {
 			recurse(node, NULL);
 		} else {
-		unsigned short var_counter_base = *var_counter;
-		unsigned short max_var_counter = var_counter_base;
-		ast_node_t **elements = node->children;
-		for (int i = 0; i < node->children_nr; i++) {
-			*var_counter = var_counter_base;
+			unsigned short var_counter_base = *var_counter;
+			unsigned short max_var_counter = var_counter_base;
+			ast_node_t **elements = node->children;
+			for (int i = 0; i < node->children_nr; i++) {
+				*var_counter = var_counter_base;
 
-			recurse(elements[i], var_counter);
-			if (NODE_TY(elements[i]) == AST_NODE_VARDECL) {
-				// Die einzige `echte' Variablenallozierung:  Alle anderen Allozierungen sind temporaer
-				//ast_node_dump(stderr, elements[i], 6);
-				elements[i]->sym->offset = var_counter_base++;
-			}
+				storage_alloc(elements[i], var_counter);
+				if (NODE_TY(elements[i]) == AST_NODE_VARDECL) {
+					// Die einzige `echte' Variablenallozierung:  Alle anderen Allozierungen sind temporaer
+					//ast_node_dump(stderr, elements[i], 6);
+					elements[i]->sym->offset = var_counter_base++;
+				}
 
-			if (NODE_TY(elements[i]) == AST_NODE_BLOCK) {
-				// Verschachtelter Block: Wir erben angemessen
-				var_counter_base = *var_counter;
-			}
+				if (NODE_TY(elements[i]) == AST_NODE_BLOCK) {
+					// Verschachtelter Block: Wir erben angemessen
+					var_counter_base = *var_counter;
+				}
 
-			if (*var_counter > max_var_counter) {
-				max_var_counter = *var_counter;
+				if (*var_counter > max_var_counter) {
+					max_var_counter = *var_counter;
+				}
 			}
-		}
-		*var_counter = max_var_counter;
+			*var_counter = max_var_counter;
 		
 	}
 		break;

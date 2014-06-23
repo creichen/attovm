@@ -658,7 +658,7 @@ instructions = [
     Insn(Name(mips="li", intel="mov"), [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
     Insn(Name(mips="jreturn", intel="ret"), [0xc3], []),
     Insn(Name(mips="jal", intel="callq"), [0xe8, 0xe3, 0x00, 0x00, 0x00, 0x00], [PCRelative(2, 4, -6)]),
-    OptPrefixInsn(Name(mips="jalr", intel="callq"), 0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
+    OptPrefixInsn(Name(mips="jals", intel="callq"), 0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
     Insn(Name(mips="bgt", intel="cmp_jg"), [0x48, 0x39, 0xc0, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
     Insn(Name(mips="bge", intel="cmp_jge"), [0x48, 0x39, 0xc0, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
     Insn(Name(mips="blt", intel="cmp_jl"), [0x48, 0x39, 0xc0, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),

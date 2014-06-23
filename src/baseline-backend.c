@@ -148,7 +148,7 @@ emit_fail_at_node(buffer_t *buf, ast_node_t *node, char *msg)
 	emit_la(buf, REGISTER_A0, node);
 	emit_la(buf, REGISTER_A1, msg);
 	emit_la(buf, REGISTER_V0, &fail_at_node);
-	emit_jalr(buf, REGISTER_V0);
+	emit_jals(buf, REGISTER_V0);
 }
 
 
@@ -174,7 +174,7 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 			return;
 		case TYPE_OBJ:
 			emit_la(buf, REGISTER_V0, &new_int);
-			emit_jalr(buf, REGISTER_V0);
+			emit_jals(buf, REGISTER_V0);
 			emit_optmove(buf, dest_register, REGISTER_V0);
 			return;
 		case TYPE_VAR:
@@ -275,7 +275,7 @@ baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
 
 	case TYPE_OBJ:
 		emit_la(buf, REGISTER_V0, builtin_op_obj_test_eq);
-		emit_jalr(buf, REGISTER_V0);
+		emit_jals(buf, REGISTER_V0);
 		break;
 
 	case TYPE_VAR:
@@ -516,7 +516,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			emit_li(buf, REGISTER_A0, ast->children[0]->children_nr);
 		}
 		emit_la(buf, REGISTER_V0, &new_array);
-		emit_jalr(buf, REGISTER_V0);
+		emit_jals(buf, REGISTER_V0);
 		// We now have the allocated array in REGISTER_V0
 		emit_push(buf, REGISTER_V0);
 		for (int i = 0; i < ast->children[0]->children_nr; i++) {
@@ -649,7 +649,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			}
 			assert(sym->r_mem); // Sprungadresse muss bekannt sein
 			emit_la(buf, REGISTER_V0, sym->r_mem);
-			emit_jalr(buf, REGISTER_V0);
+			emit_jals(buf, REGISTER_V0);
 
 			// Stapelrahmen nachbereiten, soweit noetig
 			if (stack_frame_size) {

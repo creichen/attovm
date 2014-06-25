@@ -515,6 +515,13 @@ class InsnAlternatives(Insn):
     def allEncodings(self):
         return list(self.options.itervalues()) + [self]
 
+    def setFormat(self, fmt):
+        Insn.setFormat(self, fmt)
+        for n in self.options.itervalues():
+            n.setFormat(fmt)
+        self.default_option.setFormat(fmt);
+        return self
+
     def printGenerator(self):
         self.default_option.printGenerator()
         print ''

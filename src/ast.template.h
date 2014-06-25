@@ -62,11 +62,12 @@ $$BUILTIN_IDS$$
 typedef struct ast_node {
 	unsigned short type;
 	unsigned short children_nr;
-	short storage;		// Speicherstelle fuer Code-Generierung
+	short storage;		// Gesamtzahl der benötigten Speicherplätze
 	short source_line;	// Quellcode-Zeile
 	struct symtab_entry *sym;
 	struct ast_node * children[0]; // Kindknoten
 } ast_node_t;
+
 
 typedef union {
 $$VALUE_UNION$$

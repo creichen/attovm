@@ -9,10 +9,11 @@ FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o symbol-table.o \
 		name-analysis.o type-analysis.o storage-allocation.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
-BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registers.h runtime.h address-store.h
+BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registers.h runtime.h address-store.h \
+		dynamic-compiler.h
 BACKEND_GENSRC = assembler.c assembler.h
 BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o \
-		 builtins.o runtime.o address-store.o
+		 builtins.o runtime.o address-store.o dynamic-compiler.o
 FINAL_OBJS = atl.o atl backend-test.o backend-test assembler-buffer-test
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 

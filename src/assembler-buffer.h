@@ -69,6 +69,16 @@ void *
 buffer_entrypoint(buffer_t buf);
 
 /**
+ * Rekonstruiert Buffer von Einsprungpunkt.
+ *
+ * Fuehrt keine Fehleruebepruefung durch-- Speicherkorrpution, wenn der Zeiger
+ * nicht durch buffer_entrypoint() erzeugt wurde!
+ */
+buffer_t
+buffer_from_entrypoint(void *);
+
+
+/**
  * Notifies the buffer manager that writing for this buffer is complete
  */
 void
@@ -79,5 +89,8 @@ buffer_terminate(buffer_t buf);
  */
 void
 buffer_disassemble(buffer_t buf);
+
+// Load Address
+#define emit_la(buf, reg, p) emit_li(buf, reg, (long long) p)
 
 #endif // !defined(ASSEMBLER_BUFFER_H_)

@@ -39,12 +39,14 @@
 #include "registers.h"
 #include "runtime.h"
 #include "symbol-table.h"
+#include "compiler-options.h"
 
 extern FILE *builtin_print_redirection; // builtins.c
 
 static int failures = 0;
 static int runs = 0;
 
+#define DEBUG
 
 void
 fail(char *msg)
@@ -66,7 +68,9 @@ compile(char *src, int line)
 	}
 	fclose(memfile);
 	runtime_image_t *img = runtime_prepare(root, RUNTIME_ACTION_COMPILE);
+#ifdef DEBUG
 	ast_node_dump(stderr, img->ast, AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_ADDRESS | AST_NODE_DUMP_FLAGS);
+#endif
 	return img;
 }
 
@@ -100,7 +104,9 @@ test_program(char *source, char *expected_result, int line)
 	memset(output_buf, 0, output_buf_len + 1);
 	FILE *writefile = fmemopen(output_buf, output_buf_len, "w");
 
+#ifdef DEBUG
 	buffer_disassemble(image->code_buffer);	// for completeness for now...
+#endif
 
 	builtin_print_redirection = writefile;
 	runtime_execute(image); // Engage!
@@ -142,6 +148,7 @@ test_program(char *source, char *expected_result, int line)
 int
 main(int argc, char **argv)
 {
+#if 0
 	TEST("print(1);", "1\n");
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
@@ -150,13 +157,13 @@ main(int argc, char **argv)
 	TEST("print(7/2);", "3\n");
 	TEST("print(((2*3)+(1+1))*((3+2)-(2+1)));", "16\n");
 	TEST("{print(1);print(2);}", "1\n2\n");
+
 	TEST("{ int x = 17; print(x); }", "17\n");
 	TEST("{ int x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
 	TEST("{ obj x = 17; print(x); }", "17\n");
 	TEST("{ obj x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
 	TEST("{ var x = 17; print(x); }", "17\n");
 	TEST("{ var x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
-
 
 	TEST("{ if (1) print(\"1\"); print(2);}", "1\n2\n");
 	TEST("{ if (0) {print(\"0\");} print(2);}", "2\n");
@@ -209,9 +216,14 @@ main(int argc, char **argv)
 	TEST("{ obj a = [1,7]; print(a[1]); print(a[0]);}", "7\n1\n");
 	TEST("{ obj a = [1,[3,7]]; print(a[1][0]); print(a[0]);}", "3\n1\n");
 	TEST("{ obj a = [1,7]; print(a[1]); a[1] := 2; print(a[1]); print(a[0]); }", "7\n2\n1\n");
+#endif
+#if 1
 	TEST("{ obj a = [1,\"foo\", /5]; print(a[1]); a[4] := 2; print(a[0]); print(a[4]); }", "foo\n1\n2\n");
+	//	TEST("{ obj a = [1,7]; print(a[0]); a[0] := 2; print(a[0]); print(a[0]); print(a[0]);}", "1\n2\n2\n");
 	// next: NULL literal
 	TEST("if (NULL == NULL) { print(\"null\"); }", "null\n");
+#endif
+#if 0
 	TEST("if (NULL == \"\") { print(\"null\"); }", "");
 	TEST("if (NULL == 1) { print(\"null\"); }", "");
 
@@ -225,8 +237,21 @@ main(int argc, char **argv)
 
 	// skip
 	TEST("print(1);;;;;print(2);", "1\n2\n");
+#endif
 
+#if 0
 	// next: functions
+	TEST("int f(int x) { return x + 1; } print(f(1));", "2\n");
+	TEST("obj f(obj x) { return x + 1; } print(f(1));", "2\n");
+	TEST("obj f(obj x) { print(x); } f(1); ", "1\n");
+	TEST("int f(int a, int b) { return a + (2*b); } print(f(1, 2));", "5\n");
+	TEST("int f(int a, int b) { print(a); return a + (2*b); } print(f(1, 2));", "1\n5\n");
+	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 6, 7, 8);", "1\n\n2\n3\n4\n5\n6\n7\n8\n");
+	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 3+3, 3+4, 4+4);", "1\n\n2\n3\n4\n5\n6\n7\n8\n");
+	TEST("int fact(int a) { if (a == 0) return 1; return a * f(a - 1); } print(f(5));", "120\n");
+	TEST("int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); ", "0\n3\n5\n");
+#endif
+
 	// next: object instance creation
 	// next: field read/write (outside)
 	// next: nontrivial constructor (field init)
@@ -241,3 +266,4 @@ main(int argc, char **argv)
 	}
 	return failures > 0;
 }
+

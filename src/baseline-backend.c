@@ -55,11 +55,22 @@ typedef struct relative_jump_label_list {
 typedef struct {
 	// Fuer den aktuellen Ausfuehrungsrahmen:  Welches Register indiziert temporaere Variablen?
 	int temp_reg_base;
+	int stack_depth; // Wieviele Variablen auf dem Ablagestapel alloziert sind
+	int variable_storage; // Speicherstelle fuer Variable
 
 	// Falls verfuegbar/in Schleife: Sprungmarken 
 	relative_jump_label_list_t *continue_labels, *break_labels;
 } context_t;
 
+// Makros fuer PUSH und POP, die automatisch die Stapeltiefe aktualisieren
+// Wenn nur diese Makros zum Veraendern von SP verwendet werden, koennen wir sicherstellen,
+//  dass stack_depth immer aktuell ist
+#define PUSH(REG) emit_push(buf, (REG)); context->stack_depth++
+#define POP(REG) emit_pop(buf, (REG)); context->stack_depth--
+#define STACK_ALLOC(DSIZE); if (DSIZE) {emit_subiu(buf, REGISTER_SP, sizeof(void *) * (DSIZE)); context->stack_depth += (DSIZE); }
+#define STACK_FREE(DSIZE); if (DSIZE) {emit_addiu(buf, REGISTER_SP, sizeof(void *) * (DSIZE)); context->stack_depth -= (DSIZE); }
+
+#define MARK_LINE()  {emit_addiu(buf, REGISTER_FP, __LINE__);emit_subiu(buf, REGISTER_FP, __LINE__);}
 
 static void
 context_copy(context_t *dest, context_t *src)
@@ -95,7 +106,7 @@ long long int builtin_op_obj_test_eq(object_t *a0, object_t *a1);
 
 // Gibt Groesse des Stapelrahmens (in Bytes) zurueck
 static int
-baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context);
+baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context, bool mustalign);
 
 
 static void
@@ -124,7 +135,7 @@ dump_ast(char *msg, ast_node_t *ast)
 static int
 is_simple(ast_node_t *n)
 {
-	return IS_VALUE_NODE(n);
+	return IS_VALUE_NODE(n) || NODE_TY(n) == AST_NODE_NULL;
 }
 
 static void
@@ -133,13 +144,6 @@ emit_optmove(buffer_t *buf, int dest, int src)
 	if (dest != src) {
 		emit_move(buf, dest, src);
 	}
-}
-
-// Load Address
-static void
-emit_la(buffer_t *buf, int reg, void *p)
-{
-	emit_li(buf, reg, (long long) p);
 }
 
 static void
@@ -166,6 +170,17 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 		from_ty = TYPE_OBJ;
 	}
 #endif
+
+	bool uses_function_call = false;
+	if (to_ty != from_ty
+	    && to_ty == TYPE_OBJ) {
+		// Verpacken (boxing) immer mit Funktionsaufruf
+		uses_function_call = true;
+	}
+
+	int prep_stack_frame_size = baseline_compile_prepare_arguments(buf, 1, &arg, context, uses_function_call);
+	STACK_FREE(prep_stack_frame_size);
+
 
 	switch (from_ty) {
 	case TYPE_INT:
@@ -229,9 +244,10 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 
 static void
 baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
-			    int a0, int a0_ty,
-			    int a1, int a1_ty)
+			    int a0_ty,
+			    int a1_ty, context_t *context)
 {
+
 	//#ifdef VAR_IS_OBJ
 	if (a0_ty == TYPE_VAR) {
 		a0_ty = TYPE_OBJ;
@@ -248,17 +264,17 @@ baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
 			// Einer der Typen muss nach Obj konvertiert werden
 			int conv_reg;
 			if (a0_ty == TYPE_INT) {
-				conv_reg = a0;
+				conv_reg = REGISTER_A0;
 				a0_ty = TYPE_OBJ;
 			} else {
-				conv_reg = a1;
+				conv_reg = REGISTER_A1;
 				a1_ty = TYPE_OBJ;
 			}
 			temp_object = true;
 			// Temporaeres Objekt auf dem Stapel erzeugen
-			emit_push(buf, conv_reg);
+			PUSH(conv_reg);
 			emit_la(buf, conv_reg, &class_boxed_int);
-			emit_push(buf, conv_reg);
+			PUSH(conv_reg);
 			emit_move(buf, conv_reg, REGISTER_SP);
 		}
 
@@ -270,7 +286,7 @@ baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
 	switch (a0_ty) {
 
 	case TYPE_INT:
-		emit_seq(buf, dest_register, a0, a1);
+		emit_seq(buf, dest_register, REGISTER_A0, REGISTER_A1);
 		break;
 
 	case TYPE_OBJ:
@@ -285,7 +301,7 @@ baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
 
 	if (temp_object) {
 		// Temporaeres Objekt vom Stapel deallozieren
-		emit_addiu(buf, REGISTER_SP, 16);
+		STACK_FREE(2);
 	}
 
 }
@@ -299,6 +315,7 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 
 	switch (op) {
 	case BUILTIN_OP_CONVERT:
+		args_nr = 0; // hier nicht vorbereitet, da wir nicht so leicht testen koennen, ob der Stapel ausgerichtet werden muss
 	case BUILTIN_OP_NOT:
 	case BUILTIN_OP_ALLOCATE:
 		args_nr = 1;
@@ -311,7 +328,8 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 
 	// Parameter laden
 	if (args_nr) {
-		baseline_compile_prepare_arguments(buf, args_nr, args, context);
+		int prep_stack_frame_size = baseline_compile_prepare_arguments(buf, args_nr, args, context, 0);
+		STACK_FREE(prep_stack_frame_size);
 	}
 
 	switch (op) {
@@ -335,8 +353,9 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 
 	case BUILTIN_OP_TEST_EQ:
 		baseline_compile_builtin_eq(buf, dest_register,
-					    REGISTER_A0, args[0]->type & TYPE_FLAGS,
-					    REGISTER_A1, args[1]->type & TYPE_FLAGS);
+					    args[0]->type & TYPE_FLAGS,
+					    args[1]->type & TYPE_FLAGS,
+					    context);
 		break;
 
 	case BUILTIN_OP_TEST_LE:
@@ -375,75 +394,113 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 
 
 // Gibt Groesse des Stapelrahmens (in Bytes) zurueck
+// Stellt sicher, dass der Stapelspeicher angemessen ausgerichtet ist
 static int
-baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context)
+baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context, bool mustalign)
 {
-	// Optimierung:  letzter nichtrivialer Parameter muss nicht zwischengesichert werden...
-	int start_of_trailing_simple = children_nr;
-	for (int i = children_nr - 1; i >= 0; i--) {
-		if (is_simple(children[i])) {
-			start_of_trailing_simple = i;
-		} else break;
-	}
+	/* Aufrufkonventionen gem. System V ABI fuer x86-64:
+	 * $a0-$a5 haben Parameter 0-5
+	 *
+	 * |    X    |
+         * +---------+
+	 * | param 7 |
+         * +---------+
+	 * | param 6 |
+         * +---------+  <- $sp
+	 *
+	 * Zusaeztlich muss $sp 16-Byte-ausgerichtet sein.
+	 * Wir legen in X zusaetzlich noch Platz fuer Parameter 0-5 ab, falls noetig, ebenfalls in aufsteigender
+	 * Reihenfolge.  Falls ein Ausrichtungseintrag (fuer 16-Byte-Ausrichtung) noetig ist, wird es wiederum
+	 * davor abgelegt.
+	 */
+	const int stack_args_nr = children_nr < REGISTERS_ARGUMENT_NR ? 0 : children_nr - REGISTERS_ARGUMENT_NR;
+	bool stack_frame_active_during_call =
+		(mustalign && context->stack_depth & 1) // Ausrichtung extern aufgezwungen
+		|| stack_args_nr;
 
-	int last_nonsimple = start_of_trailing_simple - 1;
-	if (last_nonsimple >= REGISTERS_ARGUMENT_NR) {
-		// ... Ausnahme: wenn der letzte nichttriviale Parameter sowieso
-		// nicht in Register gehoert, nutzt diese Optimierung nichts
-		last_nonsimple = -1;
-	}
-	// Ende Vorbereitung der Optimierung [last_nonsimple]
+	int backup_space_needed = 0; // Anzahl der $a-Register, die wir sichern muessen
 
-	// Stapelrahmen vorbereiten, soweit noetig
-	int stack_frame_size = 0;
-	if (children_nr > REGISTERS_ARGUMENT_NR) {
-		stack_frame_size = (children_nr - REGISTERS_ARGUMENT_NR);
-		if (stack_frame_size & 1) {
-			++stack_frame_size; // 16-Byte-Ausrichtung, gem. AMD64-ABI
+	int last_nonsimple = -1; // letzte nichttriviale Berechnung
+	for (int i = 0; i < children_nr; i++) {
+		if (!is_simple(children[i])) {
+			last_nonsimple = i;
+			if (i < REGISTERS_ARGUMENT_NR) {
+				++backup_space_needed;
+			}
 		}
-
-		emit_subiu(buf, REGISTER_SP, stack_frame_size * 8);
 	}
 
+	if (backup_space_needed && last_nonsimple < REGISTERS_ARGUMENT_NR) {
+		// kein Backup fuer den letzten nichttrivialen Eintrag noetig
+		--backup_space_needed;
+	}
+
+static int zeta_c = 0;
+ int zeta = zeta_c++;
+ fprintf(stderr, "[%d] Spill space requested = %d (lastnonsimple = %d, argsnr=%d)\n", zeta, backup_space_needed, last_nonsimple, children_nr);
+
+	// Adresse relativ zu $sp, in der bei Bedarf $a0..$a5 gesichert werden
+	const int register_arg_spill_space = children_nr < REGISTERS_ARGUMENT_NR ? 0 : children_nr - REGISTERS_ARGUMENT_NR;
+
+	int stack_frame_size = backup_space_needed
+		+ ((children_nr < REGISTERS_ARGUMENT_NR)? 0 : children_nr - REGISTERS_ARGUMENT_NR);
+
+	if (stack_frame_active_during_call
+	    && (stack_frame_size + context->stack_depth) & 1) { // Ausrichtung noetig?
+		++stack_frame_size;  // Ausrichtung
+	}
+
+	STACK_ALLOC(stack_frame_size);
+
+	int spill_counter = 0;
 	// Nichttriviale Werte und Werte, die ohnehin auf den Stapel muessen, rekursiv ausrechnen
 	for (int i = 0; i < children_nr; i++) {
 		int reg = REGISTER_V0;
+		if (i < REGISTERS_ARGUMENT_NR){
+			reg = registers_argument[i];
+		}
 		
-		if (i > REGISTERS_ARGUMENT_NR || !is_simple(children[i])) {
-			if (i == last_nonsimple) { // Opt: [non_simple]
-				reg = registers_argument[i];
-			}
+		if (i >= REGISTERS_ARGUMENT_NR || !is_simple(children[i])) {
 			baseline_compile_expr(buf, children[i], reg, context);
 
-			if (i >=  REGISTERS_ARGUMENT_NR) {
-				// In Ziel speichern
+			int dest_stack_location;
+			if (i >= REGISTERS_ARGUMENT_NR) {
+				dest_stack_location = i - REGISTERS_ARGUMENT_NR;
+			} else {
+				dest_stack_location = register_arg_spill_space + spill_counter++;
+			}
+
+			if (i != last_nonsimple) {
 				emit_sd(buf, reg,
-					8 * (i - REGISTERS_ARGUMENT_NR),
+					sizeof(void *) * dest_stack_location,
 					REGISTER_SP);
-			} else if (i != last_nonsimple) {
-				// Muss in temporaerem Speicher ablegen
-				emit_sd(buf, reg, children[i]->storage * 8, context->temp_reg_base);
 			}
 		}
 	}
 
+	spill_counter = 0;
 	// Triviale Registerinhalte generieren, vorher berechnete Werte bei Bedarf laden
-	for (int i = 0; i < children_nr; i++) {
+	const int max = children_nr < REGISTERS_ARGUMENT_NR ? children_nr : REGISTERS_ARGUMENT_NR;
+	for (int i = 0; i < max; i++) {
 		if (is_simple(children[i])) {
-			if (i >= REGISTERS_ARGUMENT_NR) {
-				baseline_compile_expr(buf, children[i], REGISTER_V0, context);
-				emit_sd(buf, REGISTER_V0, 8 * (i - REGISTERS_ARGUMENT_NR), REGISTER_SP);
-			} else {
+			if (i < REGISTERS_ARGUMENT_NR) {
 				baseline_compile_expr(buf, children[i], registers_argument[i], context);
 			}
-		} else if (i < REGISTERS_ARGUMENT_NR && i != last_nonsimple) {
+		} else if (i != last_nonsimple) { // Wert der letzten nichttrivialen Berechnung ist noch frisch
 			emit_ld(buf, registers_argument[i],
-				children[i]->storage * 8,
-				context->temp_reg_base);
+				sizeof(void *) * (register_arg_spill_space + spill_counter++),
+				REGISTER_SP);
 		}
 	}
 
-	return stack_frame_size * 8;
+	fprintf(stderr, "[%d] Spill space used = %d / %d, sfsize = %d\n", zeta, spill_counter, backup_space_needed, stack_frame_size);
+
+	if (!stack_frame_active_during_call) {
+		STACK_FREE(stack_frame_size);
+		return 0;
+	}
+
+	return stack_frame_size;
 }
 
 // Der Aufrufer speichert; der Aufgerufene haelt sich immer an dest_register
@@ -465,7 +522,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 	case AST_VALUE_ID: {
 		int reg;
 		symtab_entry_t *sym = ast->sym;
-		const int offset = 8 * sym->offset;
+		const int offset = sizeof(void *) * sym->offset;
 		if (SYMTAB_IS_STATIC(sym)) {
 			reg = REGISTER_GP;
 		} else if (SYMTAB_IS_STACK_DYNAMIC(sym)) {
@@ -486,6 +543,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		break;
 
 	case AST_NODE_VARDECL:
+		ast->sym->offset = context->variable_storage++;
 		if (ast->children[1] == NULL) {
 			// Keine Initialisierung?
 			break;
@@ -493,9 +551,9 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		// fall through
 	case AST_NODE_ASSIGN:
 		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
-		emit_push(buf, REGISTER_V0);
+		PUSH(REGISTER_V0);
 		baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
-		emit_pop(buf, REGISTER_T0);
+		POP(REGISTER_T0);
 		emit_sd(buf, REGISTER_V0, 0, REGISTER_T0);
 		break;
 
@@ -518,7 +576,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_la(buf, REGISTER_V0, &new_array);
 		emit_jals(buf, REGISTER_V0);
 		// We now have the allocated array in REGISTER_V0
-		emit_push(buf, REGISTER_V0);
+		PUSH(REGISTER_V0);
 		for (int i = 0; i < ast->children[0]->children_nr; i++) {
 			ast_node_t *child = ast->children[0]->children[i];
 			baseline_compile_expr(buf, child, REGISTER_T0, context);
@@ -529,7 +587,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 				16 /* header + groesse */ + 8 * i,
 				REGISTER_V0);
 		}
-		emit_pop(buf, dest_register);
+		POP(dest_register);
 	}
 		break;
 
@@ -543,9 +601,9 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_fail_at_node(buf, ast, "Attempted to index non-array");
 		buffer_setlabel2(&jl, buf);
 
-		emit_push(buf, REGISTER_V0);
+		PUSH( REGISTER_V0);
 		baseline_compile_expr(buf, ast->children[1], REGISTER_T0, context);
-		emit_pop(buf, REGISTER_V0);
+		POP(REGISTER_V0);
 
 		if (!compiler_options.no_bounds_checks) {
 			// Arraygrenzenpruefung
@@ -642,7 +700,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		} else {
 			// Normaler Funktionsaufruf
 			// Argumente laden
-			int stack_frame_size = baseline_compile_prepare_arguments(buf, ast->children[1]->children_nr, ast->children[1]->children, context);
+			int stack_frame_size = baseline_compile_prepare_arguments(buf, ast->children[1]->children_nr, ast->children[1]->children, context, 1);
 
 			if (!sym->r_mem) {
 				fail_at_node(ast, "No code known");
@@ -653,8 +711,9 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 
 			// Stapelrahmen nachbereiten, soweit noetig
 			if (stack_frame_size) {
-				emit_addiu(buf, REGISTER_SP, stack_frame_size);
+				STACK_FREE(stack_frame_size);
 			}
+			emit_optmove(buf, dest_register, REGISTER_V0);
 		}
 	}
 		break;
@@ -712,18 +771,22 @@ baseline_compile(ast_node_t *root,
 		addrstore_put(static_memory, ADDRSTORE_KIND_SPECIAL, ".static segment");
 	}
 
-	context_t context;
-	context.temp_reg_base = REGISTER_GP;
-	context.continue_labels = NULL;
-	context.break_labels = NULL;
+	context_t mcontext;
+	mcontext.temp_reg_base = REGISTER_GP;
+	mcontext.continue_labels = NULL;
+	mcontext.break_labels = NULL;
+	mcontext.stack_depth = 0;
+	mcontext.variable_storage = 0;
+	context_t *context = &mcontext;
 
-	buffer_t buf = buffer_new(1024);
-	emit_push(&buf, REGISTER_GP);
-	emit_la(&buf, REGISTER_GP, static_memory);
-	baseline_compile_expr(&buf, root, REGISTER_V0, &context);
+	buffer_t mbuf = buffer_new(1024);
+	buffer_t *buf = &mbuf;
+	PUSH(REGISTER_GP);
+	emit_la(buf, REGISTER_GP, static_memory);
+	baseline_compile_expr(buf, root, REGISTER_V0, context);
 	/* emit_move(&buf, registers_argument_nr[0], REGISTER_V0); */
-	emit_pop(&buf, REGISTER_GP);
-	emit_jreturn(&buf);
-	buffer_terminate(buf);
-	return buf;
+	POP(REGISTER_GP);
+	emit_jreturn(buf);
+	buffer_terminate(mbuf);
+	return mbuf;
 }

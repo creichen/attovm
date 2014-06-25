@@ -155,6 +155,11 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	bool has_args = false;
 	bool is_class = false;
 
+	if (!entry) {
+		fprintf(stderr, "Entry is (null)");
+		return;
+	}
+
 	fprintf(file, "#%d:\t", entry->id);
 	symtab_entry_name_dump(file, entry);
 	fprintf(file, "\n\tFlags:\t");
@@ -187,10 +192,11 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 		is_class = true;
 		break;
 	}
-	PRINT_SYMVAR(SELECTOR);
-	PRINT_SYMVAR(OPT);
 	PRINT_SYMVAR(BUILTIN);
 	PRINT_SYMVAR(HIDDEN);
+	PRINT_SYMVAR(SELECTOR);
+	PRINT_SYMVAR(OPT);
+	PRINT_SYMVAR(COMPILED);
 #undef PRINT_SYMVAR
 	fputs(" ", file);
 	ast_print_flags(file, entry->ast_flags);

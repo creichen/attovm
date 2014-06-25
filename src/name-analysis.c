@@ -122,7 +122,6 @@ fix_with_parameters(ast_node_t *cnode, hashtable_t *env, int child_flags_params,
 	hashtable_free(env, NULL, NULL);
 }
 
-
 static void
 fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_flags)
 {

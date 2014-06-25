@@ -56,7 +56,8 @@ new_real(double v)
 object_t *
 new_string(char *string, size_t len)
 {
-	object_t *obj = heap_allocate_object(&class_string, (len + sizeof(void*)) & ~(sizeof (void*) - 1));
+	size_t fields_nr_space = (len + sizeof(void*)) & ~(sizeof (void*) - 1);
+	object_t *obj = heap_allocate_object(&class_string, fields_nr_space >> 3);
 	memcpy(&obj->members[0], string, len + 1);
 	return obj;
 }

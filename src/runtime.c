@@ -35,7 +35,6 @@
 
 struct compiler_options compiler_options;
 
-
 runtime_image_t *
 runtime_prepare(ast_node_t *ast, unsigned int action)
 {
@@ -64,9 +63,10 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	}
 
 	image->ast = ast;
-	image->static_memory_size = storage_allocation(ast);
+	image->static_memory_size = storage_size(ast);
 	if (image->static_memory_size) {
 		image->static_memory = malloc(sizeof(void*) * image->static_memory_size);
+		fprintf(stderr, "Allocated static mem %d entries at %p\n", image->static_memory_size, image->static_memory);
 	} else {
 		image->static_memory = NULL;
 	}
@@ -83,7 +83,7 @@ start_dynamic() {};
 void
 runtime_execute(runtime_image_t *img)
 {
-	memset(img->static_memory, 0, sizeof(void**) * img->static_memory_size);
+	memset(img->static_memory, 0, sizeof(void*) * img->static_memory_size);
 	void (*f)(void) = (void (*)(void)) img->main_entry_point;
 	start_dynamic();
 	(*f)();

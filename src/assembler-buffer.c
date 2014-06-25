@@ -297,6 +297,13 @@ buffer_entrypoint(buffer_t buf)
 	return &buf->data;
 }
 
+buffer_t
+buffer_from_entrypoint(void *t)
+{
+	unsigned char *c = (unsigned char *) t;
+	return (buffer_t) (c - offsetof(struct buffer_internal, data));
+}
+
 int
 disassemble_one(FILE *file, unsigned char *data, int max_len);
 
@@ -357,3 +364,4 @@ buffer_setlabel2(label_t *label, buffer_t *buffer)
 {
 	buffer_setlabel(label, buffer_target(buffer));
 }
+

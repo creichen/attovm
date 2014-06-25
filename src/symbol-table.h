@@ -42,12 +42,13 @@
 #define SYMTAB_TY_FUNCTION	0x0002
 #define SYMTAB_TY_CLASS		0x0003
 
-#define SYMTAB_SELECTOR		0x0004
+#define SYMTAB_SELECTOR		0x0004	// Selektor in ein Objekt
 #define SYMTAB_PARAM		0x0008	// nur mit TY_VAR
 #define SYMTAB_MEMBER		0x0010	// Klassenelement, also Methode oder Feld (zusammen mit TY_FUNCTION oder TY_VAR)
-#define SYMTAB_OPT		0x0020	// Mit Optimierungen übersetzt
-#define SYMTAB_BUILTIN		0x0040
-#define SYMTAB_HIDDEN		0x0080	// Name nicht explizit angegeben
+#define SYMTAB_BUILTIN		0x0020  // Eingebaute Funktion
+#define SYMTAB_HIDDEN		0x0040	// Name nicht explizit angegeben
+#define SYMTAB_COMPILED		0x0080	// Fertig uebersetzt
+#define SYMTAB_OPT		0x0100	// Mit Optimierungen übersetzt
 
 
 #define SYMTAB_TY(s)			(((s)->symtab_flags) & SYMTAB_TY_MASK)

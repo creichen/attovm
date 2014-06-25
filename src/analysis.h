@@ -44,10 +44,9 @@ name_analysis(ast_node_t *);
 /**
  * Fuehrt Typanalyse durch:
  *
- * - Fuegt __convert-Knoten ein, wo noetig
+ * - Fuegt *convert-Knoten ein, wo noetig
  * - Konvertiert Parameter vor und nach Methodenaufrufen, soweit noetig
- * - Fuegt Let-Knoten bei Methodenaufruf ein
- * - Fuegt __self-Knoten bei lokalen Methodenaufrufen und Feldzugriffen ein
+ * - Fuegt METHODAPP-Knoten bei Methodenaufruf ein
  * - Stellt sicher, dass keine unerlaubten Variablenzugriffe stattfinden
  * - Erstellt den Konstruktor fuer jede Klass
  * - Markiert Fehler, wenn Fliesskommazahlen verwendet werden
@@ -61,13 +60,14 @@ type_analysis(ast_node_t **);
 
 
 /**
- * Alloziert Speicherstellen fuer alle temporaeren Ergebnisse und globalen Variablen
+ * Berechnet den nötigen Speicherstellen fuer alle temporaeren Ergebnisse und globalen Variablen
  *
  * Dritte Analysephase
  *
- * @return Liefert die Anzahl der globalen Variableneintraege zurueck
+ * @return Liefert die Anzahl der benötigten Variablenplätze zurück (entspricht dem
+ * `storage'-Feld bei nicht-VALUE-Knoten).
  */
 int
-storage_allocation(ast_node_t *);
+storage_size(ast_node_t *);
 
 #endif 

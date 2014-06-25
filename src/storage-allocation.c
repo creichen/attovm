@@ -31,100 +31,86 @@
 #include "symbol-table.h"
 
 
-static void
-storage_alloc(ast_node_t *node, unsigned short *var_counter);
+static int
+storage_alloc(ast_node_t *node);
 
-static void
-recurse(ast_node_t *node, unsigned short *var_counter)
+static int
+update_node(ast_node_t *node)
 {
+	if (!node) {
+		return 0;
+	}
+	int count = storage_alloc(node);
+	if (!IS_VALUE_NODE(node)) {
+		node->storage = count;
+	}
+
+	/* ast_node_dump(stderr, node, 6); */
+	/* fprintf(stderr, "allloc=> %d\n", count); */
+
+	return count;
+}
+
+static int
+recurse(ast_node_t *node)
+{
+	int total = 0;
 	if (!IS_VALUE_NODE(node)) {
 		for (int i = 0; i < node->children_nr; i++) {
-			storage_alloc(node->children[i], var_counter);
+			total += update_node(node->children[i]);
 		}
 	}
+	return total;
 }
 
 
-static void
-storage_alloc(ast_node_t *node, unsigned short *var_counter)
+static int
+storage_alloc(ast_node_t *node)
 {
 	if (!node) {
-		return;
+		return 0;
 	}
 
 	switch (NODE_TY(node)) {
 	case AST_NODE_CLASSDEF: {
 		// Felder in Klassen erhalten ihre Lokationen schon in der Namensanalyse
 		// (Ebenso Parameter)
-		recurse(node, NULL);
+		recurse(node);
+		return 0;
 	}
 		break;
 
 	case AST_NODE_FUNDEF:
 		// Parameter erhalten ihre Lokationen schon in der Namensanalyse
-		storage_alloc(node->children[2], &node->sym->vars_nr);
+		recurse(node);
+		return 0;
 		break;
 
-	case AST_NODE_BLOCK:
-		if (!var_counter) {
-			recurse(node, NULL);
-		} else {
-			unsigned short var_counter_base = *var_counter;
-			unsigned short max_var_counter = var_counter_base;
-			ast_node_t **elements = node->children;
-			for (int i = 0; i < node->children_nr; i++) {
-				*var_counter = var_counter_base;
-
-				storage_alloc(elements[i], var_counter);
-				if (NODE_TY(elements[i]) == AST_NODE_VARDECL) {
-					// Die einzige `echte' Variablenallozierung:  Alle anderen Allozierungen sind temporaer
-					//ast_node_dump(stderr, elements[i], 6);
-					elements[i]->sym->offset = var_counter_base++;
-				}
-
-				if (NODE_TY(elements[i]) == AST_NODE_BLOCK) {
-					// Verschachtelter Block: Wir erben angemessen
-					var_counter_base = *var_counter;
-				}
-
-				if (*var_counter > max_var_counter) {
-					max_var_counter = *var_counter;
-				}
+	case AST_NODE_BLOCK: {
+		int locals = 0; // Anzahl der lokalen Variablen
+		int max_subblock_size = 0; // Anzal der Variablen, die fuer den groessen Sub-Block benoetigt werden
+		ast_node_t **elements = node->children;
+		for (int i = 0; i < node->children_nr; i++) {
+			int size = update_node(elements[i]);
+			if (NODE_TY(elements[i]) == AST_NODE_VARDECL) {
+				locals += size;
+			} else if (size > max_subblock_size) {
+				max_subblock_size = size;
 			}
-			*var_counter = max_var_counter;
-		
+		}
+		return locals + max_subblock_size;
 	}
-		break;
 
 	case AST_NODE_VARDECL:
-		if (var_counter) {
-			node->sym->offset = (*var_counter)++;
-		}
-		break;
-
-
-	case AST_NODE_FUNAPP: {
-		ast_node_t **elements = node->children[1]->children;
-		for (int i = 0; i < node->children[1]->children_nr; i++) {
-			if (!IS_VALUE_NODE(elements[i])) {
-				elements[i]->storage = (*var_counter)++;
-			}
-			storage_alloc(elements[i], var_counter);
-		}
-	}
-		break;
+		return 1;
 
 	default:
-		recurse(node, var_counter);
+		return recurse(node);
 	}
 }
 
-
-
 int
-storage_allocation(ast_node_t *n)
+storage_size(ast_node_t *n)
 {
-	unsigned short vars = 0;
-	storage_alloc(n, &vars);
-	return vars;
+	return update_node(n);
 }

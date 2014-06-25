@@ -775,7 +775,7 @@ baseline_compile(ast_node_t *root,
 	mcontext.temp_reg_base = REGISTER_GP;
 	mcontext.continue_labels = NULL;
 	mcontext.break_labels = NULL;
-	mcontext.stack_depth = 0;
+	mcontext.stack_depth = 1;
 	mcontext.variable_storage = 0;
 	context_t *context = &mcontext;
 

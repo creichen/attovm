@@ -87,6 +87,8 @@ signal_success()
 	 printf("\033[1;32mOK\033[0m\n");
 }
 
+ void start_dynamic2(){};
+
 void
 test_program(char *source, char *expected_result, int line)
 {
@@ -109,6 +111,9 @@ test_program(char *source, char *expected_result, int line)
 #endif
 
 	builtin_print_redirection = writefile;
+	if (line == 224) {
+		start_dynamic2();
+	}
 	runtime_execute(image); // Engage!
 	builtin_print_redirection = NULL;
 
@@ -148,7 +153,7 @@ test_program(char *source, char *expected_result, int line)
 int
 main(int argc, char **argv)
 {
-#if 0
+#if 1
 	TEST("print(1);", "1\n");
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
@@ -216,14 +221,10 @@ main(int argc, char **argv)
 	TEST("{ obj a = [1,7]; print(a[1]); print(a[0]);}", "7\n1\n");
 	TEST("{ obj a = [1,[3,7]]; print(a[1][0]); print(a[0]);}", "3\n1\n");
 	TEST("{ obj a = [1,7]; print(a[1]); a[1] := 2; print(a[1]); print(a[0]); }", "7\n2\n1\n");
-#endif
-#if 1
 	TEST("{ obj a = [1,\"foo\", /5]; print(a[1]); a[4] := 2; print(a[0]); print(a[4]); }", "foo\n1\n2\n");
-	//	TEST("{ obj a = [1,7]; print(a[0]); a[0] := 2; print(a[0]); print(a[0]); print(a[0]);}", "1\n2\n2\n");
+
 	// next: NULL literal
 	TEST("if (NULL == NULL) { print(\"null\"); }", "null\n");
-#endif
-#if 0
 	TEST("if (NULL == \"\") { print(\"null\"); }", "");
 	TEST("if (NULL == 1) { print(\"null\"); }", "");
 

@@ -87,8 +87,6 @@ signal_success()
 	 printf("\033[1;32mOK\033[0m\n");
 }
 
- void start_dynamic2(){};
-
 void
 test_program(char *source, char *expected_result, int line)
 {
@@ -107,13 +105,25 @@ test_program(char *source, char *expected_result, int line)
 	FILE *writefile = fmemopen(output_buf, output_buf_len, "w");
 
 #ifdef DEBUG
-	buffer_disassemble(image->code_buffer);	// for completeness for now...
+	fflush(NULL);
+	for (int i = 0; i < image->functions_nr; i++) {
+		fprintf(stderr, "FUNCTION %s:\n", image->functions[i]->children[0]->sym->name);
+		buffer_disassemble(buffer_from_entrypoint(image->functions[i]->children[0]->sym->r_mem));
+	}
+
+	if (image->trampoline) {
+		fprintf(stderr, "TRAMPOLINE:\n");
+		buffer_disassemble(image->trampoline);
+	}
+
+	fprintf(stderr, "DYNCOMP:\n");
+	buffer_disassemble(image->dyncomp);
+
+	fprintf(stderr, "MAIN:\n");
+	buffer_disassemble(image->code_buffer);
 #endif
 
 	builtin_print_redirection = writefile;
-	if (line == 224) {
-		start_dynamic2();
-	}
 	runtime_execute(image); // Engage!
 	builtin_print_redirection = NULL;
 
@@ -153,7 +163,11 @@ test_program(char *source, char *expected_result, int line)
 int
 main(int argc, char **argv)
 {
-#if 1
+#ifdef DEBUG
+	compiler_options.debug_dynamic_compilation = true;
+#endif
+
+#if 0
 	TEST("print(1);", "1\n");
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
@@ -240,18 +254,16 @@ main(int argc, char **argv)
 	TEST("print(1);;;;;print(2);", "1\n2\n");
 #endif
 
-#if 0
 	// next: functions
 	TEST("int f(int x) { return x + 1; } print(f(1));", "2\n");
 	TEST("obj f(obj x) { return x + 1; } print(f(1));", "2\n");
 	TEST("obj f(obj x) { print(x); } f(1); ", "1\n");
 	TEST("int f(int a, int b) { return a + (2*b); } print(f(1, 2));", "5\n");
 	TEST("int f(int a, int b) { print(a); return a + (2*b); } print(f(1, 2));", "1\n5\n");
-	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 6, 7, 8);", "1\n\n2\n3\n4\n5\n6\n7\n8\n");
-	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 3+3, 3+4, 4+4);", "1\n\n2\n3\n4\n5\n6\n7\n8\n");
-	TEST("int fact(int a) { if (a == 0) return 1; return a * f(a - 1); } print(f(5));", "120\n");
+	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 6, 7, 8);", "1\n2\n3\n4\n5\n6\n7\n8\n");
+	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 3+3, 3+4, 4+4);", "1\n2\n3\n4\n5\n6\n7\n8\n");
+	TEST("int fact(int a) { if (a == 0) return 1; return a * fact(a - 1); } print(fact(5));", "120\n");
 	TEST("int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); ", "0\n3\n5\n");
-#endif
 
 	// next: object instance creation
 	// next: field read/write (outside)

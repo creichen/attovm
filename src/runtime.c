@@ -28,10 +28,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "symbol-table.h"
 #include "runtime.h"
 #include "analysis.h"
 #include "baseline-backend.h"
 #include "compiler-options.h"
+#include "dynamic-compiler.h"
 
 struct compiler_options compiler_options;
 
@@ -44,7 +46,7 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		return image;
 	}
 
-	if (name_analysis(ast)) {
+	if (name_analysis(ast, &image->functions_nr, &image->classes_nr)) {
 		free(image);
 		return NULL;
 	}
@@ -53,7 +55,14 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		return image;
 	}
 
-	if (type_analysis(&image->ast)) {
+	if (image->functions_nr) {
+		image->functions = malloc(sizeof(ast_node_t *) * image->functions_nr);
+	}
+	if (image->classes_nr) {
+		image->classes = malloc(sizeof(ast_node_t *) * image->classes_nr);
+	}
+
+	if (type_analysis(&image->ast, image->functions, image->classes)) {
 		free(image);
 		return NULL;
 	}
@@ -70,7 +79,11 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	} else {
 		image->static_memory = NULL;
 	}
-	image->code_buffer = baseline_compile(ast, image->static_memory);
+
+	image->dyncomp = dyncomp_build_generic();
+	image->trampoline = dyncomp_build_trampoline(buffer_entrypoint(image->dyncomp), image->functions, image->functions_nr);
+
+	image->code_buffer = baseline_compile_entrypoint(ast, image->static_memory);
 	image->main_entry_point = buffer_entrypoint(image->code_buffer);
 
 	return image;
@@ -98,6 +111,21 @@ runtime_free(runtime_image_t *img)
 	}
 	if (img->code_buffer) {
 		buffer_free(img->code_buffer);
+	}
+	if (img->functions) {
+		for (int i = 0; i < img->functions_nr; i++) {
+			buffer_free(buffer_from_entrypoint(img->functions[i]->children[0]->sym->r_mem));
+		}
+		free(img->functions);
+	}
+	if (img->classes) {
+		free(img->classes);
+	}
+	if (img->dyncomp) {
+		buffer_free(img->dyncomp);
+	}
+	if (img->trampoline) {
+		buffer_free(img->trampoline);
 	}
 	ast_node_free(img->ast, 1);
 	free(img);

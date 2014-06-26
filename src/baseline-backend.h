@@ -32,13 +32,23 @@
 #include "assembler-buffer.h"
 
 /**
- * Uebersetzt ein AST-Fragment in ausfuehrbaren Maschinencode
+ * Uebersetzt ein AST-Fragment eines Haupteinsprungpunktes in ausfuehrbaren
+ * Maschinencode
  *
  * @param node Der zu uebersetzende AST-Baumknoten
  * @param static_memory Der statische Speicher fuer Variableninhalte
  * @return Ein buffer_t mit dem Haupteinsprungpunkt
  */
 buffer_t
-baseline_compile(ast_node_t *node, void *static_memory);
+baseline_compile_entrypoint(ast_node_t *node, void *static_memory);
+
+/**
+ * Uebersetzt ein AST-Fragment einer Funktion in ausfuehrbaren Maschinencode
+ *
+ * @param node Der zu uebersetzende AST-Baumknoten
+ * @return Ein buffer_t mit dem Funktionskoerper
+ */
+buffer_t
+baseline_compile_function(ast_node_t *node);
 
 #endif // defined(_ATTOL_BASELINE_BACKEND_H)

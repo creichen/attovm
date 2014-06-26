@@ -155,7 +155,20 @@ class PCRelative(Arg):
         p('int relative_%s;'% self.strName())
         p('memcpy(&relative_%s, data + %d, %d);' % (self.strName(), self.byte, self.width))
         p('unsigned char *%s = data + relative_%s + machine_code_len;' % (self.strName(), self.strName()))
-        return (["%p"], [self.strName()])
+
+        maxsize = 128
+        p('char %s_buf[%d];' % (self.strName(), maxsize))
+        if True:
+            p('if (addrstore_get_suffix((void *) %s)) {' % self.strName())
+            p('\tsnprintf(%s_buf, %d, "%%-10%s\t; %%s%%s", %s, addrstore_get_prefix((void *) %s), addrstore_get_suffix((void *) %s));' % (
+                self.strName(), maxsize, 'p', self.strName(), self.strName(), self.strName()))
+            p('} else {')
+            p('\tsnprintf(%s_buf, %d, "%%%s", %s);' % (self.strName(), maxsize, 'p', self.strName()))
+            p('}')
+        else:
+            p('snprintf(%s_buf, %d, "%%%s", %s);' % (self.strName(), maxsize, 'p', self.strName()))
+        return (['%s'], ['%s_buf' % self.strName()])
+        # return (["%p"], [self.strName()])
 
 
 class Reg(Arg):
@@ -259,12 +272,13 @@ class Imm(Arg):
 
     name_lookup: should this number be looked up in the address store to check for special meanings?
     '''
-    def __init__(self, ctype, cformatstr, bytenr, bytelen, name_lookup=True):
+    def __init__(self, ctype, cformatstr, bytenr, bytelen, name_lookup=True, format_prefix=''):
         self.ctype = ctype
         self.cformatstr = cformatstr
         self.bytenr = bytenr
         self.bytelen = bytelen
         self.name_lookup = name_lookup
+        self.format_prefix = format_prefix
 
     def getExclusiveRegion(self):
         return (self.bytenr, self.bytenr + self.bytelen - 1)
@@ -287,13 +301,13 @@ class Imm(Arg):
         p('char %s_buf[%d];' % (self.strName(), maxsize))
         if (self.name_lookup):
             p('if (addrstore_get_suffix((void *) %s)) {' % self.strName())
-            p('\tsnprintf(%s_buf, %d, "%%-10%s\t; %%s%%s", %s, addrstore_get_prefix((void *) %s), addrstore_get_suffix((void *) %s));' % (
-                self.strName(), maxsize, self.cformatstr, self.strName(), self.strName(), self.strName()))
+            p('\tsnprintf(%s_buf, %d, "%s%%-10%s\t; %%s%%s", %s, addrstore_get_prefix((void *) %s), addrstore_get_suffix((void *) %s));' % (
+                self.strName(), maxsize, self.format_prefix, self.cformatstr, self.strName(), self.strName(), self.strName()))
             p('} else {')
-            p('\tsnprintf(%s_buf, %d, "%%%s", %s);' % (self.strName(), maxsize, self.cformatstr, self.strName()))
+            p('\tsnprintf(%s_buf, %d, "%s%%%s", %s);' % (self.strName(), maxsize, self.format_prefix, self.cformatstr, self.strName()))
             p('}')
         else:
-            p('snprintf(%s_buf, %d, "%%%s", %s);' % (self.strName(), maxsize, self.cformatstr, self.strName()))
+            p('snprintf(%s_buf, %d, "%s%%%s", %s);' % (self.strName(), maxsize, self.format_prefix, self.cformatstr, self.strName()))
         return (['%s'], ['%s_buf' % self.strName()])
 
 
@@ -600,16 +614,16 @@ class OptPrefixInsn (Insn):
 
 
 def ImmInt(offset):
-    return Imm('int', 'x', offset, 4, name_lookup = False)
+    return Imm('int', 'd', offset, 4, name_lookup = False)
 
 def ImmUInt(offset):
-    return Imm('unsigned int', 'x', offset, 4, name_lookup = False)
+    return Imm('unsigned int', 'x', offset, 4, name_lookup = False, format_prefix='0x')
 
 def ImmByte(offset):
-    return Imm('unsigned char', 'x', offset, 1, name_lookup = False)
+    return Imm('unsigned char', 'x', offset, 1, name_lookup = False, format_prefix='0x')
 
 def ImmLongLong(offset):
-    return Imm('long long', 'llx', offset, 8)
+    return Imm('long long', 'llx', offset, 8, format_prefix='0x')
 
 def ImmReal(offset):
     return Imm('double', 'f', offset, 8, name_lookup = False)
@@ -664,7 +678,7 @@ instructions = [
 
     Insn(Name(mips="li", intel="mov"), [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
     Insn(Name(mips="jreturn", intel="ret"), [0xc3], []),
-    Insn(Name(mips="jal", intel="callq"), [0xe8, 0xe3, 0x00, 0x00, 0x00, 0x00], [PCRelative(2, 4, -6)]),
+    Insn(Name(mips="jal", intel="callq"), [0xe8, 0x00, 0x00, 0x00, 0x00], [PCRelative(1, 4, -5)]),
     OptPrefixInsn(Name(mips="jals", intel="callq"), 0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
     Insn(Name(mips="bgt", intel="cmp_jg"), [0x48, 0x39, 0xc0, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
     Insn(Name(mips="bge", intel="cmp_jge"), [0x48, 0x39, 0xc0, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),

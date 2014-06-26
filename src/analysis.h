@@ -35,10 +35,12 @@
  *
  * Erste Analysephase
  *
+ * @param functions_nr Variable, in die die Anzahl der definierten Funktionen geschrieben wird (keine Methoden)
+ * @param classes_nr Variable, in die die Anzahl der definierten Klassen geschrieben wird
  * @return Anzahl der beobachteten Fehler
  */
 int
-name_analysis(ast_node_t *);
+name_analysis(ast_node_t *, int *functions_nr, int *classes_nr);
 
 
 /**
@@ -53,10 +55,12 @@ name_analysis(ast_node_t *);
  *
  * Zweite Analysephase
  *
+ * @param functions Tabelle, in die alle Funktionen eingetragen werden
+ * @param classes Tabelle, in die alle Klassen eingetragen werden
  * @return Anzahl der beobachteten Fehler
  */
 int
-type_analysis(ast_node_t **);
+type_analysis(ast_node_t **, ast_node_t **functions, ast_node_t **classes);
 
 
 /**

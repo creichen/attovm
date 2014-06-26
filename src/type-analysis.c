@@ -48,6 +48,11 @@ int method_call_return_type = TYPE_OBJ;
 
 static int error_count = 0;
 
+typedef struct {
+	ast_node_t **functions;
+	ast_node_t **classes;
+	int functions_nr; int classes_nr;
+} context_t;
 
 static ast_node_t *
 builtin(int id)
@@ -142,7 +147,7 @@ require_type(ast_node_t *node, int ty)
 }
 
 static ast_node_t *
-analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
+analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, context_t *context)
 {
 	if (!node) {
 		return NULL;
@@ -156,7 +161,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 		}
 
 		for (int i = 0; i < node->children_nr; i++) {
-			node->children[i] = analyse(node->children[i], classref, function);
+			node->children[i] = analyse(node->children[i], classref, function, context);
 		}
 	}
 
@@ -291,7 +296,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 					ast_node_t *assignment = CONS(ASSIGN, 
 								      ast_node_clone(formals[i]),
 								      ast_node_clone(formals[i]));
-					assignment = analyse(assignment, classref, function);
+					assignment = analyse(assignment, classref, function, context);
 					// Erzwinge Konvertierung
 					set_type(assignment->children[1], method_call_param_type);
 					assignment->children[1] = require_type(assignment->children[1],
@@ -300,9 +305,12 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 				}
 			}
 		}
+		context->functions[context->functions_nr++] = node;
 		break;
 
 	case AST_NODE_CLASSDEF: {
+		context->classes[context->classes_nr++] = node;
+
 		classref = node->children[0]->sym;
 		node->sym = classref;
 		int class_body_size = node->children[2]->children_nr;
@@ -507,13 +515,19 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function)
 }
 
 int
-type_analysis(ast_node_t **node)
+type_analysis(ast_node_t **node, ast_node_t **functions, ast_node_t **classes)
 {
 	if (compiler_options.int_arrays) {
 		array_storage_type = TYPE_INT;
 	}
 
+	context_t context;
+	context.functions = functions;
+	context.classes = classes;
+	context.functions_nr = 0;
+	context.classes_nr = 0;
+
 	error_count = 0;
-	*node = analyse(*node, NULL, NULL);
+	*node = analyse(*node, NULL, NULL, &context);
 	return error_count;
 }

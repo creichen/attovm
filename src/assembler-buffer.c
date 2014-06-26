@@ -61,10 +61,12 @@ typedef struct freelist {
 } freelist_t;
 
 typedef struct buffer_internal {
-	size_t allocd; // excluding header
+	size_t allocd; // ohne header, 0 fuer Pseudobuffer
 	size_t actual;
 	unsigned char data[];
 } buffer_internal_t;
+
+#define IS_PSEUDOBUFFER(buf) (!(buf)->allocd)
 
 static void *code_segment = NULL;
 static size_t code_segment_size = 0;
@@ -250,6 +252,7 @@ buffer_terminate(buffer_internal_t *buf)
 buffer_t
 buffer_new(size_t expected_size)
 {
+	assert(expected_size > 0);
 	buffer_internal_t *buf = code_alloc(expected_size);
 	if (buf == NULL) {
 		fail("Out of code memory!");
@@ -277,6 +280,13 @@ unsigned char *
 buffer_alloc(buffer_t *buf, size_t bytes)
 {
 	buffer_t buffer = *buf;
+	if (IS_PSEUDOBUFFER(buffer)) {
+		pseudobuffer_t *pb = (pseudobuffer_t *) buffer;
+		unsigned char *offset = pb->dest;
+		pb->dest += bytes;
+		return offset;
+	}
+
 	size_t required = buffer->actual + bytes;
 	if (required > buffer->allocd) {
 		size_t newsize = required + bytes; // some extra space
@@ -365,3 +375,11 @@ buffer_setlabel2(label_t *label, buffer_t *buffer)
 	buffer_setlabel(label, buffer_target(buffer));
 }
 
+buffer_t
+buffer_pseudobuffer(pseudobuffer_t *buf, void *dest)
+{
+	buf->dest = (unsigned char *) dest;
+	buf->a = 0;
+	buf->b = 0;
+	return (buffer_t) buf;
+}

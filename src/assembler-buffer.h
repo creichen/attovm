@@ -30,6 +30,11 @@
 
 #include <stddef.h>
 
+typedef struct {
+	size_t a, b;
+	unsigned char *dest;
+} pseudobuffer_t;
+
 struct buffer_internal;
 typedef struct buffer_internal* buffer_t;
 
@@ -52,6 +57,12 @@ buffer_target(buffer_t *target);
 
 buffer_t
 buffer_new(size_t expected_size);
+
+/**
+ * Erzeugt einen `Pseudobuffer'
+ */
+buffer_t
+buffer_pseudobuffer(pseudobuffer_t *buf, void *dest);
 
 void
 buffer_free(buffer_t buf);

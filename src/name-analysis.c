@@ -37,7 +37,7 @@
 #define NF_WITHIN_LOOP		0x40000000
 
 extern int symtab_selectors_nr; // from symbol-table.c
-extern hashtable_t *symtab_selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufruge!)
+extern hashtable_t *symtab_selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufrufe!)
 
 static int error_count = 0;
 
@@ -49,16 +49,16 @@ error(const ast_node_t *node, char *message)
 }
 
 static void
-fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *parent, int child_flags);
+fixnames(ast_node_t *node, hashtable_t *orig_env, symtab_entry_t *parent, int child_flags, int *functions_nr, int *classes_nr);
 
 static void
-fixnames_recursive(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_flags)
+fixnames_recursive(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_flags, int *functions_nr, int *classes_nr)
 {
 	if (!node || IS_VALUE_NODE(node)) {
 		return;
 	}
 	for (int i = 0; i < node->children_nr; i++) {
-		fixnames(node->children[i], env, parent, child_flags);
+		fixnames(node->children[i], env, parent, child_flags, functions_nr, classes_nr);
 	}
 }
 
@@ -94,7 +94,7 @@ resolve_node(ast_node_t *node, symtab_entry_t *symtab)
 
 // fuer CLASSDEF und FUNDEF:
 static void
-fix_with_parameters(ast_node_t *cnode, hashtable_t *env, int child_flags_params, int child_flags_body)
+fix_with_parameters(ast_node_t *cnode, hashtable_t *env, int child_flags_params, int child_flags_body, int *functions_nr, int *classes_nr)
 {
 	symtab_entry_t *syminfo = cnode->children[0]->sym;
 	assert(syminfo);
@@ -107,7 +107,7 @@ fix_with_parameters(ast_node_t *cnode, hashtable_t *env, int child_flags_params,
 	syminfo->parameters_nr = 0;
 	
 	// Setzt implizit parameters_nr korrekt
-	fixnames_recursive(formals, env, syminfo, (child_flags_params & ~SYMTAB_MEMBER) | SYMTAB_PARAM);
+	fixnames_recursive(formals, env, syminfo, (child_flags_params & ~SYMTAB_MEMBER) | SYMTAB_PARAM, functions_nr, classes_nr);
 
 	syminfo->parameter_types = malloc(sizeof(unsigned short) * syminfo->parameters_nr);
 	for (int i = 0; i < syminfo->parameters_nr; i++) {
@@ -117,13 +117,13 @@ fix_with_parameters(ast_node_t *cnode, hashtable_t *env, int child_flags_params,
 		}
 	}
 
-	fixnames(cnode->children[2], env, syminfo, child_flags_body);
+	fixnames(cnode->children[2], env, syminfo, child_flags_body, functions_nr, classes_nr);
 
 	hashtable_free(env, NULL, NULL);
 }
 
 static void
-fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_flags)
+fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_flags, int *functions_nr, int *classes_nr)
 {
 	symtab_entry_t *lookup;
 	if (!node) {
@@ -155,25 +155,29 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		break;
 
 	case AST_NODE_FUNDEF:
+		if (!(child_flags & SYMTAB_MEMBER)) {
+			++(*functions_nr);
+		}
 		// Definitionen werden im umgebenden AST_NODE_BLOCK gemanaged
 		fix_with_parameters(node, env, (child_flags & ~SYMTAB_MEMBER) | SYMTAB_PARAM,
-				    child_flags & ~SYMTAB_MEMBER);
+				    child_flags & ~SYMTAB_MEMBER, functions_nr, classes_nr);
 		node->children[0]->type |= AST_FLAG_DECL;
 		return;
 	case AST_NODE_CLASSDEF:
+		++(*classes_nr);
 		// Definitionen werden im umgebenden AST_NODE_BLOCK gemanaged
 		fix_with_parameters(node, env, child_flags | SYMTAB_MEMBER | SYMTAB_PARAM,
-				    child_flags | SYMTAB_MEMBER);
+				    child_flags | SYMTAB_MEMBER, functions_nr, classes_nr);
 		node->children[0]->type |= AST_FLAG_DECL;
 		return;
 
 	case AST_NODE_FORMALS:
-		fixnames_recursive(node, env, parent, child_flags | SYMTAB_PARAM);
+		fixnames_recursive(node, env, parent, child_flags | SYMTAB_PARAM, functions_nr, classes_nr);
 		break;
 
 	case AST_NODE_VARDECL: {
 		// Definition ist in der Initialisierung noch nicht sichtbar, also erst hierhin:
-		fixnames(node->children[1], env, parent, child_flags);
+		fixnames(node->children[1], env, parent, child_flags, functions_nr, classes_nr);
 		ast_node_t *name_node = node->children[0];
 		name_node->type |= AST_FLAG_DECL;
 
@@ -221,13 +225,13 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		break;
 
 	case AST_NODE_MEMBER:
-		fixnames(node->children[0], env, parent, child_flags);
-		fixnames(node->children[1], env, parent, child_flags | NF_SELECTOR);
+		fixnames(node->children[0], env, parent, child_flags, functions_nr, classes_nr);
+		fixnames(node->children[1], env, parent, child_flags | NF_SELECTOR, functions_nr, classes_nr);
 		break;
 
 	case AST_NODE_ASSIGN: // Als lvalue markieren
-		fixnames(node->children[0], env, parent, child_flags);
-		fixnames(node->children[1], env, parent, child_flags);
+		fixnames(node->children[0], env, parent, child_flags, functions_nr, classes_nr);
+		fixnames(node->children[1], env, parent, child_flags, functions_nr, classes_nr);
 		return;
 
 	case AST_NODE_BLOCK: {
@@ -288,7 +292,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 
 			}
 		}
-		fixnames_recursive(node, env, parent, child_flags);
+		fixnames_recursive(node, env, parent, child_flags, functions_nr, classes_nr);
 		hashtable_free(env, NULL, NULL);
 		return;
 	}
@@ -297,7 +301,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		break;
 	}
 
-	fixnames_recursive(node, env, parent, child_flags);
+	fixnames_recursive(node, env, parent, child_flags, functions_nr, classes_nr);
 }
 
 // puts initial set of global names into env and selectors table
@@ -317,7 +321,7 @@ populate_initial_env(hashtable_t *env)
 }
 
 int
-name_analysis(ast_node_t *node)
+name_analysis(ast_node_t *node, int *functions_nr, int *classes_nr)
 {
 	error_count = 0;
 	if (!symtab_selectors_table) {
@@ -327,7 +331,7 @@ name_analysis(ast_node_t *node)
 
 	populate_initial_env(initial_env);
 
-	fixnames(node, initial_env, NULL, 0);
+	fixnames(node, initial_env, NULL, 0, functions_nr, classes_nr);
 	hashtable_free(initial_env, NULL, NULL);
 
 	return error_count;

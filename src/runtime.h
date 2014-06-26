@@ -41,6 +41,15 @@ typedef struct {
 	int static_memory_size;	// Anzahl der Einträge im statischen Speicher
 	void **static_memory;	// Statischer Speicher
 
+	int functions_nr;
+	ast_node_t **functions;
+	int classes_nr;
+	ast_node_t **classes;
+
+	buffer_t dyncomp;	// Generischer Einsprungpunkt fuer den dynamischen Uebersetzer
+	buffer_t trampoline;	// Trampolin-Puffer: Hierher springen wir fuer eine nicht uebersetzte Funktion
+	                        // In diesem Puffer findet sich nur ein kurzer Befehl, der die Funktionsnummer laed (nach $v0) und `dyncomp' aufruft.
+
 	ast_node_t *ast;	// Fertig analysierter abstrakter Syntaxbaum
 } runtime_image_t;
 

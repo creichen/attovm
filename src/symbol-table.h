@@ -62,6 +62,7 @@ typedef struct symtab_entry {
 	unsigned short ast_flags;
 	unsigned short symtab_flags;
 	unsigned short parameters_nr;
+	void *r_trampoline;			// Zeiger auf Trampolin-Code, falls vorhanden
 	void *r_mem;				// Zeiger auf Funktion / Klassenobjekt
 	unsigned short *parameter_types;
 	ast_node_t *astref;			// CLASSDEF, FUNDEF, oder VARDECL
@@ -71,7 +72,7 @@ typedef struct symtab_entry {
 						 * Methode/Funktion: Anzahl lokale Variablen
 						 */
 	unsigned short methods_nr;
-	unsigned short offset;			/* MEMBER | VAR: Offset in Speicher der Struktur
+	signed short offset;			/* MEMBER | VAR: Offset in Speicher der Struktur
 						 * MEMBER | FUNCTION: Eindeutige Funktionsnummer
 						 * PARAM: Parameternummer
 						 * VAR: Variablennummer, entweder auf dem Stapel oder im statischen Speicher

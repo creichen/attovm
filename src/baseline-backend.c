@@ -37,6 +37,7 @@
 #include "baseline-backend.h"
 #include "class.h"
 #include "compiler-options.h"
+#include "dynamic-compiler.h"
 #include "errors.h"
 #include "object.h"
 #include "registers.h"
@@ -314,13 +315,12 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 	int args_nr = 2;
 
 	switch (op) {
-	case BUILTIN_OP_CONVERT:
-		args_nr = 0; // hier nicht vorbereitet, da wir nicht so leicht testen koennen, ob der Stapel ausgerichtet werden muss
 	case BUILTIN_OP_NOT:
 	case BUILTIN_OP_ALLOCATE:
 		args_nr = 1;
 		break;
 
+	case BUILTIN_OP_CONVERT: // hier nicht vorbereitet, da wir nicht so leicht testen koennen, ob der Stapel ausgerichtet werden muss
 	case BUILTIN_OP_DIV:
 		args_nr = 0;
 		break;
@@ -435,10 +435,6 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 		--backup_space_needed;
 	}
 
-static int zeta_c = 0;
- int zeta = zeta_c++;
- fprintf(stderr, "[%d] Spill space requested = %d (lastnonsimple = %d, argsnr=%d)\n", zeta, backup_space_needed, last_nonsimple, children_nr);
-
 	// Adresse relativ zu $sp, in der bei Bedarf $a0..$a5 gesichert werden
 	const int register_arg_spill_space = children_nr < REGISTERS_ARGUMENT_NR ? 0 : children_nr - REGISTERS_ARGUMENT_NR;
 
@@ -470,7 +466,7 @@ static int zeta_c = 0;
 				dest_stack_location = register_arg_spill_space + spill_counter++;
 			}
 
-			if (i != last_nonsimple) {
+			if (i != last_nonsimple || i >= REGISTERS_ARGUMENT_NR) {
 				emit_sd(buf, reg,
 					sizeof(void *) * dest_stack_location,
 					REGISTER_SP);
@@ -492,8 +488,6 @@ static int zeta_c = 0;
 				REGISTER_SP);
 		}
 	}
-
-	fprintf(stderr, "[%d] Spill space used = %d / %d, sfsize = %d\n", zeta, spill_counter, backup_space_needed, stack_frame_size);
 
 	if (!stack_frame_active_during_call) {
 		STACK_FREE(stack_frame_size);
@@ -522,7 +516,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 	case AST_VALUE_ID: {
 		int reg;
 		symtab_entry_t *sym = ast->sym;
-		const int offset = sizeof(void *) * sym->offset;
+		const int offset = sizeof(void *) * ((int)sym->offset);
 		if (SYMTAB_IS_STATIC(sym)) {
 			reg = REGISTER_GP;
 		} else if (SYMTAB_IS_STACK_DYNAMIC(sym)) {
@@ -689,6 +683,15 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_j(buf, jll_add_label(&context->break_labels));
 		break;
 
+	case AST_NODE_RETURN:
+		if (ast->children[0]) {
+			baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
+		}
+		emit_move(buf, REGISTER_SP, REGISTER_FP);
+		emit_pop(buf, REGISTER_FP);
+		emit_jreturn(buf);
+		break;
+
 	case AST_NODE_FUNAPP: {
 		// Annahme: Funktionsaufrufe (noch keine Unterstuetzung fuer Selektoren)
 		symtab_entry_t *sym = ast->children[0]->sym;
@@ -698,21 +701,31 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			baseline_compile_builtin_op(buf, ast->type & TYPE_FLAGS, sym->id,
 						    ast->children[1]->children, dest_register, context);
 		} else {
+			emit_push(buf, REGISTER_FP);
+			emit_pop(buf, REGISTER_FP);
 			// Normaler Funktionsaufruf
 			// Argumente laden
 			int stack_frame_size = baseline_compile_prepare_arguments(buf, ast->children[1]->children_nr, ast->children[1]->children, context, 1);
 
 			if (!sym->r_mem) {
-				fail_at_node(ast, "No code known");
+				fail_at_node(ast, "No call target address for function");
 			}
-			assert(sym->r_mem); // Sprungadresse muss bekannt sein
-			emit_la(buf, REGISTER_V0, sym->r_mem);
-			emit_jals(buf, REGISTER_V0);
+			long long distance = ((unsigned char *) sym->r_mem) - ((unsigned char *) buffer_target(buf));
+			if (llabs(distance) < 0x7ffffff0) {
+				label_t lab;
+				emit_jal(buf, &lab);
+				buffer_setlabel(&lab, sym->r_mem);
+			} else {
+				emit_la(buf, REGISTER_V0, sym->r_mem);
+				emit_jals(buf, REGISTER_V0);
+			}
 
 			// Stapelrahmen nachbereiten, soweit noetig
 			if (stack_frame_size) {
 				STACK_FREE(stack_frame_size);
 			}
+			emit_push(buf, REGISTER_GP);
+			emit_pop(buf, REGISTER_GP);
 			emit_optmove(buf, dest_register, REGISTER_V0);
 		}
 	}
@@ -724,6 +737,8 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		}
 		break;
 
+	case AST_NODE_FUNDEF:
+	case AST_NODE_CLASSDEF:
 	case AST_NODE_SKIP:
 		// Nichts zu tun
 		break;
@@ -752,9 +767,8 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 
 void *builtin_op_print(object_t *arg);  // builtins.c
 
-buffer_t
-baseline_compile(ast_node_t *root,
-		 void *static_memory)
+static void
+init_address_store()
 {
 	static bool initialised_address_store = false;
 	if (!initialised_address_store) {
@@ -765,8 +779,16 @@ baseline_compile(ast_node_t *root,
 		ADDRSTORE_PUT(new_real, SPECIAL);
 		ADDRSTORE_PUT(new_string, SPECIAL);
 		ADDRSTORE_PUT(builtin_op_obj_test_eq, SPECIAL);
+		ADDRSTORE_PUT(dyncomp_compile_function, SPECIAL);
 	}
 
+}
+
+buffer_t
+baseline_compile_entrypoint(ast_node_t *root,
+			    void *static_memory)
+{
+	init_address_store();
 	if (static_memory) {
 		addrstore_put(static_memory, ADDRSTORE_KIND_SPECIAL, ".static segment");
 	}
@@ -784,8 +806,58 @@ baseline_compile(ast_node_t *root,
 	PUSH(REGISTER_GP);
 	emit_la(buf, REGISTER_GP, static_memory);
 	baseline_compile_expr(buf, root, REGISTER_V0, context);
-	/* emit_move(&buf, registers_argument_nr[0], REGISTER_V0); */
 	POP(REGISTER_GP);
+	emit_jreturn(buf);
+	buffer_terminate(mbuf);
+	return mbuf;
+}
+
+
+buffer_t
+baseline_compile_function(ast_node_t *node)
+{
+	init_address_store();
+
+	context_t mcontext;
+	mcontext.temp_reg_base = REGISTER_FP;
+	mcontext.continue_labels = NULL;
+	mcontext.break_labels = NULL;
+	mcontext.stack_depth = 1;
+	mcontext.variable_storage = 0;
+	context_t *context = &mcontext;
+
+	buffer_t mbuf = buffer_new(1024);
+	buffer_t *buf = &mbuf;
+	PUSH(REGISTER_FP);
+	emit_move(buf, REGISTER_FP, REGISTER_SP);
+
+	assert(NODE_TY(node) == AST_NODE_FUNDEF);
+	ast_node_t **args = node->children[1]->children;
+	const int args_nr = node->children[1]->children_nr;
+	ast_node_t *body = node->children[2];
+
+	// Parameter in Argumentregistern auf Stapel
+	const int spilled_args = args_nr > REGISTERS_ARGUMENT_NR ? REGISTERS_ARGUMENT_NR : args_nr; 
+	if (spilled_args) {
+		STACK_ALLOC(spilled_args);
+		for (int i = 0; i < spilled_args; i++) {
+			const int offset = -(i+1);
+			emit_sd(buf, registers_argument[i], offset * sizeof(void *), REGISTER_FP);
+			args[i]->sym->offset = offset;
+		}
+		// spilled_args > REGISTERS_ARGUMENT_NR ?
+		for (int i = spilled_args; i < args_nr; i++) {
+			const int offset = 2 // ($sp und Ruecksprungadresse auf dem Stapel)
+				+ i - REGISTERS_ARGUMENT_NR;
+			args[i]->sym->offset = offset;
+		}
+	}
+
+	baseline_compile_expr(buf, body, REGISTER_V0, context);
+
+	STACK_FREE(spilled_args);
+
+	POP(REGISTER_FP);
 	emit_jreturn(buf);
 	buffer_terminate(mbuf);
 	return mbuf;

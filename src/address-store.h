@@ -37,6 +37,7 @@
 #define ADDRSTORE_KIND_BUILTIN		2
 #define ADDRSTORE_KIND_SPECIAL		3
 #define ADDRSTORE_KIND_STRING_LITERAL	4
+#define ADDRSTORE_KIND_TRAMPOLINE	5
 
 /**
  * Legt einen neuen Eintrag im Adressenspeicher ab

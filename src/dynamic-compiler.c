@@ -25,9 +25,12 @@
 
 ***************************************************************************/
 
+#include <assert.h>
+
 #include "errors.h"
 #include "dynamic-compiler.h"
 #include "baseline-backend.h"
+#include "class.h"
 #include "registers.h"
 #include "assembler.h"
 #include "symbol-table.h"
@@ -69,8 +72,12 @@ dyncomp_build_trampoline(void *dyncomp_entry, ast_node_t **functions, int functi
 	buffer_t buf = buffer_new(16 * functions_nr);
 	for (int i = 0; i < functions_nr; i++) {
 		symtab_entry_t *sym = functions[i]->children[0]->sym;
+		assert(sym);
 		sym->r_trampoline = buffer_target(&buf);
 		sym->r_mem = sym->r_trampoline;
+
+		fprintf(stderr, "Adding to trampoline: \n");
+		symtab_entry_dump(stderr, sym);
 
 		if (compiler_options.debug_dynamic_compilation) {
 			addrstore_put(sym->r_trampoline, ADDRSTORE_KIND_TRAMPOLINE, sym->name);
@@ -95,11 +102,19 @@ dyncomp_compile_function(int symtab_entry, void **update_address_on_call_stack)
 		fail("dynamic function compilation");
 	}
 
-	if (compiler_options.debug_dynamic_compilation) {	
-		fprintf(stderr, "dyn-compiling `%s'\n", sym->name);
+	if (sym->symtab_flags & SYMTAB_CONSTRUCTOR) {
+		// Klassenobjekt bei Konstruktoruebersetzung bauen
+		symtab_entry_t *class_sym = sym->parent;
+		class_t *class = class_new(class_sym);
+		class_sym->r_mem = class;
 	}
 
-	buffer_t body_buf = baseline_compile_function(sym->astref);
+	if (compiler_options.debug_dynamic_compilation) {	
+		fprintf(stderr, "dyn-compiling `%s'\n", sym->name);
+		ast_node_dump(stderr, sym->astref, 6 | 8);
+	}
+
+	buffer_t body_buf = baseline_compile_static_callable(sym);
 
 	sym->r_mem = buffer_entrypoint(body_buf);
 	if (compiler_options.debug_dynamic_compilation) {
@@ -109,6 +124,8 @@ dyncomp_compile_function(int symtab_entry, void **update_address_on_call_stack)
 	if (update_address_on_call_stack) {
 		*update_address_on_call_stack = sym->r_mem;
 	}
+
+	sym->symtab_flags |= SYMTAB_COMPILED;
 
 	// Trampolin ueberschreiben
 	pseudobuffer_t pbuf;

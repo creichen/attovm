@@ -30,6 +30,7 @@
 
 #include "ast.h"
 #include "assembler-buffer.h"
+#include "symbol-table.h"
 
 /**
  * Uebersetzt ein AST-Fragment eines Haupteinsprungpunktes in ausfuehrbaren
@@ -45,10 +46,10 @@ baseline_compile_entrypoint(ast_node_t *node, void *static_memory);
 /**
  * Uebersetzt ein AST-Fragment einer Funktion in ausfuehrbaren Maschinencode
  *
- * @param node Der zu uebersetzende AST-Baumknoten
+ * @param sym Symboltabelleneintrag
  * @return Ein buffer_t mit dem Funktionskoerper
  */
 buffer_t
-baseline_compile_function(ast_node_t *node);
+baseline_compile_static_callable(symtab_entry_t *sym);
 
 #endif // defined(_ATTOL_BASELINE_BACKEND_H)

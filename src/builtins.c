@@ -135,7 +135,7 @@ static struct builtin_ops builtin_ops[] = {
 	{ BUILTIN_OP_CONVERT, "*convert", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), 0, 1, args_any, NULL },
 	{ BUILTIN_OP_NOT, "not", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 1, args_int, NULL },
 	{ BUILTIN_OP_ALLOCATE, "*allocate", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_OBJ, 1, args_int, NULL },
-	{ BUILTIN_OP_SELF, "*self", (SYMTAB_TY_VAR | SYMTAB_HIDDEN), TYPE_OBJ, 0, NULL, NULL },
+	{ BUILTIN_OP_SELF, "*self", (SYMTAB_TY_VAR | SYMTAB_HIDDEN | SYMTAB_PARAM), TYPE_OBJ, 0, NULL, NULL },
 	// not with a fixed position
 	{ 0, "print", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_print },
 	{ 0, "assert", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_int, &builtin_op_assert }

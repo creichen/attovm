@@ -51,18 +51,21 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		return NULL;
 	}
 
+	image->callables_nr = image->functions_nr + image->classes_nr;
+
 	if (action == RUNTIME_ACTION_NAME_ANALYSIS) {
 		return image;
 	}
 
-	if (image->functions_nr) {
-		image->functions = malloc(sizeof(ast_node_t *) * image->functions_nr);
+	if (image->callables_nr) {
+		image->callables = malloc(sizeof(ast_node_t *) * image->callables_nr);
 	}
+		fprintf(stderr, "Allocated %d callables\n", image->callables_nr);
 	if (image->classes_nr) {
 		image->classes = malloc(sizeof(ast_node_t *) * image->classes_nr);
 	}
 
-	if (type_analysis(&image->ast, image->functions, image->classes)) {
+	if (type_analysis(&image->ast, image->callables, image->classes)) {
 		free(image);
 		return NULL;
 	}
@@ -75,13 +78,13 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	image->static_memory_size = storage_size(ast);
 	if (image->static_memory_size) {
 		image->static_memory = malloc(sizeof(void*) * image->static_memory_size);
-		fprintf(stderr, "Allocated static mem %d entries at %p\n", image->static_memory_size, image->static_memory);
 	} else {
 		image->static_memory = NULL;
 	}
 
 	image->dyncomp = dyncomp_build_generic();
-	image->trampoline = dyncomp_build_trampoline(buffer_entrypoint(image->dyncomp), image->functions, image->functions_nr);
+	image->trampoline = dyncomp_build_trampoline(buffer_entrypoint(image->dyncomp),
+						     image->callables, image->functions_nr + image->classes_nr);
 
 	image->code_buffer = baseline_compile_entrypoint(ast, image->static_memory);
 	image->main_entry_point = buffer_entrypoint(image->code_buffer);
@@ -112,11 +115,11 @@ runtime_free(runtime_image_t *img)
 	if (img->code_buffer) {
 		buffer_free(img->code_buffer);
 	}
-	if (img->functions) {
-		for (int i = 0; i < img->functions_nr; i++) {
-			buffer_free(buffer_from_entrypoint(img->functions[i]->children[0]->sym->r_mem));
+	if (img->callables) {
+		for (int i = 0; i < img->callables_nr; i++) {
+			buffer_free(buffer_from_entrypoint(img->callables[i]->children[0]->sym->r_mem));
 		}
-		free(img->functions);
+		free(img->callables);
 	}
 	if (img->classes) {
 		free(img->classes);

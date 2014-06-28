@@ -54,7 +54,7 @@ typedef struct object {
  * @return Ein alloziertes Objekt
  */
 object_t *
-new_object(class_t *classref, int members_nr);
+new_object(class_t *classref, unsigned long long members_nr);
 
 /**
  * Alloziert ein neues Int-Objekt, um eine Ganzzahl zu repraesentieren

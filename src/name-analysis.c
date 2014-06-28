@@ -65,22 +65,7 @@ fixnames_recursive(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, i
 static symtab_entry_t *
 get_selector(ast_node_t *node, int child_flags)
 {
-	symtab_entry_t *lookup = hashtable_get(symtab_selectors_table, AV_NAME(node));
-	if (lookup) {
-		return lookup;
-	}
-
-	// Alloziere neuen Selektor
-	lookup = symtab_new(node->type & ~AST_NODE_MASK,
-			    SYMTAB_SELECTOR | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
-			    AV_NAME(node),
-			    NULL /* Selektoren werden nicht deklariert */);
-	lookup->selector = symtab_selectors_nr;
-
-	hashtable_put(symtab_selectors_table, AV_NAME(node), lookup, NULL);
-	++symtab_selectors_nr;
-
-	return lookup;
+	return symtab_selector(AV_NAME(node));
 }
 
 static void

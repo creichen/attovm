@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include "ast.h"
 #include "assembler.h"
@@ -106,9 +107,12 @@ test_program(char *source, char *expected_result, int line)
 
 #ifdef DEBUG
 	fflush(NULL);
-	for (int i = 0; i < image->functions_nr; i++) {
-		fprintf(stderr, "FUNCTION %s:\n", image->functions[i]->children[0]->sym->name);
-		buffer_disassemble(buffer_from_entrypoint(image->functions[i]->children[0]->sym->r_mem));
+	for (int i = 0; i < image->callables_nr; i++) {
+		symtab_entry_t *sym = image->callables[i]->children[0]->sym;
+		fprintf(stderr, "%s %s:\n",
+			SYMTAB_TY(sym) == SYMTAB_TY_CLASS ? "CONSTRUCTOR" : "FUNCTION",
+			sym->name);
+		buffer_disassemble(buffer_from_entrypoint(sym->r_mem));
 	}
 
 	if (image->trampoline) {
@@ -160,6 +164,12 @@ test_program(char *source, char *expected_result, int line)
 
 #define TEST(program, expected) test_program(program, expected, __LINE__);
 
+char* mk_unique_string(char *id); // lexer
+
+int
+find_last_set(int number);
+
+
 int
 main(int argc, char **argv)
 {
@@ -167,8 +177,8 @@ main(int argc, char **argv)
 	compiler_options.debug_dynamic_compilation = true;
 #endif
 
-#if 0
 	TEST("print(1);", "1\n");
+#if 0
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
 	TEST("print(4-1);", "3\n");
@@ -252,9 +262,8 @@ main(int argc, char **argv)
 
 	// skip
 	TEST("print(1);;;;;print(2);", "1\n2\n");
-#endif
 
-	// next: functions
+	// functions
 	TEST("int f(int x) { return x + 1; } print(f(1));", "2\n");
 	TEST("obj f(obj x) { return x + 1; } print(f(1));", "2\n");
 	TEST("obj f(obj x) { print(x); } f(1); ", "1\n");
@@ -264,11 +273,66 @@ main(int argc, char **argv)
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 3+3, 3+4, 4+4);", "1\n2\n3\n4\n5\n6\n7\n8\n");
 	TEST("int fact(int a) { if (a == 0) return 1; return a * fact(a - 1); } print(fact(5));", "120\n");
 	TEST("int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); ", "0\n3\n5\n");
+#endif
 
-	// next: object instance creation
-	// next: field read/write (outside)
-	// next: nontrivial constructor (field init)
-	// next: method call
+	// Hashtabellen fuer Klassen sind hinreichend gross:
+	for (int i = 0; i < 1000; i++) {
+		assert(class_selector_table_size(i, 0) >= i*2);
+		assert(class_selector_table_size(0, i) >= i*2);
+		assert(class_selector_table_size(i, i) >= i*3);
+	}
+
+	const int two_element_class_hashtable_mask = class_selector_table_size(0, 2) - 1;
+	const int three_element_class_hashtable_mask = class_selector_table_size(0, 3) - 1;
+	// Erzeuge drei Namen, die in einer zwei/drei-Elemente-Klasse konfliktierende Tabelleneintraege haben
+	symtab_entry_t *sym0 = NULL, *sym1 = NULL, *sym2 = NULL;
+	char sym_buf[10] = "m_";
+	sym0 = symtab_selector(mk_unique_string(sym_buf));
+	for (int i = 'a'; !sym2; i++) {
+		assert(i <= 'z'); // Tabelle sollte nicht zu gross sein
+
+		symtab_entry_t **symp = &sym1;
+		if (sym1) {
+			symp = &sym2;
+		}
+		sym_buf[1] = i;
+
+		symtab_entry_t *proposed_sym = symtab_selector(mk_unique_string(sym_buf));
+		if (((proposed_sym->selector & two_element_class_hashtable_mask)
+		     == (sym0->selector & two_element_class_hashtable_mask))
+		    && ((proposed_sym->selector & two_element_class_hashtable_mask)
+			== (sym0->selector & three_element_class_hashtable_mask))) {
+			*symp = proposed_sym;
+		}
+	}
+	// sym0, sym1, sym2 haben nun konfliktierende Symboltabelleneintraege
+
+	// classes as structures
+	TEST("class C(){}; obj a = C(); if (a != NULL) print(1);", "1\n");
+	TEST("class C(){}; obj a = C(); obj b = C(); if (a != b) print(1);", "1\n");
+#if 0
+	TEST("class C(){ int x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
+	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
+	TEST("class C(){ int x; }; obj a = C(); obj b = C(); a.x := 3; b.x := 2; print(a.x); print(b.x);", "3\n2\n");
+	TEST("class C(){ obj x; int y; }; obj a = C(); a.x := 2; a.y := 3; print(a.x); print(a.y); ", "2\n3\n");
+
+	// nontrivial constructor (field init)
+	TEST("class C(int a){ int x = a; }; obj a = C(1); obj b = C(2); print(a.x); print(b.x);", "1\n2\n");
+	TEST("class C(int a){ int x = a; int y = a*3;}; obj a = C(1); print(a.x); print(a.y);", "1\n3\n");
+	TEST("class C(int a){ int x = a; print(a); int y = a*3;}; obj a = C(1); print(a.x + 1); print(a.y);", "1\n2\n3\n");
+	TEST("int z = 0; class C(int a) { z := z + 1; }; print(z); obj a = C(1);print(z); a := C(1); print(z);", "0\n1\n2\n");
+
+	char conflict_str[1024];
+	sprintf(conflict_str, "class C() { int %s; int %s } obj a = C(); a.%s = 1; a.%s = 2; print(a.%s); print (a.%s); a.%s = 3; print(a.%s); print (a.%s);",
+		sym0->name, sym1->name, sym0->name, sym1->name, sym0->name, sym1->name, sym0->name, sym0->name, sym1->name);
+	TEST(conflict_str, "1\n2\n3\n2\n");
+
+	sprintf(conflict_str, "class C() { int %s; int %s; int %s } obj a = C(); a.%s = 1; a.%s = 2; a.%s = 3; print(a.%s); print (a.%s); print(a.%s); a.%s = 4; print(a.%s); print (a.%s); print (a.%s);",
+		sym0->name, sym1->name, sym0->name, sym1->name, sym2->name, sym0->name, sym1->name, sym2->name, sym0->name, sym0->name, sym1->name, sym2->name);
+	TEST(conflict_str, "1\n2\n3\n4\n2\n3\n");
+
+#endif
+	// next: method call (including nontrivial/conflicting method selector lookup)
 	// next: method call within class
 	// next: field access within class
 

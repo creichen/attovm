@@ -42,7 +42,8 @@ typedef struct {
 	void **static_memory;	// Statischer Speicher
 
 	int functions_nr;
-	ast_node_t **functions;
+	int callables_nr;
+	ast_node_t **callables;	// Funktionen und Konstruktoren
 	int classes_nr;
 	ast_node_t **classes;
 

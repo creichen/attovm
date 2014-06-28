@@ -25,35 +25,79 @@
 
 ***************************************************************************/
 
-#include "assert.h"
+#include <assert.h>
+
+#include "errors.h"
 #include "class.h"
 #include "symbol-table.h"
 #include "address-store.h"
-
-int ffs(int i);
-
 
 class_t *
 class_new(symtab_entry_t *entry)
 {
 	assert(entry->symtab_flags & SYMTAB_TY_CLASS);
-	const int members = entry->methods_nr + entry->vars_nr;
-	int size = 1 << ffs(members * 3);
-	class_t *classref = calloc(1, sizeof(class_t) + sizeof(class_member_t) * size);
+	int size = class_selector_table_size(entry->methods_nr, entry->vars_nr);
+	class_t *classref = calloc(1, sizeof(class_t)
+				   + sizeof(class_member_t) * size
+				   // Virtuelle Methodentabelle
+				   + (entry->methods_nr * sizeof(void *)));
 	classref->table_mask = size - 1;
 
 	return class_initialise_and_link(classref, entry);
+}
+
+// Findet das signifikanteste gesetzte Bit
+int
+find_last_set(int number)
+{
+	int count = 0;
+#define TESTMASK(MASK, SHIFT)			\
+	if (number & MASK) {			\
+		count += SHIFT;			\
+		number >>= SHIFT;		\
+	}
+
+	TESTMASK(0xffff0000, 16);
+	TESTMASK(0xff00, 8);
+	TESTMASK(0xf0, 4);
+	TESTMASK(0xc, 2);
+	TESTMASK(0x2, 1);
+
+#undef TESTMASK
+	return count;
+}
+
+int
+class_selector_table_size(int methods_nr, int fields_nr)
+{
+	return 4 << find_last_set(((methods_nr) + (fields_nr)));
 }
 
 void
 class_add_selector(class_t *classref, symtab_entry_t *selector_impl)
 {
 	assert(selector_impl != NULL);
+
 	size_t index = selector_impl->id & classref->table_mask;
-	while (classref->members[index].selector_id) {
+	while (classref->members[index].selector_encoding) {
 		index = (index + 1) & classref->table_mask;
 	}
-	classref->members[index].selector_id = selector_impl->selector;
+	int type_encoding;
+	if (SYMTAB_TY(selector_impl) == SYMTAB_TY_FUNCTION) {
+		if (selector_impl->ast_flags & TYPE_INT) {
+			type_encoding = CLASS_TYPE_VAR_INT;
+		} else {
+			type_encoding = CLASS_TYPE_VAR_OBJ;
+		}
+	} else if (SYMTAB_TY(selector_impl) == SYMTAB_TY_VAR) {
+		type_encoding = CLASS_TYPE_METHOD(selector_impl->parameters_nr);
+	} else {
+		symtab_entry_dump(stderr, selector_impl);
+		fail("Unexpected symbol type in class");
+	}
+
+	classref->members[index].selector_encoding =
+		CLASS_ENCODE_SELECTOR(selector_impl->selector, selector_impl->offset, type_encoding);
 	classref->members[index].symbol = selector_impl;
 }
 
@@ -65,12 +109,17 @@ class_initialise_and_link(class_t *classref, symtab_entry_t *entry)
 
 	addrstore_put(classref, ADDRSTORE_KIND_TYPE, entry->name);
 
+	int definitions = 0;
 	if (entry->astref) {
-		for (int i = 0; i < entry->astref->children_nr; i++) {
-			assert(NODE_TY(entry->astref->children[i]) == AST_NODE_FUNDEF
-			       || NODE_TY(entry->astref->children[i]) == AST_NODE_VARDECL);
+		ast_node_t *defs = entry->astref->children[2]; // BLOCK
+		definitions = defs->children_nr;
+
+		for (int i = 0; i < definitions; i++) {
+			ast_node_t *child = defs->children[i];
+			assert(NODE_TY(child) == AST_NODE_FUNDEF
+			       || NODE_TY(child) == AST_NODE_VARDECL);
 			class_add_selector(classref,
-					   (symtab_entry_t *) entry->astref->children[i]->children[1]->sym);
+					   (symtab_entry_t *) child->children[0]->sym);
 		}
 	}
 	return classref;

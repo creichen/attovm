@@ -46,7 +46,7 @@ static int symtab_entries_builtin_size = 0;
 static symbol_table_t *symtab_builtin = NULL;
 
 int symtab_selectors_nr = 1; // selector #0 ist reserviert (Kein Eintrag/Fehler)
-hashtable_t *symtab_selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufruge!)
+hashtable_t *symtab_selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufrufe!)
 
 #define BUILTIN_TABLE -1
 #define USER_TABLE 1
@@ -67,6 +67,26 @@ symtab_get(int *id, int **ids_nr, int **alloc_size, symbol_table_t **symtab)
 	} else {
 		*symtab = NULL; // no such table;
 	}
+}
+
+symtab_entry_t *
+symtab_selector(char *name)
+{
+	symtab_entry_t *lookup = hashtable_get(symtab_selectors_table, name);
+	if (lookup) {
+		return lookup;
+	}
+
+	// Alloziere neuen Selektor
+	lookup = symtab_new(0, // Selektoren haben keine eindeutigen Attribute
+			    SYMTAB_SELECTOR,
+			    name,
+			    NULL /* Selektoren werden nicht deklariert */);
+	lookup->selector = symtab_selectors_nr;
+
+	hashtable_put(symtab_selectors_table, name, lookup, NULL);
+	++symtab_selectors_nr;
+	return lookup;
 }
 
 symtab_entry_t *
@@ -167,8 +187,14 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	if (entry->symtab_flags & SYMTAB_ ## s)	\
 		fputs(" " # s, file);
 
+	PRINT_SYMVAR(HIDDEN);
+	PRINT_SYMVAR(BUILTIN);
+	PRINT_SYMVAR(SELECTOR);
+	PRINT_SYMVAR(OPT);
+	PRINT_SYMVAR(COMPILED);
 	PRINT_SYMVAR(MEMBER);
 	PRINT_SYMVAR(PARAM);
+	PRINT_SYMVAR(CONSTRUCTOR);
 
 	switch (SYMTAB_TY(entry)) {
 	case 0: // should only happen for selectors
@@ -192,11 +218,6 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 		is_class = true;
 		break;
 	}
-	PRINT_SYMVAR(BUILTIN);
-	PRINT_SYMVAR(HIDDEN);
-	PRINT_SYMVAR(SELECTOR);
-	PRINT_SYMVAR(OPT);
-	PRINT_SYMVAR(COMPILED);
 #undef PRINT_SYMVAR
 	fputs(" ", file);
 	ast_print_flags(file, entry->ast_flags);

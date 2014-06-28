@@ -55,7 +55,7 @@ typedef struct relative_jump_label_list {
 // Uebersetzungskontext
 typedef struct {
 	// Fuer den aktuellen Ausfuehrungsrahmen:  Welches Register indiziert temporaere Variablen?
-	int temp_reg_base;
+	int self_stack_location; // Speicherstelle der `SELF'-Referenz relativ zu $fp
 	int stack_depth; // Wieviele Variablen auf dem Ablagestapel alloziert sind
 	int variable_storage; // Speicherstelle fuer Variable
 
@@ -105,9 +105,22 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 long long int builtin_op_obj_test_eq(object_t *a0, object_t *a1);
 
 
-// Gibt Groesse des Stapelrahmens (in Bytes) zurueck
+#define PREPARE_ARGUMENTS_MUSTALIGN	0x0001	// Aufrufstapel muss ausgerichtet werden
+/* #define PREPARE_ARGUMENTS_SKIP_A0	0x0002	// Parameter beginnen bei $a1 */
+//#define PREPARE_ARGUMENTS_BACKUP_A0	0x0004	// $a0 ist schon geladen; bei Bedarf sichern (zusammen mit SKIP_A0 verwenden)
+
+/**
+ * Laed eine Argumentliste in $a0...$a5 und bereitet (soweit noetig) den Stapel auf einen Aufruf vor
+ *
+ * @param buf
+ * @param children_nr Anzahl der Parameter
+ * @param children Parameter
+ * @param context
+ * @param flags: PREPARE_ARGUMENTS_*
+ * @return Groesse des erzeugten Stapelrahmens (in Bytes)
+ */
 static int
-baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context, bool mustalign);
+baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context, int flags);
 
 
 static void
@@ -172,14 +185,14 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 	}
 #endif
 
-	bool uses_function_call = false;
+	int arguments_flags = 0;
 	if (to_ty != from_ty
 	    && to_ty == TYPE_OBJ) {
 		// Verpacken (boxing) immer mit Funktionsaufruf
-		uses_function_call = true;
+		arguments_flags = PREPARE_ARGUMENTS_MUSTALIGN;
 	}
 
-	int prep_stack_frame_size = baseline_compile_prepare_arguments(buf, 1, &arg, context, uses_function_call);
+	int prep_stack_frame_size = baseline_prepare_arguments(buf, 1, &arg, context, arguments_flags);
 	STACK_FREE(prep_stack_frame_size);
 
 
@@ -245,19 +258,22 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 
 static void
 baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
-			    int a0_ty,
-			    int a1_ty, context_t *context)
+			    ast_node_t **args,
+			    context_t *context)
 {
+	int a0_ty = args[0]->type & TYPE_FLAGS;
+	int a1_ty = args[1]->type & TYPE_FLAGS;
 
-	//#ifdef VAR_IS_OBJ
+#ifdef VAR_IS_OBJ
 	if (a0_ty == TYPE_VAR) {
 		a0_ty = TYPE_OBJ;
 	}
 	if (a1_ty == TYPE_VAR) {
 		a1_ty = TYPE_OBJ;
 	}
-	//#endif
+#endif
 
+	int prep_stack_frame_size = 0;
 	bool temp_object = false;
 	if (a0_ty != a1_ty) {
 		// Int -> Object
@@ -291,8 +307,10 @@ baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
 		break;
 
 	case TYPE_OBJ:
+		prep_stack_frame_size = baseline_prepare_arguments(buf, 0, args, context, PREPARE_ARGUMENTS_MUSTALIGN);
 		emit_la(buf, REGISTER_V0, builtin_op_obj_test_eq);
 		emit_jals(buf, REGISTER_V0);
+		emit_optmove(buf, dest_register, REGISTER_V0);
 		break;
 
 	case TYPE_VAR:
@@ -305,30 +323,43 @@ baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
 		STACK_FREE(2);
 	}
 
+	STACK_FREE(prep_stack_frame_size);
 }
 
 
 static void
-baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **args, int dest_register, context_t *context)
+baseline_compile_builtin_op(buffer_t *buf, int ty_and_node_flags, int op, ast_node_t **args, int dest_register, context_t *context)
 {
 	// Bestimme Anzahl der Parameter
-	int args_nr = 2;
+	const int result_ty = ty_and_node_flags & TYPE_FLAGS;
+	int args_nr;
 
 	switch (op) {
 	case BUILTIN_OP_NOT:
-	case BUILTIN_OP_ALLOCATE:
 		args_nr = 1;
 		break;
 
-	case BUILTIN_OP_CONVERT: // hier nicht vorbereitet, da wir nicht so leicht testen koennen, ob der Stapel ausgerichtet werden muss
+	case BUILTIN_OP_ADD:
+	case BUILTIN_OP_MUL:
+	case BUILTIN_OP_SUB:
+	case BUILTIN_OP_TEST_EQ:
+	case BUILTIN_OP_TEST_LE:
+	case BUILTIN_OP_TEST_LT:
+		args_nr = 2;
+		break;
+
+	// CONVERT, ALLOCATE: hier nicht vorbereitet, da wir nicht so leicht testen koennen, ob der Stapel ausgerichtet werden muss
+	case BUILTIN_OP_CONVERT:
+	case BUILTIN_OP_ALLOCATE:
 	case BUILTIN_OP_DIV:
+	default:
 		args_nr = 0;
 		break;
 	}
 
 	// Parameter laden
 	if (args_nr) {
-		int prep_stack_frame_size = baseline_compile_prepare_arguments(buf, args_nr, args, context, 0);
+		int prep_stack_frame_size = baseline_prepare_arguments(buf, args_nr, args, context, 0);
 		STACK_FREE(prep_stack_frame_size);
 	}
 
@@ -353,8 +384,7 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 
 	case BUILTIN_OP_TEST_EQ:
 		baseline_compile_builtin_eq(buf, dest_register,
-					    args[0]->type & TYPE_FLAGS,
-					    args[1]->type & TYPE_FLAGS,
+					    args,
 					    context);
 		break;
 
@@ -387,6 +417,17 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 		baseline_compile_builtin_convert(buf, args[0], result_ty, args[0]->type & TYPE_FLAGS, dest_register, context);
 		break;
 
+	case BUILTIN_OP_ALLOCATE: {
+		int prep_stack_frame_size = baseline_prepare_arguments(buf, 0, args, context, PREPARE_ARGUMENTS_MUSTALIGN);
+		symtab_entry_t *sym = symtab_lookup(AV_INT(args[0]));
+		emit_la(buf, REGISTER_V0, new_object);
+		emit_la(buf, REGISTER_A0, sym->r_mem);
+		emit_li(buf, REGISTER_A1, sym->vars_nr);
+		emit_jals(buf, REGISTER_V0);
+		STACK_FREE(prep_stack_frame_size);
+	}
+		break;
+
 	default:
 		FAIL("Unsupported builtin op: %d\n", op);
 	}
@@ -396,7 +437,7 @@ baseline_compile_builtin_op(buffer_t *buf, int result_ty, int op, ast_node_t **a
 // Gibt Groesse des Stapelrahmens (in Bytes) zurueck
 // Stellt sicher, dass der Stapelspeicher angemessen ausgerichtet ist
 static int
-baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context, bool mustalign)
+baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context, int flags)
 {
 	/* Aufrufkonventionen gem. System V ABI fuer x86-64:
 	 * $a0-$a5 haben Parameter 0-5
@@ -415,7 +456,7 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 	 */
 	const int stack_args_nr = children_nr < REGISTERS_ARGUMENT_NR ? 0 : children_nr - REGISTERS_ARGUMENT_NR;
 	bool stack_frame_active_during_call =
-		(mustalign && context->stack_depth & 1) // Ausrichtung extern aufgezwungen
+		((flags & PREPARE_ARGUMENTS_MUSTALIGN) && context->stack_depth & 1) // Ausrichtung extern aufgezwungen
 		|| stack_args_nr;
 
 	int backup_space_needed = 0; // Anzahl der $a-Register, die wir sichern muessen
@@ -501,6 +542,8 @@ baseline_compile_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **
 static void
 baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context_t *context)
 {
+	ast_node_dump(stderr, ast, 6 | 8);
+
 	switch (NODE_TY(ast)) {
 	case AST_VALUE_INT:
 		emit_li(buf, dest_register, AV_INT(ast));
@@ -516,7 +559,16 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 	case AST_VALUE_ID: {
 		int reg;
 		symtab_entry_t *sym = ast->sym;
-		const int offset = sizeof(void *) * ((int)sym->offset);
+
+		// Abstand bestimmen
+		int offset;
+		if (sym->id == BUILTIN_OP_SELF) {
+			offset = context->self_stack_location;
+		} else {
+			offset = sizeof(void *) * ((int)sym->offset);
+		}
+
+		// Basisregister bestimmen
 		if (SYMTAB_IS_STATIC(sym)) {
 			reg = REGISTER_GP;
 		} else if (SYMTAB_IS_STACK_DYNAMIC(sym)) {
@@ -526,6 +578,8 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			symtab_entry_dump(stderr, sym);
 			FAIL("Unable to load variable");
 		}
+
+		// Adresse oder Wert?
 		if (ast->type & AST_FLAG_LVALUE) {
 			// Wir wollen nur die Adresse:
 			emit_li(buf, dest_register, offset);
@@ -692,22 +746,29 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_jreturn(buf);
 		break;
 
+	case AST_NODE_NEWINSTANCE:
 	case AST_NODE_FUNAPP: {
 		// Annahme: Funktionsaufrufe (noch keine Unterstuetzung fuer Selektoren)
 		symtab_entry_t *sym = ast->children[0]->sym;
+		if (NODE_TY(ast) == AST_NODE_NEWINSTANCE) {
+			// Konstruktor-Symbol
+			sym = sym->astref->children[3]->children[0]->sym;
+		}
 		assert(sym);
 		// Besondere eingebaute Operationen werden in einer separaten Funktion behandelt
 		if (sym->id < 0 && sym->symtab_flags & SYMTAB_HIDDEN) {
-			baseline_compile_builtin_op(buf, ast->type & TYPE_FLAGS, sym->id,
+			baseline_compile_builtin_op(buf, ast->type & ~AST_NODE_MASK, sym->id,
 						    ast->children[1]->children, dest_register, context);
 		} else {
 			emit_push(buf, REGISTER_FP);
 			emit_pop(buf, REGISTER_FP);
 			// Normaler Funktionsaufruf
 			// Argumente laden
-			int stack_frame_size = baseline_compile_prepare_arguments(buf, ast->children[1]->children_nr, ast->children[1]->children, context, 1);
+			int stack_frame_size = baseline_prepare_arguments(buf, ast->children[1]->children_nr, ast->children[1]->children, context,
+									  PREPARE_ARGUMENTS_MUSTALIGN);
 
 			if (!sym->r_mem) {
+				symtab_entry_dump(stderr, sym);
 				fail_at_node(ast, "No call target address for function");
 			}
 			long long distance = ((unsigned char *) sym->r_mem) - ((unsigned char *) buffer_target(buf));
@@ -724,8 +785,6 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			if (stack_frame_size) {
 				STACK_FREE(stack_frame_size);
 			}
-			emit_push(buf, REGISTER_GP);
-			emit_pop(buf, REGISTER_GP);
 			emit_optmove(buf, dest_register, REGISTER_V0);
 		}
 	}
@@ -779,6 +838,7 @@ init_address_store()
 		ADDRSTORE_PUT(new_real, SPECIAL);
 		ADDRSTORE_PUT(new_string, SPECIAL);
 		ADDRSTORE_PUT(builtin_op_obj_test_eq, SPECIAL);
+		ADDRSTORE_PUT(new_object, SPECIAL);
 		ADDRSTORE_PUT(dyncomp_compile_function, SPECIAL);
 	}
 
@@ -794,7 +854,6 @@ baseline_compile_entrypoint(ast_node_t *root,
 	}
 
 	context_t mcontext;
-	mcontext.temp_reg_base = REGISTER_GP;
 	mcontext.continue_labels = NULL;
 	mcontext.break_labels = NULL;
 	mcontext.stack_depth = 1;
@@ -814,12 +873,13 @@ baseline_compile_entrypoint(ast_node_t *root,
 
 
 buffer_t
-baseline_compile_function(ast_node_t *node)
+baseline_compile_static_callable(symtab_entry_t *sym)
 {
 	init_address_store();
 
+	ast_node_t *node = sym->astref;
+
 	context_t mcontext;
-	mcontext.temp_reg_base = REGISTER_FP;
 	mcontext.continue_labels = NULL;
 	mcontext.break_labels = NULL;
 	mcontext.stack_depth = 1;
@@ -838,14 +898,23 @@ baseline_compile_function(ast_node_t *node)
 
 	// Parameter in Argumentregistern auf Stapel
 	const int spilled_args = args_nr > REGISTERS_ARGUMENT_NR ? REGISTERS_ARGUMENT_NR : args_nr; 
-	if (spilled_args) {
-		STACK_ALLOC(spilled_args);
+	int allocated_spilled_args = spilled_args;
+
+	if (sym->symtab_flags & SYMTAB_CONSTRUCTOR) {
+		// Fuer Konstruktoren legen wir noch eine zusaetzliche Variable am Anfang an,
+		// in der wir `SELF' speichern
+		mcontext.self_stack_location = sizeof(void *) * (++allocated_spilled_args);
+	}
+
+	if (allocated_spilled_args) {
+		STACK_ALLOC(allocated_spilled_args);
 		for (int i = 0; i < spilled_args; i++) {
 			const int offset = -(i+1);
 			emit_sd(buf, registers_argument[i], offset * sizeof(void *), REGISTER_FP);
 			args[i]->sym->offset = offset;
 		}
 		// spilled_args > REGISTERS_ARGUMENT_NR ?
+		// Berechnen der Adressen der Parameter hinter $a5
 		for (int i = spilled_args; i < args_nr; i++) {
 			const int offset = 2 // ($sp und Ruecksprungadresse auf dem Stapel)
 				+ i - REGISTERS_ARGUMENT_NR;

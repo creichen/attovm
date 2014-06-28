@@ -29,12 +29,18 @@
 
 #include "object.h"
 
-object_t *
+static object_t *
 heap_allocate_object(class_t* type, size_t fields_nr)
 {
 	object_t *obj = calloc(1, sizeof(object_t) + fields_nr * sizeof(object_t *));
 	obj->classref = type;
 	return obj;
+}
+
+object_t *
+new_object(class_t* type, unsigned long long fields_nr)
+{
+	return heap_allocate_object(type, fields_nr);
 }
 
 object_t *
@@ -75,6 +81,7 @@ new_array(size_t len)
 long long int
 builtin_op_obj_test_eq(object_t *a0, object_t *a1)
 {
+	//	fprintf(stderr, "obj-compare(%p, %p)\n", a0, a1);
 	if (a0 == a1) {
 		return 1;
 	}

@@ -49,7 +49,7 @@ int method_call_return_type = TYPE_OBJ;
 static int error_count = 0;
 
 typedef struct {
-	ast_node_t **functions;
+	ast_node_t **callables;
 	ast_node_t **classes;
 	int functions_nr; int classes_nr;
 } context_t;
@@ -217,7 +217,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 			}
 
 			if (SYMTAB_TY(function) == SYMTAB_TY_CLASS) {
-				mutate_node(node, AST_NODE_NEWCLASS | TYPE_OBJ);
+				mutate_node(node, AST_NODE_NEWINSTANCE | TYPE_OBJ);
 			} else if (!(SYMTAB_TY(function) == SYMTAB_TY_FUNCTION)) {
 				error(node, "Attempt to call non-function/non-class `%s'", function->name);
 				return node;
@@ -305,7 +305,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 				}
 			}
 		}
-		context->functions[context->functions_nr++] = node;
+		context->callables[context->functions_nr++] = node;
 		break;
 
 	case AST_NODE_CLASSDEF: {
@@ -344,11 +344,14 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 
 		assert(classref);
 
+		ast_node_t *self_update_ref = BUILTIN(SELF);
+		self_update_ref->type |= AST_FLAG_LVALUE;
 		cons_body[cons_body_offset++] = CONS(ASSIGN,
-						     BUILTIN(SELF),
+						     self_update_ref,
 						     CONS(FUNAPP,
 							  BUILTIN(ALLOCATE),
-							  CONSV(INT, num = classref->id)));
+							  CONS(ACTUALS,
+							       CONSV(INT, num = classref->id))));
 
 		for (int i = 0; i < class_body_size; i++) {
 			ast_node_t *write = NULL;
@@ -377,12 +380,17 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		}
 		cons_body[cons_body_offset++] = CONS(RETURN, BUILTIN(SELF));
 
-		// Konstruktor fertigstellen
-		node->children[3] = CONS(FUNDEF,
-					 CONSV(ID, ident = classref->id),
-					 ast_node_clone(node->children[1]), // Parameter
-					 cons_body_node);
-
+		// Konstruktor fertigstellen und in Symboltabelle eintragen
+		ast_node_t *constructor = CONS(FUNDEF,
+					       CONSV(ID, ident = classref->id),
+					       ast_node_clone(node->children[1]), // Parameter
+					       cons_body_node);
+		node->children[3] = constructor;
+		symtab_entry_t *constructor_sym = symtab_new(TYPE_OBJ, SYMTAB_TY_FUNCTION | SYMTAB_CONSTRUCTOR,
+							     classref->name, constructor);
+		constructor_sym->parent = classref;
+		constructor->children[0]->sym = constructor_sym;
+		context->callables[context->functions_nr++] = constructor;
 
 		// Neuen Klassenkoerper erzeugen: Felder nach vorne, Methoden nach hinten
 		ast_node_t *new_class_body_node =
@@ -515,14 +523,14 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 }
 
 int
-type_analysis(ast_node_t **node, ast_node_t **functions, ast_node_t **classes)
+type_analysis(ast_node_t **node, ast_node_t **callables, ast_node_t **classes)
 {
 	if (compiler_options.int_arrays) {
 		array_storage_type = TYPE_INT;
 	}
 
 	context_t context;
-	context.functions = functions;
+	context.callables = callables;
 	context.classes = classes;
 	context.functions_nr = 0;
 	context.classes_nr = 0;

@@ -47,8 +47,9 @@
 #define SYMTAB_MEMBER		0x0010	// Klassenelement, also Methode oder Feld (zusammen mit TY_FUNCTION oder TY_VAR)
 #define SYMTAB_BUILTIN		0x0020  // Eingebaute Funktion
 #define SYMTAB_HIDDEN		0x0040	// Name nicht explizit angegeben
-#define SYMTAB_COMPILED		0x0080	// Fertig uebersetzt
-#define SYMTAB_OPT		0x0100	// Mit Optimierungen übersetzt
+#define SYMTAB_CONSTRUCTOR	0x0080	// Konstruktor
+#define SYMTAB_COMPILED		0x0100	// Fertig uebersetzt
+#define SYMTAB_OPT		0x0200	// Mit Optimierungen übersetzt
 
 
 #define SYMTAB_TY(s)			(((s)->symtab_flags) & SYMTAB_TY_MASK)
@@ -58,15 +59,15 @@
 typedef struct symtab_entry {
 	char *name;
 	struct symtab_entry *parent;		// Struktureller Elterneintrag
+	signed short id;			// Symboltabellennummer dieses Eintrags
 	unsigned short occurrence_count;	// Wievielte Elemente mit diesem Namen wurden überschattet? (Nur zur eindeutigen Identifizierung)
 	unsigned short ast_flags;
 	unsigned short symtab_flags;
-	unsigned short parameters_nr;
+	ast_node_t *astref;			// CLASSDEF, FUNDEF, oder VARDECL
 	void *r_trampoline;			// Zeiger auf Trampolin-Code, falls vorhanden
 	void *r_mem;				// Zeiger auf Funktion / Klassenobjekt
 	unsigned short *parameter_types;
-	ast_node_t *astref;			// CLASSDEF, FUNDEF, oder VARDECL
-	short id;				// Symboltabellennummer dieses Eintrags
+	unsigned short parameters_nr;
 	unsigned short selector;		// Globale ID für Felder und Methoden
 	unsigned short vars_nr;			/* Klasse: Anzahl Felder
 						 * Methode/Funktion: Anzahl lokale Variablen
@@ -91,6 +92,11 @@ extern int symtab_entries_nr; // non-builtin symbol table entries
 symtab_entry_t *
 symtab_lookup(int id);
 
+/**
+ * Liefert ein (eindeutiges) Selektor-Symbol fuer den gegebenen Namen
+ */
+symtab_entry_t *
+symtab_selector(char *name);
 
 /**
  * Alloziert einen neuen Eintrag in die benutzerdefinierten Symboltabelle.

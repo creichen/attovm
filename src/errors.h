@@ -29,6 +29,6 @@
 #define _ATTOL_ERRORS_H
 
 void
-fail(char *msg);
+fail(char *msg) __attribute__ ((noreturn));
 
 #endif // !defined(_ATTOL_ERRORS_H)

@@ -30,6 +30,9 @@
 #ifndef _ATTOL_OBJECT_H
 #define _ATTOL_OBJECT_H
 
+#include <stdbool.h>
+#include <stdio.h>
+
 #include "symbol-table.h"
 #include "class.h"
 
@@ -88,6 +91,18 @@ new_string(char *value, size_t len);
  */
 object_t *
 new_array(size_t len);
+
+
+/**
+ * Druckt ein gegebenes Objekt aus
+ *
+ * @param f Die Ausgabedatei
+ * @param obj Das auszugebende Objekt
+ * @param depth Rekursionstiefe
+ * @param debug Ob Debug-Informationen mit ausgegeben werden sollen
+ */
+void
+object_print(FILE *f, object_t *obj, int depth, bool debug);
 
 #endif // !defined(_ATTOL_OBJECT_H)
 

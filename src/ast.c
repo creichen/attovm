@@ -120,5 +120,6 @@ ast_node_clone(ast_node_t *node)
 			retval->children[i] = ast_node_clone(node->children[i]);
 		}
 	}
+	retval->sym = node->sym;
 	return retval;
 }

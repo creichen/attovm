@@ -63,8 +63,11 @@ fixnames_recursive(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, i
 }
 
 static symtab_entry_t *
-get_selector(ast_node_t *node, int child_flags)
+get_selector(ast_node_t *node)
 {
+	if (NODE_TY(node) != AST_VALUE_NAME) {
+		*((int *)0) = 1;
+	}
 	return symtab_selector(AV_NAME(node));
 }
 
@@ -128,7 +131,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 
 	case AST_VALUE_NAME:
 		if (child_flags & NF_SELECTOR) {
-			lookup = get_selector(node, 0);
+			lookup = get_selector(node);
 		} else {
 			lookup = hashtable_get(env, AV_NAME(node));
 		}
@@ -164,6 +167,10 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		// Definition ist in der Initialisierung noch nicht sichtbar, also erst hierhin:
 		fixnames(node->children[1], env, parent, child_flags, functions_nr, classes_nr);
 		ast_node_t *name_node = node->children[0];
+		symtab_entry_t *selector_sym = NULL;
+		if (child_flags & SYMTAB_MEMBER) {
+			selector_sym = get_selector(name_node);
+		}
 		name_node->type |= AST_FLAG_DECL;
 
 		// Wie oft haben wir diesen Namen schon definiert?
@@ -190,6 +197,10 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		hashtable_put(env, name, lookup, NULL);
 		assert(lookup == hashtable_get(env, name));
 		node->sym = lookup;
+
+		if (selector_sym) {
+			lookup->selector = selector_sym->selector;
+		}
 		return;
 	}
 
@@ -240,7 +251,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 						     cnode);
 
 				if (child_flags & SYMTAB_MEMBER) {
-					syminfo->selector = get_selector(cnode->children[0], 0)->selector;
+					syminfo->selector = get_selector(cnode->children[0])->selector;
 					syminfo->offset = parent->methods_nr++;
 					syminfo->parent = parent;
 				}

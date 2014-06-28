@@ -78,19 +78,19 @@ class_add_selector(class_t *classref, symtab_entry_t *selector_impl)
 {
 	assert(selector_impl != NULL);
 
-	size_t index = selector_impl->id & classref->table_mask;
+	size_t index = selector_impl->selector & classref->table_mask;
 	while (classref->members[index].selector_encoding) {
 		index = (index + 1) & classref->table_mask;
 	}
 	int type_encoding;
-	if (SYMTAB_TY(selector_impl) == SYMTAB_TY_FUNCTION) {
+	if (SYMTAB_TY(selector_impl) == SYMTAB_TY_VAR) {
 		if (selector_impl->ast_flags & TYPE_INT) {
-			type_encoding = CLASS_TYPE_VAR_INT;
+			type_encoding = CLASS_MEMBER_VAR_INT;
 		} else {
-			type_encoding = CLASS_TYPE_VAR_OBJ;
+			type_encoding = CLASS_MEMBER_VAR_OBJ;
 		}
-	} else if (SYMTAB_TY(selector_impl) == SYMTAB_TY_VAR) {
-		type_encoding = CLASS_TYPE_METHOD(selector_impl->parameters_nr);
+	} else if (SYMTAB_TY(selector_impl) == SYMTAB_TY_FUNCTION) {
+		type_encoding = CLASS_MEMBER_METHOD(selector_impl->parameters_nr);
 	} else {
 		symtab_entry_dump(stderr, selector_impl);
 		fail("Unexpected symbol type in class");

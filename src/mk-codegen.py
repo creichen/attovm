@@ -678,8 +678,10 @@ instructions = [
     Insn(Name(mips="srli", intel="shrd"), [0x48, 0x0f, 0xac, 0xc0, 0], [ArithmeticDestReg(3), ArithmeticSrcReg(3), ImmByte(4)]),
 
     Insn(Name(mips="andi", intel="and"), [0x48, 0x81, 0xe0, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
-    Insn(Name(mips="ori", intel="and"), [0x48, 0x81, 0xc8, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
-    Insn(Name(mips="xori", intel="and"), [0x48, 0x81, 0xf0, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
+    Insn(Name(mips="ori", intel="or"), [0x48, 0x81, 0xc8, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
+    Insn(Name(mips="xori", intel="xor"), [0x48, 0x81, 0xf0, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
+
+    Insn(Name(mips="and", intel="and"), [0x48, 0x21, 0xc0,], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
 
     Insn(Name(mips="li", intel="mov"), [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
     Insn(Name(mips="jreturn", intel="ret"), [0xc3], []),

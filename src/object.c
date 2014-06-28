@@ -103,3 +103,103 @@ builtin_op_obj_test_eq(object_t *a0, object_t *a1)
 	// Ansonsten immer ungleich
 	return 0;
 }
+
+static void
+object_print_internal(FILE *f, object_t *obj, bool debug, int depth, char *sep)
+{
+	if (!obj) {
+		fprintf(f, "(null)");
+		return;
+	}
+
+	class_t *classref = obj->classref;
+	char loc[24] = "";
+	if (debug) {
+		sprintf(loc, "@%p", obj);
+	}
+
+	if (classref == &class_boxed_int) {
+		fprintf(f, "%lld%s", obj->members[0].int_v, loc);
+		return;
+	} else if (classref == &class_boxed_real) {
+		fprintf(f, "%f%s", obj->members[0].real_v, loc);
+		return;
+	} else if (classref == &class_string) {
+		fprintf(f, "%s%s", (char *)&obj->members[0], loc);
+		return;
+	} else if (classref == &class_array) {
+		fprintf(f, "[ ");
+		for (int i = 0; i < obj->members[0].int_v; i++) {
+			if (i > 0) {
+				fprintf(f, ",");
+			}
+			object_print_internal(f, obj->members[i+1].object_v, debug, depth - 1, " ");
+		}
+		fprintf(f, "]%s\n", loc);
+		return;
+	}
+
+
+	int printed = 0;
+	symtab_entry_t *sym = classref->id;
+	fprintf(f, "%s@%p {%s", sym->name, loc, sep);
+	if (depth == 0) {
+		fprintf(f, "... }");
+		return;
+	}
+
+	if (debug) {
+		fprintf(f, "_table_mask = 0x%llx,%s", classref->table_mask, sep);
+	}
+	// Felder
+	for (int i = 0; i <= classref->table_mask; i++) {
+		unsigned long long coding = classref->members[i].selector_encoding;
+		symtab_entry_t *msym = classref->members[i].symbol;
+		if (coding && !CLASS_MEMBER_IS_METHOD(CLASS_DECODE_SELECTOR_TYPE(coding))) {
+			char *ty = "?";
+			if (msym->ast_flags & TYPE_OBJ) {
+				ty = "obj";
+			}
+			if (msym->ast_flags & TYPE_INT) {
+				ty = "int";
+			}
+			fprintf(f, "%s %s = ", ty, msym->name);
+
+			if (msym->ast_flags & TYPE_OBJ) {
+				object_print_internal(f, obj->members[CLASS_DECODE_SELECTOR_OFFSET(coding)].object_v,
+						      debug, depth - 1, " ");
+			} else if (msym->ast_flags & TYPE_INT) {
+				fprintf(f, "%lld", obj->members[CLASS_DECODE_SELECTOR_OFFSET(coding)].int_v);
+			} else {
+				fprintf(f, "?");
+			}
+			if (debug) {
+				fprintf(f, "[%i: code=0x%llx, selector=0x%x]", i, coding, msym->selector);
+			}
+			fprintf(f, ", %s", sep);
+		}
+	}
+	// Methoden
+	if (debug) {
+		for (int i = 0; i <= classref->table_mask; i++) {
+			unsigned long long coding = classref->members[i].selector_encoding;
+			symtab_entry_t *msym = classref->members[i].symbol;
+			if (coding && CLASS_MEMBER_IS_METHOD(CLASS_DECODE_SELECTOR_TYPE(coding))) {
+				fprintf(f, "method %s(%d args)", msym->name, msym->parameters_nr);
+				fprintf(f, "[%i: code=0x%llx, selector=0x%x]", i, coding, msym->selector);
+				fprintf(f, ", %s", sep);
+			}
+		}
+	}
+	if (printed) {
+		fprintf(f, "%s", sep);
+	}
+	fprintf(f, "}");
+}
+
+void
+object_print(FILE *f, object_t *obj, int depth, bool debug)
+{
+	object_print_internal(f, obj, debug, depth, "\n");
+}
+

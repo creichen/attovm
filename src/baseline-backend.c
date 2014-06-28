@@ -124,6 +124,12 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 
 
 static void
+fail_at_node(ast_node_t *node, char *msg) __attribute__ ((noreturn));
+static void
+fail_selector_lookup(ast_node_t *node, int actual_type, int expected_type) __attribute__ ((noreturn));
+
+
+static void
 fail_at_node(ast_node_t *node, char *msg)
 {
 	fprintf(stderr, "Fatal: %s", msg);
@@ -136,6 +142,35 @@ fail_at_node(ast_node_t *node, char *msg)
 	fprintf(stderr, "\n");
 	fail("execution halted on error");
 }
+
+static void
+fail_selector_lookup(ast_node_t *node, int actual_type, int expected_type)
+{
+	/// TODO handle field type detection
+	/// TODO registers
+	/// TODO handle field type conversion
+	char message[1024];
+	symtab_entry_t *sym = node->sym;
+	if (actual_type) {
+		// Typfehler
+		if (CLASS_MEMBER_IS_METHOD(actual_type)) {
+			sprintf(message, "Tried to access method `%s' as if it were a field", sym->name);
+		} else {
+			if (CLASS_MEMBER_IS_METHOD(actual_type)) {
+				sprintf(message, "Tried to call method `%s' with %d parameters, but it expects %d", sym->name,
+					CLASS_MEMBER_METHOD_ARGS_NR(expected_type),
+					CLASS_MEMBER_METHOD_ARGS_NR(actual_type));
+			} else {
+				sprintf(message, "Tried to call field `%s' as if it were a method", sym->name);
+			}
+		}
+	} else {
+		sprintf(message, "Object has no method or field `%s'", sym->name);
+	}
+
+	fail_at_node(node, message);
+}
+
 
 static void
 dump_ast(char *msg, ast_node_t *ast)
@@ -222,7 +257,7 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 			// Falls Integer-Objekt: Springe zur Dekodierung
 			buffer_setlabel2(&null_label, buf);
 			emit_beq(buf, REGISTER_T0, REGISTER_V0, &jump_label);
-			emit_fail_at_node(buf, arg, "attempted to convert non-Integer object to int");
+			emit_fail_at_node(buf, arg, "attempted to convert non-int object to int value");
 			// Erfolgreiche Dekodierung:
 			buffer_setlabel2(&jump_label, buf);
 			emit_ld(buf, dest_register,
@@ -538,11 +573,163 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 	return stack_frame_size;
 }
 
+
+#define LOAD_SELECTOR							\
+									\
+	if (!obj) {							\
+		fail_at_node(node, "Null pointer object dereference");	\
+	}								\
+	class_t *classref = obj->classref;				\
+	const int mask = classref->table_mask;				\
+	int index = selector & mask;					\
+	unsigned short type;						\
+	long long int offset;						\
+	while (true) {							\
+		const unsigned long long coding = classref->members[index].selector_encoding; \
+		if (!coding) {						\
+			fail_selector_lookup(node, 0, 0);		\
+		}							\
+		if (CLASS_DECODE_SELECTOR_ID(coding) != selector) {	\
+			index = (index + 1) & mask;			\
+			continue;					\
+		}							\
+		type = CLASS_DECODE_SELECTOR_TYPE(coding);		\
+		offset = CLASS_DECODE_SELECTOR_OFFSET(coding);		\
+		break;							\
+	}
+
+
+/**
+ * Laed ein Obj-Feld aus einem Objekt
+ *
+ * @param obj Das zu bearbeitende Objekt
+ * @param node
+ * @param selector Die gewuenschte Selektornummer des Feldes
+ * @param desired_type Der erwartete Typ (Typkonvertierungen werden mit durchgefuehrt)
+ */
+static void *
+get_member_method(object_t *obj, ast_node_t *node, int selector, int parameters_nr)
+{
+	LOAD_SELECTOR;
+	// `type' und `offset' sind nun gesetzt
+	if (type != CLASS_MEMBER_METHOD(parameters_nr)) {
+		fail_selector_lookup(node, type, CLASS_MEMBER_METHOD(parameters_nr));
+	}
+	return CLASS_VTABLE(classref)[offset];
+}
+
+/**
+ * Laed ein Obj-Feld aus einem Objekt
+ *
+ * @param obj Das zu bearbeitende Objekt
+ * @param node AST-Knoten, zur Fehlerbehandlung
+ * @param selector Die gewuenschte Selektornummer des Feldes
+ * @param desired_type Der erwartete Typ (Typkonvertierungen werden mit durchgefuehrt)
+ */
+static void *
+read_member_field_obj(object_t *obj, ast_node_t *node, int selector)
+{
+	LOAD_SELECTOR;
+	// `type' und `offset' sind nun gesetzt
+
+	/* fprintf(stderr, "Reading from field slc=0x%x of object:\n", selector); */
+	/* object_print(stderr, obj, true, 3); */
+	/* fprintf(stderr, "\nreading from %p\n", &(obj->members[offset].int_v)); */
+
+	if (type == CLASS_MEMBER_VAR_OBJ) {
+		return obj->members[offset].object_v;
+	} else if (type == CLASS_MEMBER_VAR_INT) {
+		return new_int(obj->members[offset].int_v);
+	} else {
+		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_OBJ);
+	}
+}
+
+/**
+ * Laed ein Int-Feld aus einem Objekt
+ *
+ * @param obj Das zu bearbeitende Objekt
+ * @param node AST-Knoten, zur Fehlerbehandlung
+ * @param selector Die gewuenschte Selektornummer des Feldes
+ * @param desired_type Der erwartete Typ (Typkonvertierungen werden mit durchgefuehrt)
+ */
+static long long int
+read_member_field_int(object_t *obj, ast_node_t *node, int selector)
+{
+	LOAD_SELECTOR;
+	// `type' und `offset' sind nun gesetzt
+
+	if (type == CLASS_MEMBER_VAR_OBJ) {
+		object_t *elt = obj->members[offset].object_v;
+		if (elt->classref == &class_boxed_int) {
+			return elt->members[0].int_v;
+		}
+		fail_at_node(node, "attempted to convert non-int object to int value");
+	} else if (type == CLASS_MEMBER_VAR_INT) {
+		return obj->members[offset].int_v;
+	} else {
+		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_INT);
+	}
+}
+
+/**
+ * Schreibt einen int-getyptes Feld in einem Objekt
+ *
+ * @param obj Das zu bearbeitende Objekt
+ * @param node AST-Knoten, zur Fehlerbehandlung
+ * @param selector Die gewuenschte Selektornummer
+ * @param value
+ */
+static void
+write_member_field_int(object_t *obj, ast_node_t *node, int selector, long long int value)
+{
+	LOAD_SELECTOR;
+	// `type' und `offset' sind nun gesetzt
+
+	if (type == CLASS_MEMBER_VAR_OBJ) {
+		obj->members[offset].object_v = new_int(value);
+	} else if (type == CLASS_MEMBER_VAR_INT) {
+		obj->members[offset].int_v = value;
+	} else {
+		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_INT);
+	}
+}
+
+/**
+ * Schreibt einen obj-getyptes Feld in einem Objekt
+ *
+ * @param obj Das zu bearbeitende Objekt
+ * @param node AST-Knoten, zur Fehlerbehandlung
+ * @param selector Die gewuenschte Selektornummer
+ * @param value
+ */
+static void
+write_member_field_obj(object_t *obj, ast_node_t *node, int selector, object_t *value)
+{
+	LOAD_SELECTOR;
+	// `type' und `offset' sind nun gesetzt
+
+	if (type == CLASS_MEMBER_VAR_OBJ) {
+		obj->members[offset].object_v = value;
+	} else if (type == CLASS_MEMBER_VAR_INT) {
+		if (!value) {
+			fail_at_node(node, "attempted to assign NULL to int field");
+		}
+		if (value->classref == &class_boxed_int) {
+			obj->members[offset].int_v = value->members[0].int_v;
+		}
+		fail_at_node(node, "attempted to convert non-int object to int value");
+	} else {
+		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_OBJ);
+	}
+}
+
+
 // Der Aufrufer speichert; der Aufgerufene haelt sich immer an dest_register
 static void
 baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context_t *context)
 {
-	ast_node_dump(stderr, ast, 6 | 8);
+	/* ast_node_dump(stderr, ast, 6 | 8); */
 
 	switch (NODE_TY(ast)) {
 	case AST_VALUE_INT:
@@ -569,10 +756,10 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		}
 
 		// Basisregister bestimmen
-		if (SYMTAB_IS_STATIC(sym)) {
-			reg = REGISTER_GP;
-		} else if (SYMTAB_IS_STACK_DYNAMIC(sym)) {
+		if (SYMTAB_IS_STACK_DYNAMIC(sym)) {
 			reg = REGISTER_FP;
+		} else if (SYMTAB_IS_STATIC(sym)) {
+			reg = REGISTER_GP;
 		} else {
 			fprintf(stderr, "Don't know how to load this variable:");
 			symtab_entry_dump(stderr, sym);
@@ -598,11 +785,34 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		}
 		// fall through
 	case AST_NODE_ASSIGN:
-		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
-		PUSH(REGISTER_V0);
-		baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
-		POP(REGISTER_T0);
-		emit_sd(buf, REGISTER_V0, 0, REGISTER_T0);
+		if (NODE_TY(ast->children[0]) == AST_NODE_MEMBER) {
+			ast_node_t *member = ast->children[0];
+			ast_node_t *selector_node = member->children[1];
+			const int selector = selector_node->sym->selector;
+
+			baseline_compile_expr(buf, member->children[0], REGISTER_V0, context);
+			PUSH(REGISTER_V0);
+			baseline_compile_expr(buf, ast->children[1], REGISTER_A3, context);
+			POP(REGISTER_A0);
+			emit_la(buf, REGISTER_A1, selector_node);
+			emit_li(buf, REGISTER_A2, selector);
+
+			const int ty = ast->children[1]->type;
+			if (ty & TYPE_OBJ) {
+				emit_la(buf, REGISTER_V0, write_member_field_obj);
+			} else if (ty & TYPE_INT) {
+				emit_la(buf, REGISTER_V0, write_member_field_int);
+			} else {
+				fail("baseline-backend.AST_NODE_ASSIGN(AST_NODE_MEMBER): unsupported type in AST_NODE_MEMBER value");
+			}
+			emit_jals(buf, REGISTER_V0);
+		} else {
+			baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
+			PUSH(REGISTER_V0);
+			baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
+			POP(REGISTER_T0);
+			emit_sd(buf, REGISTER_V0, 0, REGISTER_T0);
+		}
 		break;
 
 	case AST_NODE_ARRAYVAL: {
@@ -746,6 +956,28 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_jreturn(buf);
 		break;
 
+	case AST_NODE_MEMBER: {
+		assert(!(ast->type & AST_FLAG_LVALUE)); // Sollte direkt von ASSIGN gehandhabt werden
+		baseline_compile_expr(buf, ast->children[0], REGISTER_A0, context);
+		ast_node_t *selector_node = ast->children[1];
+		const int selector = selector_node->sym->selector;
+
+		emit_la(buf, REGISTER_A1, selector_node);
+		emit_li(buf, REGISTER_A2, selector);
+
+		if (ast->type & TYPE_OBJ) {
+			emit_la(buf, REGISTER_V0, read_member_field_obj);
+		} else if (ast->type & TYPE_INT) {
+			emit_la(buf, REGISTER_V0, read_member_field_int);
+		} else {
+			fail("baseline-backend.AST_NODE_MEMBER: unsupported type in AST_NODE_MEMBER value");
+		}
+		emit_jals(buf, REGISTER_V0);
+		emit_optmove(buf, dest_register, REGISTER_V0);
+	}
+		break;
+
+
 	case AST_NODE_NEWINSTANCE:
 	case AST_NODE_FUNAPP: {
 		// Annahme: Funktionsaufrufe (noch keine Unterstuetzung fuer Selektoren)
@@ -760,8 +992,6 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			baseline_compile_builtin_op(buf, ast->type & ~AST_NODE_MASK, sym->id,
 						    ast->children[1]->children, dest_register, context);
 		} else {
-			emit_push(buf, REGISTER_FP);
-			emit_pop(buf, REGISTER_FP);
 			// Normaler Funktionsaufruf
 			// Argumente laden
 			int stack_frame_size = baseline_prepare_arguments(buf, ast->children[1]->children_nr, ast->children[1]->children, context,
@@ -840,6 +1070,11 @@ init_address_store()
 		ADDRSTORE_PUT(builtin_op_obj_test_eq, SPECIAL);
 		ADDRSTORE_PUT(new_object, SPECIAL);
 		ADDRSTORE_PUT(dyncomp_compile_function, SPECIAL);
+		ADDRSTORE_PUT(write_member_field_obj, SPECIAL);
+		ADDRSTORE_PUT(write_member_field_int, SPECIAL);
+		ADDRSTORE_PUT(read_member_field_obj, SPECIAL);
+		ADDRSTORE_PUT(read_member_field_int, SPECIAL);
+		ADDRSTORE_PUT(get_member_method, SPECIAL);
 	}
 
 }
@@ -875,6 +1110,24 @@ baseline_compile_entrypoint(ast_node_t *root,
 buffer_t
 baseline_compile_static_callable(symtab_entry_t *sym)
 {
+	/* Funktions-Aufrufrahmen
+	 *
+	 * (Fuer nicht-Konstruktor)
+	 *    ....
+	 * | param 8 |
+         * +---------+
+	 * | param 7 |
+         * +---------+
+	 * |   ret   |
+         * +---------+
+	 * | old-$fp |
+         * +---------+  <- $fp
+	 * |   $a0   |  // Mit Konstruktor ist hier noch die Konstruktor-Referenz eingeschoben
+         * +---------+
+	 * |   $a1   |
+	 *    .....
+	 */
+
 	init_address_store();
 
 	ast_node_t *node = sym->astref;
@@ -898,19 +1151,25 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 
 	// Parameter in Argumentregistern auf Stapel
 	const int spilled_args = args_nr > REGISTERS_ARGUMENT_NR ? REGISTERS_ARGUMENT_NR : args_nr; 
+	int storage_start = 1;
 	int allocated_spilled_args = spilled_args;
 
 	if (sym->symtab_flags & SYMTAB_CONSTRUCTOR) {
 		// Fuer Konstruktoren legen wir noch eine zusaetzliche Variable am Anfang an,
 		// in der wir `SELF' speichern
-		mcontext.self_stack_location = sizeof(void *) * (++allocated_spilled_args);
+		mcontext.self_stack_location = -8;
+		storage_start = 2;
+		++allocated_spilled_args;
 	}
 
 	if (allocated_spilled_args) {
 		STACK_ALLOC(allocated_spilled_args);
 		for (int i = 0; i < spilled_args; i++) {
-			const int offset = -(i+1);
+			const int offset = -(i + storage_start);
 			emit_sd(buf, registers_argument[i], offset * sizeof(void *), REGISTER_FP);
+			fprintf(stderr, "i = %d\n", i);
+			fprintf(stderr, "args[i] = %p\n", args[i]);
+			fprintf(stderr, "args[i]->sym = %p\n", args[i]->sym);
 			args[i]->sym->offset = offset;
 		}
 		// spilled_args > REGISTERS_ARGUMENT_NR ?

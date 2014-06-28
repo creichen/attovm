@@ -178,7 +178,6 @@ main(int argc, char **argv)
 #endif
 
 	TEST("print(1);", "1\n");
-#if 0
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
 	TEST("print(4-1);", "3\n");
@@ -273,7 +272,6 @@ main(int argc, char **argv)
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 3+3, 3+4, 4+4);", "1\n2\n3\n4\n5\n6\n7\n8\n");
 	TEST("int fact(int a) { if (a == 0) return 1; return a * fact(a - 1); } print(fact(5));", "120\n");
 	TEST("int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); ", "0\n3\n5\n");
-#endif
 
 	// Hashtabellen fuer Klassen sind hinreichend gross:
 	for (int i = 0; i < 1000; i++) {
@@ -311,26 +309,31 @@ main(int argc, char **argv)
 	TEST("class C(){}; obj a = C(); if (a != NULL) print(1);", "1\n");
 	TEST("class C(){}; obj a = C(); obj b = C(); if (a != b) print(1);", "1\n");
 	TEST("class C(){ int x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
-#if 0
 	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
+	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; a.x := a.x + 1; print(a.x);", "3\n");
 	TEST("class C(){ int x; }; obj a = C(); obj b = C(); a.x := 3; b.x := 2; print(a.x); print(b.x);", "3\n2\n");
 	TEST("class C(){ obj x; int y; }; obj a = C(); a.x := 2; a.y := 3; print(a.x); print(a.y); ", "2\n3\n");
 
 	// nontrivial constructor (field init)
+	TEST("class C(){ int x = 17; }; obj a = C(); print(a.x); ", "17\n");
 	TEST("class C(int a){ int x = a; }; obj a = C(1); obj b = C(2); print(a.x); print(b.x);", "1\n2\n");
 	TEST("class C(int a){ int x = a; int y = a*3;}; obj a = C(1); print(a.x); print(a.y);", "1\n3\n");
 	TEST("class C(int a){ int x = a; print(a); int y = a*3;}; obj a = C(1); print(a.x + 1); print(a.y);", "1\n2\n3\n");
 	TEST("int z = 0; class C(int a) { z := z + 1; }; print(z); obj a = C(1);print(z); a := C(1); print(z);", "0\n1\n2\n");
 
 	char conflict_str[1024];
-	sprintf(conflict_str, "class C() { int %s; int %s } obj a = C(); a.%s = 1; a.%s = 2; print(a.%s); print (a.%s); a.%s = 3; print(a.%s); print (a.%s);",
+	sprintf(conflict_str, "class C() { int %s; int %s; } obj a = C(); a.%s := 1; a.%s := 2; print(a.%s); print (a.%s); a.%s := 3; print(a.%s); print (a.%s);",
 		sym0->name, sym1->name, sym0->name, sym1->name, sym0->name, sym1->name, sym0->name, sym0->name, sym1->name);
 	TEST(conflict_str, "1\n2\n3\n2\n");
 
-	sprintf(conflict_str, "class C() { int %s; int %s; int %s } obj a = C(); a.%s = 1; a.%s = 2; a.%s = 3; print(a.%s); print (a.%s); print(a.%s); a.%s = 4; print(a.%s); print (a.%s); print (a.%s);",
-		sym0->name, sym1->name, sym0->name, sym1->name, sym2->name, sym0->name, sym1->name, sym2->name, sym0->name, sym0->name, sym1->name, sym2->name);
+	sprintf(conflict_str, "class C() { int %s; int %s; int %s; } obj a = C(); a.%s := 1; a.%s := 2; a.%s := 3; print(a.%s); print (a.%s); print(a.%s); a.%s := 4; print(a.%s); print (a.%s); print (a.%s);",
+		sym0->name, sym1->name, sym2->name,
+		sym0->name, sym1->name, sym2->name,
+		sym0->name, sym1->name, sym2->name,
+		sym0->name,
+		sym0->name, sym1->name, sym2->name);
 	TEST(conflict_str, "1\n2\n3\n4\n2\n3\n");
-
+#if 0
 #endif
 	// next: method call (including nontrivial/conflicting method selector lookup)
 	// next: method call within class

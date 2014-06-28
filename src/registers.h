@@ -46,6 +46,7 @@
 #define REGISTER_A0	7	// siehe auch registers_argument[0]
 #define REGISTER_A1	6	// siehe auch registers_argument[1]
 #define REGISTER_A2	2	// siehe auch registers_argument[2]
+#define REGISTER_A3	1	// siehe auch registers_argument[3]
 
 typedef struct {
 	char *intel; // Hardware-Name

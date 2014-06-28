@@ -120,6 +120,8 @@ require_lvalue(ast_node_t *node, int const_assignment_permitted)
 	return node;
 }
 
+#define DEFAULT_TYPE TYPE_OBJ
+
 static ast_node_t *
 require_type(ast_node_t *node, int ty)
 {
@@ -132,8 +134,19 @@ require_type(ast_node_t *node, int ty)
 		return NULL;
 	}
 
-	if (ty == 0 // only used for the CONVERT operation itself
-	    || (node->type & TYPE_FLAGS) == ty) {
+	const int current_ty = node->type & TYPE_FLAGS;
+
+	if (!current_ty) {
+		// MEMBER-Zugriff: Passenden Typ beantragen
+		if (!ty) {
+			ty = DEFAULT_TYPE;
+		}
+		node->type |= ty;
+		return node;
+	}
+
+	if (ty == 0
+	     || current_ty == ty) {
 		return node;
 	}
 
@@ -364,7 +377,9 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 				if (class_body[i]->children[1] != NULL) {
 					// Initialisierung herausziehen
 					write = CONS(ASSIGN,
-						     ast_node_clone(class_body[i]->children[0]),
+						     CONS(MEMBER,
+							  BUILTIN(SELF),
+							  ast_node_clone(class_body[i]->children[0])),
 						     class_body[i]->children[1]);
 					class_body[i]->children[1] = NULL;
 				}

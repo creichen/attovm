@@ -76,8 +76,8 @@ dyncomp_build_trampoline(void *dyncomp_entry, ast_node_t **functions, int functi
 		sym->r_trampoline = buffer_target(&buf);
 		sym->r_mem = sym->r_trampoline;
 
-		fprintf(stderr, "Adding to trampoline: \n");
-		symtab_entry_dump(stderr, sym);
+		/* fprintf(stderr, "Adding to trampoline: \n"); */
+		/* symtab_entry_dump(stderr, sym); */
 
 		if (compiler_options.debug_dynamic_compilation) {
 			addrstore_put(sym->r_trampoline, ADDRSTORE_KIND_TRAMPOLINE, sym->name);

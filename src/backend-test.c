@@ -310,8 +310,8 @@ main(int argc, char **argv)
 	// classes as structures
 	TEST("class C(){}; obj a = C(); if (a != NULL) print(1);", "1\n");
 	TEST("class C(){}; obj a = C(); obj b = C(); if (a != b) print(1);", "1\n");
-#if 0
 	TEST("class C(){ int x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
+#if 0
 	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
 	TEST("class C(){ int x; }; obj a = C(); obj b = C(); a.x := 3; b.x := 2; print(a.x); print(b.x);", "3\n2\n");
 	TEST("class C(){ obj x; int y; }; obj a = C(); a.x := 2; a.y := 3; print(a.x); print(a.y); ", "2\n3\n");

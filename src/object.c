@@ -128,7 +128,7 @@ object_print_internal(FILE *f, object_t *obj, bool debug, int depth, char *sep)
 		fprintf(f, "%s%s", (char *)&obj->members[0], loc);
 		return;
 	} else if (classref == &class_array) {
-		fprintf(f, "[ ");
+		fprintf(f, "[");
 		for (int i = 0; i < obj->members[0].int_v; i++) {
 			if (i > 0) {
 				fprintf(f, ",");

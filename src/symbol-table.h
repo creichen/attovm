@@ -55,6 +55,7 @@
 #define SYMTAB_TY(s)			(((s)->symtab_flags) & SYMTAB_TY_MASK)
 #define SYMTAB_IS_STATIC(s)		(!(s)->parent && (SYMTAB_TY(s) == SYMTAB_TY_VAR))					// static-alloziert
 #define SYMTAB_IS_STACK_DYNAMIC(s)	(((s)->parent && (!((s)->symtab_flags & SYMTAB_MEMBER))) || s->id == BUILTIN_OP_SELF)	// Stapel/Register-Alloziert
+#define SYMTAB_IS_CONS_ARG(s)		(((s)->parent && ((s)->symtab_flags & SYMTAB_PARAM) && (SYMTAB_TY((s)->parent) == SYMTAB_TY_CLASS)))
 
 typedef struct symtab_entry {
 	char *name;

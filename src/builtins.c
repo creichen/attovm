@@ -27,8 +27,10 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "address-store.h"
+#include "errors.h"
 #include "assert.h"
 #include "class.h"
 #include "object.h"
@@ -49,13 +51,15 @@ class_t class_boxed_real = {
 class_t class_string = {
 	.id = NULL,
 	.table_mask = 1,
-	.members = { { 0, NULL }, { 0, NULL } }
+	.members = { { 0, NULL }, { 0, NULL },
+		     { 0, NULL }} // Zusaetzlicher Platz fuer virtuelle Funktionstabelle
 };
 
 class_t class_array = {
 	.id = NULL,
 	.table_mask = 1,
-	.members = { { 0, NULL }, { 0, NULL } }
+	.members = { { 0, NULL }, { 0, NULL },
+		     { 0, NULL }} // Zusaetzlicher Platz fuer virtuelle Funktionstabelle
 };
 
 /**
@@ -120,9 +124,10 @@ static unsigned short args_any[] = { TYPE_ANY };
 static unsigned short args_any_any[] = { TYPE_ANY, TYPE_ANY };
 
 void *builtin_op_print(object_t *arg);  // Nicht statisch: Wird vom Test-Code verwendet
-static void *builtin_op_assert(long long int arg); 
-static long long int builtin_op_string_size(object_t *arg); 
-static long long int builtin_op_array_size(object_t *arg); 
+static object_t *builtin_op_magic(object_t *arg);
+static object_t *builtin_op_assert(long long int arg);
+static object_t *builtin_op_string_size(object_t *arg); 
+static object_t *builtin_op_array_size(object_t *arg); 
 
 static struct builtin_ops builtin_ops[] = {
 	{ BUILTIN_OP_ADD, "+", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
@@ -138,7 +143,8 @@ static struct builtin_ops builtin_ops[] = {
 	{ BUILTIN_OP_SELF, "*self", (SYMTAB_TY_VAR | SYMTAB_HIDDEN | SYMTAB_PARAM), TYPE_OBJ, 0, NULL, NULL },
 	// not with a fixed position
 	{ 0, "print", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_print },
-	{ 0, "assert", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_int, &builtin_op_assert }
+	{ 0, "assert", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_int, &builtin_op_assert },
+	{ 0, "magic", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_magic }
 };
 
 static struct builtin_ops builtin_selectors[] = {
@@ -223,8 +229,15 @@ classes_init()
 	class_initialise_and_link(&class_string, symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_CLASS_STRING)));
 	class_initialise_and_link(&class_array, symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_CLASS_ARRAY)));
 
+	int size_selector = //1;//symtab_selector(mk_unique_string("size"))->selector;
+		builtin_selectors[0].index;
+	symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_STRING_SIZE))->selector = size_selector;
+	symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_ARRAY_SIZE))->selector = size_selector;
+
 	class_add_selector(&class_string, symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_STRING_SIZE)));
+	CLASS_VTABLE(&class_string)[0] = builtin_op_string_size;
 	class_add_selector(&class_array, symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_ARRAY_SIZE)));
+	CLASS_VTABLE(&class_array)[0] = builtin_op_array_size;
 }
 
 
@@ -245,24 +258,30 @@ builtin_op_print(object_t *arg)
 	return NULL;
 }
 
-static void *
+static object_t *
 builtin_op_assert(long long int arg)
 {
-	fprintf(stderr, "Not yet implemented: op assert");
+	if (!(arg)) {
+		fail("Assertion failed");
+	}
 	return NULL;
 }
 
-static long long int
+static object_t *
 builtin_op_string_size(object_t *arg)
 {
-	fprintf(stderr, "Not yet implemented: op string.size");
-	return 0;
+	return new_int(strlen((char *) &arg->members[0]));
 }
 
-static long long int
+static object_t *
 builtin_op_array_size(object_t *arg)
 {
-	fprintf(stderr, "Not yet implemented: op array.size");
-	return 0;
+	return new_int(arg->members[0].int_v);
 } 
 
+static object_t *
+builtin_op_magic(object_t *arg)
+{
+	// ?
+	return NULL;
+}

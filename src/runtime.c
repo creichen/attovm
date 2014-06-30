@@ -68,7 +68,7 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	if (image->callables_nr) {
 		image->callables = malloc(sizeof(ast_node_t *) * image->callables_nr);
 	}
-		fprintf(stderr, "Allocated %d callables\n", image->callables_nr);
+
 	if (image->classes_nr) {
 		image->classes = malloc(sizeof(ast_node_t *) * image->classes_nr);
 	}

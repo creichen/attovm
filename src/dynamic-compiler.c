@@ -72,10 +72,6 @@ dyncomp_build_trampoline(void *dyncomp_entry, ast_node_t **functions, int functi
 	}
 	buffer_t buf = buffer_new(16 * functions_nr);
 	for (int i = 0; i < functions_nr; i++) {
-		fprintf(stderr, "Prepping trampoline for:\n");
-		ast_node_dump(stderr, functions[i], 6 | 8);
-		fprintf(stderr, "\n");
-
 		symtab_entry_t *sym = functions[i]->children[0]->sym;
 		assert(sym);
 		sym->r_trampoline = buffer_target(&buf);

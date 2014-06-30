@@ -47,7 +47,7 @@ extern FILE *builtin_print_redirection; // builtins.c
 static int failures = 0;
 static int runs = 0;
 
-#define DEBUG
+//#define DEBUG
 
 void
 fail(char *msg)
@@ -70,7 +70,9 @@ compile(char *src, int line)
 	fclose(memfile);
 	runtime_image_t *img = runtime_prepare(root, RUNTIME_ACTION_COMPILE);
 #ifdef DEBUG
-	ast_node_dump(stderr, img->ast, AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_ADDRESS | AST_NODE_DUMP_FLAGS);
+	if (img) {
+		ast_node_dump(stderr, img->ast, AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_ADDRESS | AST_NODE_DUMP_FLAGS);
+	}
 #endif
 	return img;
 }
@@ -178,7 +180,6 @@ main(int argc, char **argv)
 #endif
 
 	TEST("print(1);", "1\n");
-#if 0
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
 	TEST("print(4-1);", "3\n");
@@ -273,7 +274,6 @@ main(int argc, char **argv)
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 3+3, 3+4, 4+4);", "1\n2\n3\n4\n5\n6\n7\n8\n");
 	TEST("int fact(int a) { if (a == 0) return 1; return a * fact(a - 1); } print(fact(5));", "120\n");
 	TEST("int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); ", "0\n3\n5\n");
-#endif
 
 	// Hashtabellen fuer Klassen sind hinreichend gross:
 	for (int i = 0; i < 1000; i++) {
@@ -362,7 +362,13 @@ main(int argc, char **argv)
 	TEST("class C() { obj p() { print(1); return 2; } obj q() { return 1 + p(); }} obj a = C(); print(a.q());", "1\n3\n");
 	TEST("class C() { int p() { print(1); return 2; } obj q() { return 1 + p(); }} obj a = C(); print(a.q());", "1\n3\n");
 	TEST("class C() { int p() { print(1); return 2; } int q() { return 1 + p(); }} obj a = C(); print(a.q());", "1\n3\n");
-	TEST("class C() { obj p(obj x, int y) { print(x+y); } q() { p(1, 2); } } obj a = C(); a.q();", "3\n");
+	TEST("class C() { obj p(obj x, int y) { print(x+y); } obj q() { p(1, 2); } } obj a = C(); a.q();", "3\n");
+	TEST("class C(int z) { int k = z; int p(int l) { return k + l; } obj q() { print(p(2)); } } obj a = C(3); a.q();", "5\n");
+
+	// next: builtings
+	TEST("assert(1); print(5); ", "5\n");
+	TEST("print([/5].size()); ", "5\n");
+	TEST("print(\"foo\".size()); ", "3\n");
 
 	if (!failures) {
 		printf("All %d tests succeeded\n", runs);

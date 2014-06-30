@@ -220,6 +220,25 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		if (NODE_TY(node->children[0]) == AST_VALUE_ID) {
 			// Funktionsaufruf
 			function = node->children[0]->sym;
+
+			if (function->parent) {
+				// SELF-Methodenaufruf
+				ast_node_t *selector_node = node->children[0];
+				ast_node_t *actuals = node->children[1];
+
+				for (int i = 0; i < actuals->children_nr; i++) {
+					actuals->children[i] = require_type(actuals->children[i], compiler_options.method_call_param_type);
+				}
+
+				ast_node_free(node, 0);
+				node = CONS(METHODAPP,
+					    BUILTIN(SELF),
+					    selector_node,
+					    actuals);
+				set_type(node, compiler_options.method_call_return_type);
+				return node;
+			}
+
 			if (!function) {
 				// Sollte nur passieren, wenn Namensanalyse fehlschlug
 				error(node, "(Internal) No function annotation on ID %d\n", AV_ID(node->children[0]));
@@ -256,15 +275,13 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 			ast_node_t *receiver = node->children[0]->children[0];
 			ast_node_t *selector_node = node->children[0]->children[1];
 			ast_node_t *actuals = node->children[1];
-			symtab_entry_t *selector = selector_node->sym;
-			node->sym = selector;
 
 			for (int i = 0; i < actuals->children_nr; i++) {
 				actuals->children[i] = require_type(actuals->children[i], compiler_options.method_call_param_type);
 			}
 
 			if (NODE_FLAGS(receiver) & (TYPE_INT | TYPE_REAL)) {
-				error(node, "method received must be an object");
+				error(node, "method receiver must be an object");
 			}
 
 			ast_node_free(node, 0);

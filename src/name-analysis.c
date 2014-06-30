@@ -138,6 +138,12 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		if (!lookup) {
 			error(node, "undefined name");
 		} else {
+			if (SYMTAB_IS_CONS_ARG(lookup)
+			    && SYMTAB_TY(parent) == SYMTAB_TY_FUNCTION) {
+				error(node, "must not reference constructor parameter in method body");
+				return;
+			}
+
 			resolve_node(node, lookup);
 		}
 		break;
@@ -304,6 +310,10 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 static void
 populate_initial_env(hashtable_t *env)
 {
+	if (!symtab_selectors_table) {
+		symtab_selectors_table = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 5);
+	}
+
 	for (int i = 1; i <= symtab_entries_builtin_nr; i++) {
 		symtab_entry_t *entry = symtab_lookup(-i);
 		if (! (entry->symtab_flags & SYMTAB_HIDDEN)) {
@@ -320,9 +330,6 @@ int
 name_analysis(ast_node_t *node, int *functions_nr, int *classes_nr)
 {
 	error_count = 0;
-	if (!symtab_selectors_table) {
-		symtab_selectors_table = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 5);
-	}
 	hashtable_t *initial_env = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 5);
 
 	populate_initial_env(initial_env);

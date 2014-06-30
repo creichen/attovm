@@ -33,10 +33,6 @@
 #include "compiler-options.h"
 #include "class.h"
 
-int array_storage_type = TYPE_OBJ;
-int method_call_param_type = TYPE_OBJ;
-int method_call_return_type = TYPE_OBJ;
-
 // Hilfsdefinitionen, um neue AST-Objekte zu erzeugen:
 #define CONSV(TY, VALUE) value_node_alloc_generic(AST_VALUE_ ## TY, (ast_value_union_t) { .VALUE })
 #define CONS(TY, ...) ast_node_alloc_generic(AST_NODE_ ## TY, ARGS_NR(__VA_ARGS__), __VA_ARGS__)
@@ -113,6 +109,7 @@ require_lvalue(ast_node_t *node, int const_assignment_permitted)
 		break;
 
 	default:
+		ast_node_dump(stderr, node, 6);
 		error(node, "attempted assignment to non-lvalue");
 	}
 
@@ -263,7 +260,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 			node->sym = selector;
 
 			for (int i = 0; i < actuals->children_nr; i++) {
-				actuals->children[i] = require_type(actuals->children[i], method_call_param_type);
+				actuals->children[i] = require_type(actuals->children[i], compiler_options.method_call_param_type);
 			}
 
 			if (NODE_FLAGS(receiver) & (TYPE_INT | TYPE_REAL)) {
@@ -275,7 +272,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 				    require_type(receiver, TYPE_OBJ),
 				    selector_node,
 				    actuals);
-			set_type(node, method_call_return_type);
+			set_type(node, compiler_options.method_call_return_type);
 			return node;
 		} else {
 			error(node, "calls only permitted on functions and methods!");
@@ -287,7 +284,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 			// Methodenparameter sind verpackt und muessen u.U. alle entpackt werden
 			int method_args_to_unpack = 0;
 			for (int i = 0; i < function->parameters_nr; i++) {
-				if (function->parameter_types[i] != method_call_param_type) {
+				if (function->parameter_types[i] != compiler_options.method_call_param_type) {
 					++method_args_to_unpack;
 				}
 			}
@@ -305,20 +302,21 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 
 			int offset = 0;
 			for (int i = 0; i < function->parameters_nr; i++) {
-				if (function->parameter_types[i] != method_call_param_type) {
+				if (function->parameter_types[i] != compiler_options.method_call_param_type) {
 					ast_node_t *assignment = CONS(ASSIGN, 
-								      ast_node_clone(formals[i]),
-								      ast_node_clone(formals[i]));
+								      ast_node_clone(formals[i]->children[0]),
+								      ast_node_clone(formals[i]->children[0]));
 					assignment = analyse(assignment, classref, function, context);
 					// Erzwinge Konvertierung
-					set_type(assignment->children[1], method_call_param_type);
+					set_type(assignment->children[1], compiler_options.method_call_param_type);
 					assignment->children[1] = require_type(assignment->children[1],
 									       function->parameter_types[i]);
 					init_body->children[offset++] = assignment;
 				}
 			}
+		} else {
+			context->callables[context->functions_nr++] = node;
 		}
-		context->callables[context->functions_nr++] = node;
 		break;
 
 	case AST_NODE_CLASSDEF: {
@@ -443,7 +441,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 			return node;
 		}
 		if (classref) {
-			function->ast_flags = update_type(function->ast_flags, method_call_return_type);
+			function->ast_flags = update_type(function->ast_flags, compiler_options.method_call_return_type);
 		}
 		node->children[0] = require_type(node->children[0],
 						 function->ast_flags);
@@ -501,7 +499,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 
 	case AST_NODE_ARRAYLIST:
 		for (int i = 0; i < node->children_nr; i++) {
-			node->children[i] = require_type(node->children[i], array_storage_type);
+			node->children[i] = require_type(node->children[i], compiler_options.array_storage_type);
 		}
 		break;
 
@@ -516,7 +514,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		}
 		node->children[0] = require_type(node->children[0], TYPE_OBJ);
 		node->children[1] = require_type(node->children[1], TYPE_INT);
-		set_type(node, array_storage_type);
+		set_type(node, compiler_options.array_storage_type);
 		break;
 
 	case AST_NODE_WHILE:
@@ -540,10 +538,6 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 int
 type_analysis(ast_node_t **node, ast_node_t **callables, ast_node_t **classes)
 {
-	if (compiler_options.int_arrays) {
-		array_storage_type = TYPE_INT;
-	}
-
 	context_t context;
 	context.callables = callables;
 	context.classes = classes;

@@ -56,7 +56,7 @@ typedef struct relative_jump_label_list {
 typedef struct {
 	// Fuer den aktuellen Ausfuehrungsrahmen:  Welches Register indiziert temporaere Variablen?
 	int self_stack_location; // Speicherstelle der `SELF'-Referenz relativ zu $fp
-	int stack_depth; // Wieviele Variablen auf dem Ablagestapel alloziert sind
+	int stack_depth; // Wieviele Variablen sind auf dem Ablagestapel alloziert?
 	int variable_storage; // Speicherstelle fuer Variable
 
 	// Falls verfuegbar/in Schleife: Sprungmarken 
@@ -106,8 +106,7 @@ long long int builtin_op_obj_test_eq(object_t *a0, object_t *a1);
 
 
 #define PREPARE_ARGUMENTS_MUSTALIGN	0x0001	// Aufrufstapel muss ausgerichtet werden
-/* #define PREPARE_ARGUMENTS_SKIP_A0	0x0002	// Parameter beginnen bei $a1 */
-//#define PREPARE_ARGUMENTS_BACKUP_A0	0x0004	// $a0 ist schon geladen; bei Bedarf sichern (zusammen mit SKIP_A0 verwenden)
+#define PREPARE_ARGUMENTS_SKIP_A0	0x0002	// Parameter beginnen bei $a1; $a0 wird nach baseline_prepare_arguments() und vor emit_jals() separat gesetzt
 
 /**
  * Laed eine Argumentliste in $a0...$a5 und bereitet (soweit noetig) den Stapel auf einen Aufruf vor
@@ -494,6 +493,7 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 		((flags & PREPARE_ARGUMENTS_MUSTALIGN) && context->stack_depth & 1) // Ausrichtung extern aufgezwungen
 		|| stack_args_nr;
 
+	const int first_arg = (flags & PREPARE_ARGUMENTS_SKIP_A0)? 1 : 0;
 	int backup_space_needed = 0; // Anzahl der $a-Register, die wir sichern muessen
 
 	int last_nonsimple = -1; // letzte nichttriviale Berechnung
@@ -511,11 +511,12 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 		--backup_space_needed;
 	}
 
-	// Adresse relativ zu $sp, in der bei Bedarf $a0..$a5 gesichert werden
-	const int register_arg_spill_space = children_nr < REGISTERS_ARGUMENT_NR ? 0 : children_nr - REGISTERS_ARGUMENT_NR;
+	const int invocation_args = children_nr + first_arg;
 
-	int stack_frame_size = backup_space_needed
-		+ ((children_nr < REGISTERS_ARGUMENT_NR)? 0 : children_nr - REGISTERS_ARGUMENT_NR);
+	// Adresse relativ zu $sp, in der bei Bedarf $a0..$a5 gesichert werden
+	const int register_arg_spill_space = invocation_args < REGISTERS_ARGUMENT_NR ? 0 : invocation_args - REGISTERS_ARGUMENT_NR;
+
+	int stack_frame_size = backup_space_needed + register_arg_spill_space;
 
 	if (stack_frame_active_during_call
 	    && (stack_frame_size + context->stack_depth) & 1) { // Ausrichtung noetig?
@@ -527,22 +528,23 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 	int spill_counter = 0;
 	// Nichttriviale Werte und Werte, die ohnehin auf den Stapel muessen, rekursiv ausrechnen
 	for (int i = 0; i < children_nr; i++) {
+		int arg_nr = i + first_arg;
 		int reg = REGISTER_V0;
-		if (i < REGISTERS_ARGUMENT_NR){
-			reg = registers_argument[i];
+		if (arg_nr < REGISTERS_ARGUMENT_NR){
+			reg = registers_argument[arg_nr];
 		}
 		
-		if (i >= REGISTERS_ARGUMENT_NR || !is_simple(children[i])) {
+		if (arg_nr >= REGISTERS_ARGUMENT_NR || !is_simple(children[i])) {
 			baseline_compile_expr(buf, children[i], reg, context);
 
 			int dest_stack_location;
-			if (i >= REGISTERS_ARGUMENT_NR) {
-				dest_stack_location = i - REGISTERS_ARGUMENT_NR;
+			if (arg_nr >= REGISTERS_ARGUMENT_NR) {
+				dest_stack_location = arg_nr - REGISTERS_ARGUMENT_NR;
 			} else {
 				dest_stack_location = register_arg_spill_space + spill_counter++;
 			}
 
-			if (i != last_nonsimple || i >= REGISTERS_ARGUMENT_NR) {
+			if (i != last_nonsimple || arg_nr >= REGISTERS_ARGUMENT_NR) {
 				emit_sd(buf, reg,
 					sizeof(void *) * dest_stack_location,
 					REGISTER_SP);
@@ -554,12 +556,13 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 	// Triviale Registerinhalte generieren, vorher berechnete Werte bei Bedarf laden
 	const int max = children_nr < REGISTERS_ARGUMENT_NR ? children_nr : REGISTERS_ARGUMENT_NR;
 	for (int i = 0; i < max; i++) {
+		int arg_nr = i + first_arg;
 		if (is_simple(children[i])) {
-			if (i < REGISTERS_ARGUMENT_NR) {
-				baseline_compile_expr(buf, children[i], registers_argument[i], context);
+			if (arg_nr < REGISTERS_ARGUMENT_NR) {
+				baseline_compile_expr(buf, children[i], registers_argument[arg_nr], context);
 			}
 		} else if (i != last_nonsimple) { // Wert der letzten nichttrivialen Berechnung ist noch frisch
-			emit_ld(buf, registers_argument[i],
+			emit_ld(buf, registers_argument[arg_nr],
 				sizeof(void *) * (register_arg_spill_space + spill_counter++),
 				REGISTER_SP);
 		}
@@ -760,6 +763,11 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			reg = REGISTER_FP;
 		} else if (SYMTAB_IS_STATIC(sym)) {
 			reg = REGISTER_GP;
+		} else if (sym->parent) {
+			// Lokales Feld
+			emit_ld(buf, REGISTER_T0, context->self_stack_location, REGISTER_FP);
+			reg = REGISTER_T0;
+			offset += 8;
 		} else {
 			fprintf(stderr, "Don't know how to load this variable:");
 			symtab_entry_dump(stderr, sym);
@@ -805,7 +813,10 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			} else {
 				fail("baseline-backend.AST_NODE_ASSIGN(AST_NODE_MEMBER): unsupported type in AST_NODE_MEMBER value");
 			}
+			int stack_frame_size = baseline_prepare_arguments(buf, 0, NULL, context,
+									  PREPARE_ARGUMENTS_MUSTALIGN);
 			emit_jals(buf, REGISTER_V0);
+			STACK_FREE(stack_frame_size);
 		} else {
 			baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
 			PUSH(REGISTER_V0);
@@ -956,6 +967,42 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_jreturn(buf);
 		break;
 
+	case AST_NODE_METHODAPP: {
+		baseline_compile_expr(buf, ast->children[0], REGISTER_A0, context);
+		PUSH(REGISTER_A0);
+		int a0_offset = context->stack_depth;
+
+		// Berechne Sprungadresse
+		ast_node_t *selector_node = ast->children[1];
+		const int selector = selector_node->sym->selector;
+		emit_la(buf, REGISTER_A1, selector_node);
+		emit_li(buf, REGISTER_A2, selector);
+		emit_li(buf, REGISTER_A3, ast->children[2]->children_nr);
+		emit_la(buf, REGISTER_V0, get_member_method);
+		int stack_frame_size = baseline_prepare_arguments(buf, 0, NULL, context,
+								  PREPARE_ARGUMENTS_MUSTALIGN);
+		emit_jals(buf, REGISTER_V0);
+		STACK_FREE(stack_frame_size);
+		
+		// Speichere Sprungadresse
+		PUSH(REGISTER_V0);
+		int v0_offset = context->stack_depth;
+
+		stack_frame_size =
+			baseline_prepare_arguments(buf,
+						   ast->children[2]->children_nr,
+						   ast->children[2]->children,
+						   context,
+						   PREPARE_ARGUMENTS_MUSTALIGN
+						   | PREPARE_ARGUMENTS_SKIP_A0);
+		emit_ld(buf, REGISTER_A0, (context->stack_depth - a0_offset) * sizeof(void *), REGISTER_SP);
+		emit_ld(buf, REGISTER_V0, (context->stack_depth - v0_offset) * sizeof(void *), REGISTER_SP);
+		emit_jals(buf, REGISTER_V0);
+		STACK_FREE(stack_frame_size + 2);
+		emit_optmove(buf, dest_register, REGISTER_V0);
+	}
+		break;
+
 	case AST_NODE_MEMBER: {
 		assert(!(ast->type & AST_FLAG_LVALUE)); // Sollte direkt von ASSIGN gehandhabt werden
 		baseline_compile_expr(buf, ast->children[0], REGISTER_A0, context);
@@ -972,7 +1019,10 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		} else {
 			fail("baseline-backend.AST_NODE_MEMBER: unsupported type in AST_NODE_MEMBER value");
 		}
+		int stack_frame_size = baseline_prepare_arguments(buf, 0, NULL, context,
+								  PREPARE_ARGUMENTS_MUSTALIGN);
 		emit_jals(buf, REGISTER_V0);
+		STACK_FREE(stack_frame_size);
 		emit_optmove(buf, dest_register, REGISTER_V0);
 	}
 		break;
@@ -1135,7 +1185,7 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 	context_t mcontext;
 	mcontext.continue_labels = NULL;
 	mcontext.break_labels = NULL;
-	mcontext.stack_depth = 1;
+	mcontext.stack_depth = -1;
 	mcontext.variable_storage = 0;
 	context_t *context = &mcontext;
 
@@ -1167,9 +1217,6 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 		for (int i = 0; i < spilled_args; i++) {
 			const int offset = -(i + storage_start);
 			emit_sd(buf, registers_argument[i], offset * sizeof(void *), REGISTER_FP);
-			fprintf(stderr, "i = %d\n", i);
-			fprintf(stderr, "args[i] = %p\n", args[i]);
-			fprintf(stderr, "args[i]->sym = %p\n", args[i]->sym);
 			args[i]->sym->offset = offset;
 		}
 		// spilled_args > REGISTERS_ARGUMENT_NR ?
@@ -1178,6 +1225,63 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 			const int offset = 2 // ($sp und Ruecksprungadresse auf dem Stapel)
 				+ i - REGISTERS_ARGUMENT_NR;
 			args[i]->sym->offset = offset;
+		}
+	}
+
+	baseline_compile_expr(buf, body, REGISTER_V0, context);
+
+	STACK_FREE(spilled_args);
+
+	POP(REGISTER_FP);
+	emit_jreturn(buf);
+	buffer_terminate(mbuf);
+	return mbuf;
+}
+
+buffer_t
+baseline_compile_method(symtab_entry_t *sym)
+{
+	ast_node_t *node = sym->astref;
+
+	context_t mcontext;
+	mcontext.continue_labels = NULL;
+	mcontext.break_labels = NULL;
+	mcontext.stack_depth = -1;
+	mcontext.variable_storage = 0;
+	context_t *context = &mcontext;
+
+	buffer_t mbuf = buffer_new(1024);
+	buffer_t *buf = &mbuf;
+	PUSH(REGISTER_FP);
+	emit_move(buf, REGISTER_FP, REGISTER_SP);
+
+	assert(NODE_TY(node) == AST_NODE_FUNDEF);
+	ast_node_t **args = node->children[1]->children;
+	const int args_nr = node->children[1]->children_nr + 1; // implizites SELF-Argument
+	ast_node_t *body = node->children[2];
+
+	// Parameter in Argumentregistern auf Stapel
+	const int spilled_args = args_nr > REGISTERS_ARGUMENT_NR ? REGISTERS_ARGUMENT_NR : args_nr; 
+	int storage_start = 1;
+	int allocated_spilled_args = spilled_args;
+
+	mcontext.self_stack_location = -8;
+
+	if (allocated_spilled_args) {
+		STACK_ALLOC(allocated_spilled_args);
+		for (int i = 0; i < spilled_args; i++) {
+			const int offset = -(i + storage_start);
+			emit_sd(buf, registers_argument[i], offset * sizeof(void *), REGISTER_FP);
+			if (i > 0) {
+				args[i - 1]->sym->offset = offset;
+			}
+		}
+		// spilled_args > REGISTERS_ARGUMENT_NR ?
+		// Berechnen der Adressen der Parameter hinter $a5
+		for (int i = spilled_args; i < args_nr; i++) {
+			const int offset = 2 // ($sp und Ruecksprungadresse auf dem Stapel)
+				+ i - REGISTERS_ARGUMENT_NR;
+			args[i - 1]->sym->offset = offset;
 		}
 	}
 

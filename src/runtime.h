@@ -86,4 +86,11 @@ runtime_execute(runtime_image_t *);
 void
 runtime_free(runtime_image_t *);
 
+
+/**
+ * Liefert das letztallozierte Laufzeit-Image
+ */
+runtime_image_t *
+runtime_current(void);
+
 #endif // !defined(_ATTOL_RUNTIME_H)

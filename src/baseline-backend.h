@@ -52,4 +52,13 @@ baseline_compile_entrypoint(ast_node_t *node, void *static_memory);
 buffer_t
 baseline_compile_static_callable(symtab_entry_t *sym);
 
+/**
+ * Uebersetzt ein AST-Fragment einer Methode in ausfuehrbaren Maschinencode
+ *
+ * @param sym Symboltabelleneintrag
+ * @return Ein buffer_t mit dem Funktionskoerper
+ */
+buffer_t
+baseline_compile_method(symtab_entry_t *sym);
+
 #endif // defined(_ATTOL_BASELINE_BACKEND_H)

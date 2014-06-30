@@ -178,6 +178,7 @@ main(int argc, char **argv)
 #endif
 
 	TEST("print(1);", "1\n");
+#if 0
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
 	TEST("print(4-1);", "3\n");
@@ -272,6 +273,7 @@ main(int argc, char **argv)
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 3+3, 3+4, 4+4);", "1\n2\n3\n4\n5\n6\n7\n8\n");
 	TEST("int fact(int a) { if (a == 0) return 1; return a * fact(a - 1); } print(fact(5));", "120\n");
 	TEST("int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); ", "0\n3\n5\n");
+#endif
 
 	// Hashtabellen fuer Klassen sind hinreichend gross:
 	for (int i = 0; i < 1000; i++) {
@@ -333,9 +335,30 @@ main(int argc, char **argv)
 		sym0->name,
 		sym0->name, sym1->name, sym2->name);
 	TEST(conflict_str, "1\n2\n3\n4\n2\n3\n");
+
+	// next: method call (including nontrivial/conflicting method selector lookup)
+	TEST("class C() { obj p() { print(\"foo\"); } } obj a = C(); a.p();", "foo\n");
+	TEST("class C() { obj p(obj x) { print(x); } } obj a = C(); a.p(1);", "1\n");
+	TEST("class C() { obj p(obj x) { print(x); } } obj a = C(); a.p(1);", "1\n");
+	TEST("class C() { obj p(obj x) { print(x+2); } } obj a = C(); a.p(1);", "3\n");
+	TEST("class C() { obj p(int x) { print(x+2); } } obj a = C(); a.p(1);", "3\n");
+
+	TEST("class C() { obj p(obj x, obj y) { print(x+y); } } obj a = C(); a.p(1, 2);", "3\n");
+
+	TEST("class C() { obj p(obj x, obj y) { print(x); return y+1; } } obj a = C(); print(a.p(1, 2));", "1\n3\n");
+	TEST("class C() { obj p(obj a1, obj a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a6 * a6 + a1); return a7 + 1; } } obj a = C(); print(a.p(1, 2, 3, 4, 5, 6, 7));", "37\n8\n");
+
+	TEST("class C() { int z = 9; obj p(obj x) { z := z + 1; return x + z; } } obj a = C(); print(a.p(1)); print(a.p(1)); ", "11\n12\n");
+	TEST("class C(int k) { int z = k; obj p(obj x) { z := z + 1; return x + z; } } obj a = C(5); print(a.p(1)); print(a.p(1)); ", "7\n8\n");
+	TEST("class C(int k) { int z = k; obj inc() { z := z + 1; return z; } obj dec() {z := z - 1; return z; } } obj a = C(5); print(a.inc()); print(a.inc()); print(a.dec()); ", "6\n7\n6\n");
+
+	sprintf(conflict_str, "class C() { int %s() {print(1);}; int %s() {print(2);}; int %s() {print(3);}; } obj a = C(); a.%s(); a.%s(); a.%s(); ",
+		sym0->name, sym1->name, sym2->name,
+		sym0->name, sym1->name, sym2->name);
+	TEST(conflict_str, "1\n2\n3\n");
 #if 0
 #endif
-	// next: method call (including nontrivial/conflicting method selector lookup)
+
 	// next: method call within class
 	// next: field access within class
 

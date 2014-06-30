@@ -29,6 +29,7 @@
 
 #include "errors.h"
 #include "dynamic-compiler.h"
+#include "runtime.h"
 #include "baseline-backend.h"
 #include "class.h"
 #include "registers.h"
@@ -71,6 +72,10 @@ dyncomp_build_trampoline(void *dyncomp_entry, ast_node_t **functions, int functi
 	}
 	buffer_t buf = buffer_new(16 * functions_nr);
 	for (int i = 0; i < functions_nr; i++) {
+		fprintf(stderr, "Prepping trampoline for:\n");
+		ast_node_dump(stderr, functions[i], 6 | 8);
+		fprintf(stderr, "\n");
+
 		symtab_entry_t *sym = functions[i]->children[0]->sym;
 		assert(sym);
 		sym->r_trampoline = buffer_target(&buf);
@@ -107,14 +112,28 @@ dyncomp_compile_function(int symtab_entry, void **update_address_on_call_stack)
 		symtab_entry_t *class_sym = sym->parent;
 		class_t *class = class_new(class_sym);
 		class_sym->r_mem = class;
+		ast_node_t **method_defs = class_sym->astref->children[2]->children + class_sym->vars_nr;
+		int method_defs_nr = class_sym->methods_nr;
+		class_sym->r_trampoline = dyncomp_build_trampoline(buffer_entrypoint(runtime_current()->dyncomp),
+								   method_defs, method_defs_nr);
+		for (int i = 0; i < method_defs_nr; i++) {
+			CLASS_VTABLE(class)[i] = method_defs[i]->children[0]->sym->r_trampoline;
+		}
 	}
 
 	if (compiler_options.debug_dynamic_compilation) {	
-		fprintf(stderr, "dyn-compiling `%s'\n", sym->name);
+		fprintf(stderr, "dyn-compiling `");
+		symtab_entry_name_dump(stderr, sym);
+		fprintf(stderr, "'\n");
 		ast_node_dump(stderr, sym->astref, 6 | 8);
 	}
 
-	buffer_t body_buf = baseline_compile_static_callable(sym);
+	buffer_t body_buf;
+	if (sym->symtab_flags & SYMTAB_MEMBER) {
+		body_buf = baseline_compile_method(sym);
+	} else {
+		body_buf = baseline_compile_static_callable(sym);
+	}
 
 	sym->r_mem = buffer_entrypoint(body_buf);
 	if (compiler_options.debug_dynamic_compilation) {

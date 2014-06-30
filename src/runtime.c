@@ -35,7 +35,15 @@
 #include "compiler-options.h"
 #include "dynamic-compiler.h"
 
-struct compiler_options compiler_options;
+struct compiler_options compiler_options = {
+	.no_bounds_checks		= false,
+	.debug_dynamic_compilation	= false,
+	.array_storage_type		= TYPE_OBJ,
+	.method_call_param_type		= TYPE_OBJ,
+	.method_call_return_type	= TYPE_OBJ
+};
+
+runtime_image_t *last = NULL;
 
 runtime_image_t *
 runtime_prepare(ast_node_t *ast, unsigned int action)
@@ -89,6 +97,8 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	image->code_buffer = baseline_compile_entrypoint(ast, image->static_memory);
 	image->main_entry_point = buffer_entrypoint(image->code_buffer);
 
+	last = image;
+
 	return image;
 }
 
@@ -132,4 +142,10 @@ runtime_free(runtime_image_t *img)
 	}
 	ast_node_free(img->ast, 1);
 	free(img);
+}
+
+runtime_image_t *
+runtime_current()
+{
+	return last;
 }

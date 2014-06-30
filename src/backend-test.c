@@ -356,11 +356,13 @@ main(int argc, char **argv)
 		sym0->name, sym1->name, sym2->name,
 		sym0->name, sym1->name, sym2->name);
 	TEST(conflict_str, "1\n2\n3\n");
-#if 0
-#endif
 
 	// next: method call within class
-	// next: field access within class
+	TEST("class C() { obj p() { print(1); } obj q() { p(); }} obj a = C(); a.q();", "1\n");
+	TEST("class C() { obj p() { print(1); return 2; } obj q() { return 1 + p(); }} obj a = C(); print(a.q());", "1\n3\n");
+	TEST("class C() { int p() { print(1); return 2; } obj q() { return 1 + p(); }} obj a = C(); print(a.q());", "1\n3\n");
+	TEST("class C() { int p() { print(1); return 2; } int q() { return 1 + p(); }} obj a = C(); print(a.q());", "1\n3\n");
+	TEST("class C() { obj p(obj x, int y) { print(x+y); } q() { p(1, 2); } } obj a = C(); a.q();", "3\n");
 
 	if (!failures) {
 		printf("All %d tests succeeded\n", runs);

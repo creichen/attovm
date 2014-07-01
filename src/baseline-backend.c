@@ -121,14 +121,7 @@ long long int builtin_op_obj_test_eq(object_t *a0, object_t *a1);
 static int
 baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children, context_t *context, int flags);
 
-
-static void
-fail_at_node(ast_node_t *node, char *msg) __attribute__ ((noreturn));
-static void
-fail_selector_lookup(ast_node_t *node, int actual_type, int expected_type) __attribute__ ((noreturn));
-
-
-static void
+void
 fail_at_node(ast_node_t *node, char *msg)
 {
 	fprintf(stderr, "Fatal: %s", msg);
@@ -141,35 +134,6 @@ fail_at_node(ast_node_t *node, char *msg)
 	fprintf(stderr, "\n");
 	fail("execution halted on error");
 }
-
-static void
-fail_selector_lookup(ast_node_t *node, int actual_type, int expected_type)
-{
-	/// TODO handle field type detection
-	/// TODO registers
-	/// TODO handle field type conversion
-	char message[1024];
-	symtab_entry_t *sym = node->sym;
-	if (actual_type) {
-		// Typfehler
-		if (CLASS_MEMBER_IS_METHOD(actual_type)) {
-			sprintf(message, "Tried to access method `%s' as if it were a field", sym->name);
-		} else {
-			if (CLASS_MEMBER_IS_METHOD(actual_type)) {
-				sprintf(message, "Tried to call method `%s' with %d parameters, but it expects %d", sym->name,
-					CLASS_MEMBER_METHOD_ARGS_NR(expected_type),
-					CLASS_MEMBER_METHOD_ARGS_NR(actual_type));
-			} else {
-				sprintf(message, "Tried to call field `%s' as if it were a method", sym->name);
-			}
-		}
-	} else {
-		sprintf(message, "Object has no method or field `%s'", sym->name);
-	}
-
-	fail_at_node(node, message);
-}
-
 
 static void
 dump_ast(char *msg, ast_node_t *ast)
@@ -577,156 +541,6 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 }
 
 
-#define LOAD_SELECTOR							\
-									\
-	if (!obj) {							\
-		fail_at_node(node, "Null pointer object dereference");	\
-	}								\
-	class_t *classref = obj->classref;				\
-	const int mask = classref->table_mask;				\
-	int index = selector & mask;					\
-	unsigned short type;						\
-	long long int offset;						\
-	while (true) {							\
-		const unsigned long long coding = classref->members[index].selector_encoding; \
-		if (!coding) {						\
-			fail_selector_lookup(node, 0, 0);		\
-		}							\
-		if (CLASS_DECODE_SELECTOR_ID(coding) != selector) {	\
-			index = (index + 1) & mask;			\
-			continue;					\
-		}							\
-		type = CLASS_DECODE_SELECTOR_TYPE(coding);		\
-		offset = CLASS_DECODE_SELECTOR_OFFSET(coding);		\
-		break;							\
-	}
-
-
-/**
- * Laed ein Obj-Feld aus einem Objekt
- *
- * @param obj Das zu bearbeitende Objekt
- * @param node
- * @param selector Die gewuenschte Selektornummer des Feldes
- * @param desired_type Der erwartete Typ (Typkonvertierungen werden mit durchgefuehrt)
- */
-static void *
-get_member_method(object_t *obj, ast_node_t *node, int selector, int parameters_nr)
-{
-	LOAD_SELECTOR;
-	// `type' und `offset' sind nun gesetzt
-	if (type != CLASS_MEMBER_METHOD(parameters_nr)) {
-		fail_selector_lookup(node, type, CLASS_MEMBER_METHOD(parameters_nr));
-	}
-	return CLASS_VTABLE(classref)[offset];
-}
-
-/**
- * Laed ein Obj-Feld aus einem Objekt
- *
- * @param obj Das zu bearbeitende Objekt
- * @param node AST-Knoten, zur Fehlerbehandlung
- * @param selector Die gewuenschte Selektornummer des Feldes
- * @param desired_type Der erwartete Typ (Typkonvertierungen werden mit durchgefuehrt)
- */
-static void *
-read_member_field_obj(object_t *obj, ast_node_t *node, int selector)
-{
-	LOAD_SELECTOR;
-	// `type' und `offset' sind nun gesetzt
-
-	/* fprintf(stderr, "Reading from field slc=0x%x of object:\n", selector); */
-	/* object_print(stderr, obj, true, 3); */
-	/* fprintf(stderr, "\nreading from %p\n", &(obj->members[offset].int_v)); */
-
-	if (type == CLASS_MEMBER_VAR_OBJ) {
-		return obj->members[offset].object_v;
-	} else if (type == CLASS_MEMBER_VAR_INT) {
-		return new_int(obj->members[offset].int_v);
-	} else {
-		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_OBJ);
-	}
-}
-
-/**
- * Laed ein Int-Feld aus einem Objekt
- *
- * @param obj Das zu bearbeitende Objekt
- * @param node AST-Knoten, zur Fehlerbehandlung
- * @param selector Die gewuenschte Selektornummer des Feldes
- * @param desired_type Der erwartete Typ (Typkonvertierungen werden mit durchgefuehrt)
- */
-static long long int
-read_member_field_int(object_t *obj, ast_node_t *node, int selector)
-{
-	LOAD_SELECTOR;
-	// `type' und `offset' sind nun gesetzt
-
-	if (type == CLASS_MEMBER_VAR_OBJ) {
-		object_t *elt = obj->members[offset].object_v;
-		if (elt->classref == &class_boxed_int) {
-			return elt->members[0].int_v;
-		}
-		fail_at_node(node, "attempted to convert non-int object to int value");
-	} else if (type == CLASS_MEMBER_VAR_INT) {
-		return obj->members[offset].int_v;
-	} else {
-		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_INT);
-	}
-}
-
-/**
- * Schreibt einen int-getyptes Feld in einem Objekt
- *
- * @param obj Das zu bearbeitende Objekt
- * @param node AST-Knoten, zur Fehlerbehandlung
- * @param selector Die gewuenschte Selektornummer
- * @param value
- */
-static void
-write_member_field_int(object_t *obj, ast_node_t *node, int selector, long long int value)
-{
-	LOAD_SELECTOR;
-	// `type' und `offset' sind nun gesetzt
-
-	if (type == CLASS_MEMBER_VAR_OBJ) {
-		obj->members[offset].object_v = new_int(value);
-	} else if (type == CLASS_MEMBER_VAR_INT) {
-		obj->members[offset].int_v = value;
-	} else {
-		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_INT);
-	}
-}
-
-/**
- * Schreibt einen obj-getyptes Feld in einem Objekt
- *
- * @param obj Das zu bearbeitende Objekt
- * @param node AST-Knoten, zur Fehlerbehandlung
- * @param selector Die gewuenschte Selektornummer
- * @param value
- */
-static void
-write_member_field_obj(object_t *obj, ast_node_t *node, int selector, object_t *value)
-{
-	LOAD_SELECTOR;
-	// `type' und `offset' sind nun gesetzt
-
-	if (type == CLASS_MEMBER_VAR_OBJ) {
-		obj->members[offset].object_v = value;
-	} else if (type == CLASS_MEMBER_VAR_INT) {
-		if (!value) {
-			fail_at_node(node, "attempted to assign NULL to int field");
-		}
-		if (value->classref == &class_boxed_int) {
-			obj->members[offset].int_v = value->members[0].int_v;
-		}
-		fail_at_node(node, "attempted to convert non-int object to int value");
-	} else {
-		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_OBJ);
-	}
-}
-
 
 // Der Aufrufer speichert; der Aufgerufene haelt sich immer an dest_register
 static void
@@ -807,9 +621,9 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 
 			const int ty = ast->children[1]->type;
 			if (ty & TYPE_OBJ) {
-				emit_la(buf, REGISTER_V0, write_member_field_obj);
+				emit_la(buf, REGISTER_V0, object_write_member_field_obj);
 			} else if (ty & TYPE_INT) {
-				emit_la(buf, REGISTER_V0, write_member_field_int);
+				emit_la(buf, REGISTER_V0, object_write_member_field_int);
 			} else {
 				fail("baseline-backend.AST_NODE_ASSIGN(AST_NODE_MEMBER): unsupported type in AST_NODE_MEMBER value");
 			}
@@ -978,7 +792,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_la(buf, REGISTER_A1, selector_node);
 		emit_li(buf, REGISTER_A2, selector);
 		emit_li(buf, REGISTER_A3, ast->children[2]->children_nr);
-		emit_la(buf, REGISTER_V0, get_member_method);
+		emit_la(buf, REGISTER_V0, object_get_member_method);
 		int stack_frame_size = baseline_prepare_arguments(buf, 0, NULL, context,
 								  PREPARE_ARGUMENTS_MUSTALIGN);
 		emit_jals(buf, REGISTER_V0);
@@ -1013,9 +827,9 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_li(buf, REGISTER_A2, selector);
 
 		if (ast->type & TYPE_OBJ) {
-			emit_la(buf, REGISTER_V0, read_member_field_obj);
+			emit_la(buf, REGISTER_V0, object_read_member_field_obj);
 		} else if (ast->type & TYPE_INT) {
-			emit_la(buf, REGISTER_V0, read_member_field_int);
+			emit_la(buf, REGISTER_V0, object_read_member_field_int);
 		} else {
 			fail("baseline-backend.AST_NODE_MEMBER: unsupported type in AST_NODE_MEMBER value");
 		}
@@ -1120,11 +934,11 @@ init_address_store()
 		ADDRSTORE_PUT(builtin_op_obj_test_eq, SPECIAL);
 		ADDRSTORE_PUT(new_object, SPECIAL);
 		ADDRSTORE_PUT(dyncomp_compile_function, SPECIAL);
-		ADDRSTORE_PUT(write_member_field_obj, SPECIAL);
-		ADDRSTORE_PUT(write_member_field_int, SPECIAL);
-		ADDRSTORE_PUT(read_member_field_obj, SPECIAL);
-		ADDRSTORE_PUT(read_member_field_int, SPECIAL);
-		ADDRSTORE_PUT(get_member_method, SPECIAL);
+		ADDRSTORE_PUT(object_write_member_field_obj, SPECIAL);
+		ADDRSTORE_PUT(object_write_member_field_int, SPECIAL);
+		ADDRSTORE_PUT(object_read_member_field_obj, SPECIAL);
+		ADDRSTORE_PUT(object_read_member_field_int, SPECIAL);
+		ADDRSTORE_PUT(object_get_member_method, SPECIAL);
 	}
 
 }

@@ -282,6 +282,7 @@ builtin_op_array_size(object_t *arg)
 static object_t *
 builtin_op_magic(object_t *arg)
 {
+	fprintf(stderr, "Selectornr = %d\n", symtab_selector("p")->selector);
 	// ?
 	return NULL;
 }

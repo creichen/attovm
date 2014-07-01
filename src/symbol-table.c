@@ -69,12 +69,15 @@ symtab_get(int *id, int **ids_nr, int **alloc_size, symbol_table_t **symtab)
 	}
 }
 
+extern char* mk_unique_string(char *id);
+
 symtab_entry_t *
 symtab_selector(char *name)
 {
 	if (!symtab_selectors_table) {
 		symtab_selectors_table = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 5);
 	}
+	name = mk_unique_string(name);
 
 	symtab_entry_t *lookup = hashtable_get(symtab_selectors_table, name);
 	if (lookup) {

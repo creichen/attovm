@@ -58,17 +58,41 @@
 #define CLASS_VTABLE(CLASSREF) ((void **) (((class_member_t *) &((CLASSREF)->members)) + ((CLASSREF)->table_mask + 1)))
 
 typedef struct {
-	unsigned long long selector_encoding;
-	symtab_entry_t *symbol;
+	unsigned long long selector_encoding; // Kodiert per CLASS_ENCODE_SELECTOR()
+	symtab_entry_t *symbol;  // Nur zum Debugging
 } class_member_t;
 
 // Klassenstruktur
+// ---------------
+// Wir identifizieren Felder/Methoden durch `Selektoren' (selector).  Ein Selektor ist
+// eindeutig durch seinen Namen (z.B. "size") bestimmt.  Der Uebersetzer verwendet Selektoren,
+// um anzuzeigen, welches Feld/welche Methode verwendet werden soll; Felder und Methoden
+// verwenden die gleichen Selektoren.
+//
+// Alle Methoden und Felder werden in der `open access'-Hashtabelle `members' abgelegt.
+// Initiale Position eines Eintrages ist (selector & table_mask).  Wenn diese Position schon
+// belegt ist, wird die naechste freie Position genommen.  Die Kodierung beinhaltet den Typ
+// und den tatsaechlichen Abstand, der entweder in die vtable zeigt (Methoden) oder in die
+// `member'-Struktur von Objekten (Felder).
+//
+// Zugriff:
+// - object_{read,write}_member_field_{obj,int}	// (Felder)
+// - object_get_member_method			// (Methoden)
+//
+// Methodenadressen liegen unmittelbar hinter der Tabelle im Speicher (CLASS_VTABLE).
+//
+// Hinweis zur Kodierung:  Alle Methoden werden von der Typanalyse umgeschrieben, um Parameter
+// vom Typ compiler_options.method_call_param_type zu nehmen und Rueckgabewerte vom Typ
+// compiler_options.method_call_return_type zurueckzugeben (normalerweise TYPE_OBJ, der
+// intern einem object_t* entspricht).
+//
+// Felder unterscheiden weiterhin zwischen Typen.
 typedef struct {
-	symtab_entry_t *id;
+	symtab_entry_t *id; // Symboltabelleneintrag (fuer den Uebersetzer/Debugging)
 	unsigned long long table_mask; // Tabellengroesse - 1
-	// Repraesentierung ist relativ ineffizient, aber einfach
-	class_member_t members[];
-	// Hinter den `members' liegt die virtuelle Funktionstabelle (vtable) (Adressen der aktuellen Einsprungpunkte der Methoden)
+
+	class_member_t members[]; // (table_mask + 1) Eintraege
+	// Hinter den `members' liegt die virtuelle Funktionstabelle (vtable) (Adressen der tatsaechlichen Einsprungpunkte der Methoden)
 } class_t;
 
 extern class_t class_boxed_int;	// Ein Eintrag: int_v

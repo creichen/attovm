@@ -27,6 +27,7 @@
 
 #include <string.h>
 
+#include "errors.h"
 #include "object.h"
 
 static object_t *
@@ -203,3 +204,146 @@ object_print(FILE *f, object_t *obj, int depth, bool debug)
 	object_print_internal(f, obj, debug, depth, "\n");
 }
 
+// ---------- Selektoren ---------- //
+
+// Fehlerbehandlung fuer Selektorzugriff
+static void
+fail_selector_lookup(ast_node_t *node, int actual_type, int expected_type) __attribute__ ((noreturn));
+static void
+fail_selector_lookup(ast_node_t *node, int actual_type, int expected_type)
+{
+	char message[1024];
+	if (!node) {
+		fail("Selector lookup failed (no node information available)");
+	}
+	symtab_entry_t *sym = node->sym;
+	if (actual_type) {
+		// Typfehler
+		if (CLASS_MEMBER_IS_METHOD(actual_type)) {
+			sprintf(message, "Tried to access method `%s' as if it were a field", sym->name);
+		} else {
+			if (CLASS_MEMBER_IS_METHOD(actual_type)) {
+				sprintf(message, "Tried to call method `%s' with %d parameters, but it expects %d", sym->name,
+					CLASS_MEMBER_METHOD_ARGS_NR(expected_type),
+					CLASS_MEMBER_METHOD_ARGS_NR(actual_type));
+			} else {
+				sprintf(message, "Tried to call field `%s' as if it were a method", sym->name);
+			}
+		}
+	} else {
+		sprintf(message, "Object has no method or field `%s'", sym->name);
+	}
+
+	fail_at_node(node, message);
+}
+
+// Gemeinsamer Code fuer alle Selektorzugriffe
+#define LOAD_SELECTOR							\
+									\
+	if (!obj) {							\
+		fail_at_node(node, "Null pointer object dereference");	\
+	}								\
+	class_t *classref = obj->classref;				\
+	const int mask = classref->table_mask;				\
+	int index = selector & mask;					\
+	unsigned short type;						\
+	long long int offset;						\
+	while (true) {							\
+		const unsigned long long coding = classref->members[index].selector_encoding; \
+		if (!coding) {						\
+			fail_selector_lookup(node, 0, 0);		\
+		}							\
+		if (CLASS_DECODE_SELECTOR_ID(coding) != selector) {	\
+			index = (index + 1) & mask;			\
+			continue;					\
+		}							\
+		type = CLASS_DECODE_SELECTOR_TYPE(coding);		\
+		offset = CLASS_DECODE_SELECTOR_OFFSET(coding);		\
+		break;							\
+	}
+
+
+void *
+object_get_member_method(object_t *obj, ast_node_t *node, int selector, int parameters_nr)
+{
+	LOAD_SELECTOR;
+	// `type' und `offset' sind nun gesetzt
+	if (type != CLASS_MEMBER_METHOD(parameters_nr)) {
+		fail_selector_lookup(node, type, CLASS_MEMBER_METHOD(parameters_nr));
+	}
+	return CLASS_VTABLE(classref)[offset];
+}
+
+void *
+object_read_member_field_obj(object_t *obj, ast_node_t *node, int selector)
+{
+	LOAD_SELECTOR;
+	// `type' und `offset' sind nun gesetzt
+
+	/* fprintf(stderr, "Reading from field slc=0x%x of object:\n", selector); */
+	/* object_print(stderr, obj, true, 3); */
+	/* fprintf(stderr, "\nreading from %p\n", &(obj->members[offset].int_v)); */
+
+	if (type == CLASS_MEMBER_VAR_OBJ) {
+		return obj->members[offset].object_v;
+	} else if (type == CLASS_MEMBER_VAR_INT) {
+		return new_int(obj->members[offset].int_v);
+	} else {
+		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_OBJ);
+	}
+}
+
+long long int
+object_read_member_field_int(object_t *obj, ast_node_t *node, int selector)
+{
+	LOAD_SELECTOR;
+	// `type' und `offset' sind nun gesetzt
+
+	if (type == CLASS_MEMBER_VAR_OBJ) {
+		object_t *elt = obj->members[offset].object_v;
+		if (elt->classref == &class_boxed_int) {
+			return elt->members[0].int_v;
+		}
+		fail_at_node(node, "attempted to convert non-int object to int value");
+	} else if (type == CLASS_MEMBER_VAR_INT) {
+		return obj->members[offset].int_v;
+	} else {
+		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_INT);
+	}
+}
+
+void
+object_write_member_field_int(object_t *obj, ast_node_t *node, int selector, long long int value)
+{
+	LOAD_SELECTOR;
+	// `type' und `offset' sind nun gesetzt
+
+	if (type == CLASS_MEMBER_VAR_OBJ) {
+		obj->members[offset].object_v = new_int(value);
+	} else if (type == CLASS_MEMBER_VAR_INT) {
+		obj->members[offset].int_v = value;
+	} else {
+		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_INT);
+	}
+}
+
+void
+object_write_member_field_obj(object_t *obj, ast_node_t *node, int selector, object_t *value)
+{
+	LOAD_SELECTOR;
+	// `type' und `offset' sind nun gesetzt
+
+	if (type == CLASS_MEMBER_VAR_OBJ) {
+		obj->members[offset].object_v = value;
+	} else if (type == CLASS_MEMBER_VAR_INT) {
+		if (!value) {
+			fail_at_node(node, "attempted to assign NULL to int field");
+		}
+		if (value->classref == &class_boxed_int) {
+			obj->members[offset].int_v = value->members[0].int_v;
+		}
+		fail_at_node(node, "attempted to convert non-int object to int value");
+	} else {
+		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_OBJ);
+	}
+}

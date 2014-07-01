@@ -37,7 +37,7 @@
 #include "class.h"
 
 typedef struct object {
-	class_t *classref;
+	class_t *classref; // Zeigt auf Klassenobjekt
 	union {
 		long long int int_v;
 		double real_v;
@@ -104,5 +104,64 @@ new_array(size_t len);
 void
 object_print(FILE *f, object_t *obj, int depth, bool debug);
 
-#endif // !defined(_ATTOL_OBJECT_H)
 
+// Selektor-Zugriff
+
+/**
+ * Liest einen Methoden-Zeiger aus einem Objekt, wenn der Eintrag die korrekte Anzahl an Parametern hat
+ *
+ * @param obj Das zu lesende Objekt
+ * @param node AST-Knoten des Zugriffs; wird zur Ausgabe einer Fehlermeldung verwendet, wenn der betreffende
+ *             Selektor nicht vorhanden ist oder einen unpassenden Typ hat
+ * @param selector Die gewuenschte Selektornummer der Methode
+ * @param parameters_nr Anzahl der erwarteten Methodenparameter (der `self'-Parameter wird hierbei nicht gezaehlt!)
+ * @return Zeiger auf den Code der Methode
+ */
+void *
+object_get_member_method(object_t *obj, ast_node_t *node, int selector, int parameters_nr);
+
+/**
+ * Laed ein Obj-Feld aus einem Objekt
+ *
+ * @param obj Das zu bearbeitende Objekt
+ * @param node AST-Knoten, zur Fehlerbehandlung
+ * @param selector Die gewuenschte Selektornummer des Feldes
+ * @param desired_type Der erwartete Typ (Typkonvertierungen werden mit durchgefuehrt)
+ */
+void *
+object_read_member_field_obj(object_t *obj, ast_node_t *node, int selector);
+
+/**
+ * Laed ein Int-Feld aus einem Objekt
+ *
+ * @param obj Das zu bearbeitende Objekt
+ * @param node AST-Knoten, zur Fehlerbehandlung
+ * @param selector Die gewuenschte Selektornummer des Feldes
+ * @param desired_type Der erwartete Typ (Typkonvertierungen werden mit durchgefuehrt)
+ */
+long long int
+object_read_member_field_int(object_t *obj, ast_node_t *node, int selector);
+
+/**
+ * Schreibt einen int-getyptes Feld in einem Objekt
+ *
+ * @param obj Das zu bearbeitende Objekt
+ * @param node AST-Knoten, zur Fehlerbehandlung
+ * @param selector Die gewuenschte Selektornummer
+ * @param value
+ */
+void
+object_write_member_field_int(object_t *obj, ast_node_t *node, int selector, long long int value);
+
+/**
+ * Schreibt einen obj-getyptes Feld in einem Objekt
+ *
+ * @param obj Das zu bearbeitende Objekt
+ * @param node AST-Knoten, zur Fehlerbehandlung
+ * @param selector Die gewuenschte Selektornummer
+ * @param value
+ */
+void
+object_write_member_field_obj(object_t *obj, ast_node_t *node, int selector, object_t *value);
+
+#endif // !defined(_ATTOL_OBJECT_H)

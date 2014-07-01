@@ -112,15 +112,21 @@ dyncomp_compile_function(int symtab_entry, void **update_address_on_call_stack)
 		int method_defs_nr = class_sym->methods_nr;
 		class_sym->r_trampoline = dyncomp_build_trampoline(buffer_entrypoint(runtime_current()->dyncomp),
 								   method_defs, method_defs_nr);
+		if (compiler_options.debug_dynamic_compilation) {
+			fprintf(stderr, "Built trampoline:\n");
+			buffer_disassemble((buffer_t) class_sym->r_trampoline);
+		}
 		for (int i = 0; i < method_defs_nr; i++) {
 			CLASS_VTABLE(class)[i] = method_defs[i]->children[0]->sym->r_trampoline;
 		}
 	}
 
-	if (compiler_options.debug_dynamic_compilation) {	
+	if (compiler_options.debug_dynamic_compilation) {
 		fprintf(stderr, "dyn-compiling `");
 		symtab_entry_name_dump(stderr, sym);
 		fprintf(stderr, "'\n");
+		symtab_entry_dump(stderr, sym);
+		fprintf(stderr, "Trampoline address at %p\n", sym->r_trampoline);
 		ast_node_dump(stderr, sym->astref, 6 | 8);
 	}
 
@@ -148,4 +154,10 @@ dyncomp_compile_function(int symtab_entry, void **update_address_on_call_stack)
 	label_t label;
 	emit_j(&buf, &label);
 	buffer_setlabel(&label, sym->r_mem);
+	if (sym->parent && !(sym->symtab_flags & SYMTAB_CONSTRUCTOR)) {
+		// Methode?
+		symtab_entry_t *class_sym = sym->parent;
+		class_t *class = (class_t *) class_sym->r_mem;
+		CLASS_VTABLE(class)[sym->offset] = sym->r_mem;
+	}
 }

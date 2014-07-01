@@ -28,7 +28,12 @@
 #ifndef _ATTOL_ERRORS_H
 #define _ATTOL_ERRORS_H
 
+#include "ast.h"
+
 void
 fail(char *msg) __attribute__ ((noreturn));
+
+void
+fail_at_node(ast_node_t *node, char *msg) __attribute__ ((noreturn));
 
 #endif // !defined(_ATTOL_ERRORS_H)

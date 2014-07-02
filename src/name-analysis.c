@@ -25,6 +25,7 @@
 
 ***************************************************************************/
 
+#include <stdbool.h>
 #include <assert.h>
 
 #include "analysis.h"
@@ -35,6 +36,7 @@
 #define NF_SPECIAL_CHILD_FLAGS	0xf0000000
 #define NF_SELECTOR		0x80000000
 #define NF_WITHIN_LOOP		0x40000000
+#define NF_PART_OF_CLASSDECL	0x20000000
 
 extern int symtab_selectors_nr; // from symbol-table.c
 extern hashtable_t *symtab_selectors_table;	// Bildet Selektor-namen auf EINEM der passenden Symboltabelleneinträge ab (nur für Aufrufe!)
@@ -118,6 +120,9 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		return;
 	}
 
+	bool node_is_part_of_class_decl = child_flags & NF_PART_OF_CLASSDECL;
+	child_flags &= ~NF_PART_OF_CLASSDECL;
+
 	/* fprintf(stderr, ">> "); */
 	/* ast_node_dump(stderr, node, 0); */
 	/* fprintf(stderr, "\n"); */
@@ -161,7 +166,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		++(*classes_nr);
 		// Definitionen werden im umgebenden AST_NODE_BLOCK gemanaged
 		fix_with_parameters(node, env, child_flags | SYMTAB_MEMBER | SYMTAB_PARAM,
-				    child_flags | SYMTAB_MEMBER, functions_nr, classes_nr);
+				    child_flags | SYMTAB_MEMBER | NF_PART_OF_CLASSDECL, functions_nr, classes_nr);
 		node->children[0]->type |= AST_FLAG_DECL;
 		return;
 
@@ -294,7 +299,13 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 
 			}
 		}
-		fixnames_recursive(node, env, parent, child_flags, functions_nr, classes_nr);
+		// Verschachtelte Eintraege werden Teil des Konstruktors und somit keine Klassen-Elemente
+		if (!node_is_part_of_class_decl) {
+			child_flags &= ~SYMTAB_MEMBER;
+		}
+		fixnames_recursive(node, env, parent,
+				   child_flags,
+				   functions_nr, classes_nr);
 		hashtable_free(env, NULL, NULL);
 		return;
 	}

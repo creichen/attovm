@@ -1018,16 +1018,22 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 	int storage_start = 1;
 	int allocated_spilled_args = spilled_args;
 
+	int local_variables_on_stack = 0; // nur fuer Konstruktor
+
 	if (sym->symtab_flags & SYMTAB_CONSTRUCTOR) {
 		// Fuer Konstruktoren legen wir noch eine zusaetzliche Variable am Anfang an,
 		// in der wir `SELF' speichern
 		mcontext.self_stack_location = -8;
 		storage_start = 2;
 		++allocated_spilled_args;
+		// Positionen auf dem Stapel fuer lokale Variablen
+		local_variables_on_stack = sym->astref->children[2]->storage;
+		mcontext.variable_storage = -(allocated_spilled_args + local_variables_on_stack);
 	}
 
+	STACK_ALLOC(allocated_spilled_args + local_variables_on_stack);
+
 	if (allocated_spilled_args) {
-		STACK_ALLOC(allocated_spilled_args);
 		for (int i = 0; i < spilled_args; i++) {
 			const int offset = -(i + storage_start);
 			emit_sd(buf, registers_argument[i], offset * sizeof(void *), REGISTER_FP);
@@ -1044,8 +1050,7 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 
 	baseline_compile_expr(buf, body, REGISTER_V0, context);
 
-	STACK_FREE(spilled_args);
-
+	emit_move(buf, REGISTER_SP, REGISTER_FP);
 	POP(REGISTER_FP);
 	emit_jreturn(buf);
 	buffer_terminate(mbuf);
@@ -1061,7 +1066,6 @@ baseline_compile_method(symtab_entry_t *sym)
 	mcontext.continue_labels = NULL;
 	mcontext.break_labels = NULL;
 	mcontext.stack_depth = -1;
-	mcontext.variable_storage = 0;
 	context_t *context = &mcontext;
 
 	buffer_t mbuf = buffer_new(1024);
@@ -1081,8 +1085,13 @@ baseline_compile_method(symtab_entry_t *sym)
 
 	mcontext.self_stack_location = -8;
 
+	const int local_variable_storage = sym->astref->children[2]->storage;
+	const int stack_space = allocated_spilled_args + local_variable_storage;
+
+	STACK_ALLOC(stack_space);
+	mcontext.variable_storage = -stack_space; // Platz auf dem Stapel fuer lokale Variablen
+
 	if (allocated_spilled_args) {
-		STACK_ALLOC(allocated_spilled_args);
 		for (int i = 0; i < spilled_args; i++) {
 			const int offset = -(i + storage_start);
 			emit_sd(buf, registers_argument[i], offset * sizeof(void *), REGISTER_FP);
@@ -1098,11 +1107,9 @@ baseline_compile_method(symtab_entry_t *sym)
 			args[i - 1]->sym->offset = offset;
 		}
 	}
-
 	baseline_compile_expr(buf, body, REGISTER_V0, context);
 
-	STACK_FREE(spilled_args);
-
+	emit_move(buf, REGISTER_SP, REGISTER_FP);
 	POP(REGISTER_FP);
 	emit_jreturn(buf);
 	buffer_terminate(mbuf);

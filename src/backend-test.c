@@ -365,6 +365,9 @@ main(int argc, char **argv)
 	TEST("class C() { obj p(obj x, int y) { print(x+y); } obj q() { p(1, 2); } } obj a = C(); a.q();", "3\n");
 	TEST("class C(int z) { int k = z; int p(int l) { return k + l; } obj q() { print(p(2)); } } obj a = C(3); a.q();", "5\n");
 
+	TEST("class C() { obj p() { int x = 0; print(x); x := 1; print(x); int y = 2; print(y); } } obj c = C(); c.p(); print(3); ", "0\n1\n2\n3\n");
+	TEST("class C() { obj x = \"unused\"; { int x = 0; print(x); x := 1; print(x); int y = 2; print(y); } } obj c = C(); print(3); ", "0\n1\n2\n3\n");
+
 	// next: builtings
 	TEST("assert(1); print(5); ", "5\n");
 	TEST("print([/5].size()); ", "5\n");

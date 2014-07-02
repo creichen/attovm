@@ -426,6 +426,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		ast_node_t *new_class_body_node =
 			ast_node_alloc_generic_without_init(AST_NODE_BLOCK,
 							    classref->vars_nr + classref->methods_nr);
+
 		ast_node_t **new_class_body = new_class_body_node->children;
 		int field_ref = 0;
 		int method_ref = classref->vars_nr;

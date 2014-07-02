@@ -106,7 +106,7 @@ builtin_op_obj_test_eq(object_t *a0, object_t *a1)
 }
 
 static void
-object_print_internal(FILE *f, object_t *obj, bool debug, int depth, char *sep)
+object_print_internal(FILE *f, object_t *obj, bool depth, int debug, char *sep)
 {
 	if (!obj) {
 		fprintf(f, "(null)");
@@ -134,9 +134,9 @@ object_print_internal(FILE *f, object_t *obj, bool debug, int depth, char *sep)
 			if (i > 0) {
 				fprintf(f, ",");
 			}
-			object_print_internal(f, obj->members[i+1].object_v, debug, depth - 1, " ");
+			object_print_internal(f, obj->members[i+1].object_v, depth - 1, debug, " ");
 		}
-		fprintf(f, "]%s\n", loc);
+		fprintf(f, "]%s", loc);
 		return;
 	}
 
@@ -168,7 +168,7 @@ object_print_internal(FILE *f, object_t *obj, bool debug, int depth, char *sep)
 
 			if (msym->ast_flags & TYPE_OBJ) {
 				object_print_internal(f, obj->members[CLASS_DECODE_SELECTOR_OFFSET(coding)].object_v,
-						      debug, depth - 1, " ");
+						      depth - 1, debug, " ");
 			} else if (msym->ast_flags & TYPE_INT) {
 				fprintf(f, "%lld", obj->members[CLASS_DECODE_SELECTOR_OFFSET(coding)].int_v);
 			} else {
@@ -201,7 +201,7 @@ object_print_internal(FILE *f, object_t *obj, bool debug, int depth, char *sep)
 void
 object_print(FILE *f, object_t *obj, int depth, bool debug)
 {
-	object_print_internal(f, obj, debug, depth, "\n");
+	object_print_internal(f, obj, depth, debug, "\n");
 }
 
 // ---------- Selektoren ---------- //

@@ -90,6 +90,7 @@ storage_alloc(ast_node_t *node)
 		int locals = 0; // Anzahl der lokalen Variablen
 		int max_subblock_size = 0; // Anzal der Variablen, die fuer den groessen Sub-Block benoetigt werden
 		ast_node_t **elements = node->children;
+
 		for (int i = 0; i < node->children_nr; i++) {
 			int size = update_node(elements[i]);
 			if (NODE_TY(elements[i]) == AST_NODE_VARDECL) {

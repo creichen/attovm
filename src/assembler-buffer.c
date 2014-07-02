@@ -320,6 +320,10 @@ disassemble_one(FILE *file, unsigned char *data, int max_len);
 void
 buffer_disassemble(buffer_t buf)
 {
+	if (!buf) {
+		puts("<null>");
+		return;
+	}
 	int size = buf->actual;
 	unsigned char *data = buffer_entrypoint(buf);
 

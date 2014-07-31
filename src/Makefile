@@ -1,7 +1,7 @@
 CFLAGS=-O0 -g -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200809 -std=c11
 #CFLAGS=-O3 -mcpu=native -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200809 -std=c11
 PYTHON=python
-LEX=flex
+FLEX=flex
 
 FRONTEND_HEADERS = chash.h symbol-table.h analysis.h
 FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c ast.h parser.h

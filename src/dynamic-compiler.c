@@ -60,6 +60,10 @@ dyncomp_build_generic()
 	emit_addiu(&buf, REGISTER_SP, sizeof(void*) * REGISTERS_ARGUMENT_NR);
 	emit_jreturn(&buf);
 	buffer_terminate(buf);
+	if (compiler_options.debug_dynamic_compilation) {
+		fprintf(stderr, "Generic compiler entry point:");
+		buffer_disassemble(buf);
+	}
 	return buf;
 }
 
@@ -88,6 +92,10 @@ dyncomp_build_trampoline(void *dyncomp_entry, ast_node_t **functions, int functi
 		label_t label;
 		emit_jal(&buf, &label);
 		buffer_setlabel(&label, dyncomp_entry);
+	}
+	if (compiler_options.debug_dynamic_compilation) {
+		fprintf(stderr, "Trampoline:");
+		buffer_disassemble(buf);
 	}
 	buffer_terminate(buf);
 	return buf;

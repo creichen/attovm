@@ -1,3 +1,22 @@
+# Script used to read Property File
+FILE_NAME=app.properties
+
+# Key in Property File
+key="version"
+
+# Variable to hold the Property Value
+prop_value=""
+
+getProperty()
+{
+        prop_key=$1
+        prop_value=`cat ${FILE_NAME} | grep ${prop_key} | cut -d'=' -f2`
+}
+
+getProperty ${key}
+echo "Key = ${key} ; Value = " ${prop_value}
+
+
 cp -rf ./ './en/';
 
 cp -rf ./en './de/';
@@ -22,8 +41,8 @@ sed -i "/\/\/d/d" `find ./ -name '*.c'`;
 sed -i "/\/\/d/d" `find ./ -name '*.h'`;
 cd ..;
 echo 'Creating extractions';
-tar -zcvf attovm-de.tar.gz de;
-tar -zcvf attovm-en.tar.gz en;
+tar -zcvf attovm-de-${prop_value}.tar.gz de;
+tar -zcvf attovm-en-${prop_value}.tar.gz en;
 rm -rf de;
 rm -rf en;
 

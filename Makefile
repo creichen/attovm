@@ -11,3 +11,6 @@ clean:
 
 test:
 	(cd src; make backend-test; ./backend-test)
+
+dist:
+	(sh localizescript.sh;)

@@ -30,9 +30,10 @@
 #include <string.h>
 
 #include "address-store.h"
-#include "errors.h"
 #include "assert.h"
 #include "class.h"
+#include "errors.h"
+#include "lexer-support.h"
 #include "object.h"
 #include "symbol-table.h"
 
@@ -161,9 +162,6 @@ static struct builtin_ops builtin_classes[] = {
 	{ BUILTIN_PRELINKED_METHOD_ARRAY_SIZE, "size", SYMTAB_TY_FUNCTION | SYMTAB_MEMBER, TYPE_INT, 0, NULL, &builtin_op_array_size }
 };
 
-// Die Namen für builtins, die hier verwendet werden, müssen auf die gleiche Speicherstelle zeigen
-// wie die im AST verwendeten Namen.  Dazu wird diese Normalisierungsfunktion verwendet:
-extern char* mk_unique_string(char *id);
 extern int symtab_selectors_nr; // symbol-table.c
 
 static void
@@ -176,6 +174,8 @@ symtab_add_builtins(struct builtin_ops *builtins, int nr)
 			id_p = &RESOLVE_BUILTIN_PRELINKED_ID(b->index);
 			b->index = 0;
 		}
+		// Die Namen für builtins, die hier verwendet werden, müssen auf die gleiche Speicherstelle zeigen
+		// wie die im AST verwendeten Namen.  Dazu wird diese Normalisierungsfunktion mk_unique_string() verwendet:
 		symtab_entry_t *e = symtab_builtin_new(b->index, b->ast_flags, b->symtab_flags,
 						       mk_unique_string(b->name));
 		b->index = e->id;

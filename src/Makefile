@@ -3,9 +3,9 @@ CFLAGS=-O0 -g -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200
 PYTHON=python
 FLEX=flex
 
-FRONTEND_HEADERS = chash.h symbol-table.h analysis.h
+FRONTEND_HEADERS = chash.h symbol-table.h analysis.h lexer-support.h
 FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c ast.h parser.h
-FRONTEND_OBJS = parser.o lexer.o ast.o unparser.o chash.o symbol-table.o \
+FRONTEND_OBJS = parser.o lexer.o lexer-support.o ast.o unparser.o chash.o symbol-table.o \
 		name-analysis.o type-analysis.o storage-allocation.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 

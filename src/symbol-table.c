@@ -30,6 +30,7 @@
 
 #include "ast.h"
 #include "chash.h"
+#include "lexer-support.h"
 #include "symbol-table.h"
 
 #define INITIAL_SIZE 128
@@ -68,8 +69,6 @@ symtab_get(int *id, int **ids_nr, int **alloc_size, symbol_table_t **symtab)
 		*symtab = NULL; // no such table;
 	}
 }
-
-extern char* mk_unique_string(char *id);
 
 symtab_entry_t *
 symtab_selector(char *name)

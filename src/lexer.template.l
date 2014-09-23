@@ -98,7 +98,7 @@ unescape_char(char c)
 }
 
 
-static char*
+char*
 unescape_string(char *text)
 {
 	char * result = strdup(text + 1);

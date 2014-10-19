@@ -43,21 +43,21 @@ dyncomp_build_generic()
 {
 	buffer_t buf = buffer_new(64);
 	// Argumentregister sichern
-	emit_subiu(&buf, REGISTER_SP, sizeof(void*) * REGISTERS_ARGUMENT_NR); // Alle Argumentregister
+	emit_subi(&buf, REGISTER_SP, sizeof(void*) * REGISTERS_ARGUMENT_NR); // Alle Argumentregister
 	for (int i = 0; i < REGISTERS_ARGUMENT_NR; i++) {
 		emit_sd(&buf, registers_argument[i], i * sizeof(void*), REGISTER_SP);
 	}
 	// Der Uebersetzereinsprungpunkt liegt in C, wird entsprechend angesteuert
 	emit_move(&buf, REGISTER_A0, REGISTER_V0);
 	emit_move(&buf, REGISTER_A1, REGISTER_SP);
-	emit_addiu(&buf, REGISTER_A1, sizeof(void*) * REGISTERS_ARGUMENT_NR); // Alle Argumentregister
+	emit_addi(&buf, REGISTER_A1, sizeof(void*) * REGISTERS_ARGUMENT_NR); // Alle Argumentregister
 	emit_la(&buf, REGISTER_V0, dyncomp_compile_function);
-	emit_jals(&buf, REGISTER_V0);
+	emit_jal(&buf, REGISTER_V0);
 	for (int i = 0; i < REGISTERS_ARGUMENT_NR; i++) {
 		emit_ld(&buf, registers_argument[i], i * sizeof(void*), REGISTER_SP);
 	}
 	// Alte Argumentregister wiederherstellen
-	emit_addiu(&buf, REGISTER_SP, sizeof(void*) * REGISTERS_ARGUMENT_NR);
+	emit_addi(&buf, REGISTER_SP, sizeof(void*) * REGISTERS_ARGUMENT_NR);
 	emit_jreturn(&buf);
 	buffer_terminate(buf);
 	if (compiler_options.debug_dynamic_compilation) {

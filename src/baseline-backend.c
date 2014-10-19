@@ -68,10 +68,10 @@ typedef struct {
 //  dass stack_depth immer aktuell ist
 #define PUSH(REG) emit_push(buf, (REG)); context->stack_depth++
 #define POP(REG) emit_pop(buf, (REG)); context->stack_depth--
-#define STACK_ALLOC(DSIZE); if (DSIZE) {emit_subiu(buf, REGISTER_SP, sizeof(void *) * (DSIZE)); context->stack_depth += (DSIZE); }
-#define STACK_FREE(DSIZE); if (DSIZE) {emit_addiu(buf, REGISTER_SP, sizeof(void *) * (DSIZE)); context->stack_depth -= (DSIZE); }
+#define STACK_ALLOC(DSIZE); if (DSIZE) {emit_subi(buf, REGISTER_SP, sizeof(void *) * (DSIZE)); context->stack_depth += (DSIZE); }
+#define STACK_FREE(DSIZE); if (DSIZE) {emit_addi(buf, REGISTER_SP, sizeof(void *) * (DSIZE)); context->stack_depth -= (DSIZE); }
 
-#define MARK_LINE()  {emit_addiu(buf, REGISTER_FP, __LINE__);emit_subiu(buf, REGISTER_FP, __LINE__);}
+#define MARK_LINE()  {emit_addi(buf, REGISTER_FP, __LINE__);emit_subi(buf, REGISTER_FP, __LINE__);}
 
 static void
 context_copy(context_t *dest, context_t *src)
@@ -106,7 +106,7 @@ long long int builtin_op_obj_test_eq(object_t *a0, object_t *a1);
 
 
 #define PREPARE_ARGUMENTS_MUSTALIGN	0x0001	// Aufrufstapel muss ausgerichtet werden
-#define PREPARE_ARGUMENTS_SKIP_A0	0x0002	// Parameter beginnen bei $a1; $a0 wird nach baseline_prepare_arguments() und vor emit_jals() separat gesetzt
+#define PREPARE_ARGUMENTS_SKIP_A0	0x0002	// Parameter beginnen bei $a1; $a0 wird nach baseline_prepare_arguments() und vor emit_jal() separat gesetzt
 
 /**
  * Laed eine Argumentliste in $a0...$a5 und bereitet (soweit noetig) den Stapel auf einen Aufruf vor
@@ -164,7 +164,7 @@ emit_fail_at_node(buffer_t *buf, ast_node_t *node, char *msg)
 	emit_la(buf, REGISTER_A0, node);
 	emit_la(buf, REGISTER_A1, msg);
 	emit_la(buf, REGISTER_V0, &fail_at_node);
-	emit_jals(buf, REGISTER_V0);
+	emit_jal(buf, REGISTER_V0);
 }
 
 
@@ -201,7 +201,7 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 			return;
 		case TYPE_OBJ:
 			emit_la(buf, REGISTER_V0, &new_int);
-			emit_jals(buf, REGISTER_V0);
+			emit_jal(buf, REGISTER_V0);
 			emit_optmove(buf, dest_register, REGISTER_V0);
 			return;
 		case TYPE_VAR:
@@ -307,7 +307,7 @@ baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
 	case TYPE_OBJ:
 		prep_stack_frame_size = baseline_prepare_arguments(buf, 0, args, context, PREPARE_ARGUMENTS_MUSTALIGN);
 		emit_la(buf, REGISTER_V0, builtin_op_obj_test_eq);
-		emit_jals(buf, REGISTER_V0);
+		emit_jal(buf, REGISTER_V0);
 		emit_optmove(buf, dest_register, REGISTER_V0);
 		break;
 
@@ -421,7 +421,7 @@ baseline_compile_builtin_op(buffer_t *buf, int ty_and_node_flags, int op, ast_no
 		emit_la(buf, REGISTER_V0, new_object);
 		emit_la(buf, REGISTER_A0, sym->r_mem);
 		emit_li(buf, REGISTER_A1, sym->vars_nr);
-		emit_jals(buf, REGISTER_V0);
+		emit_jal(buf, REGISTER_V0);
 		STACK_FREE(prep_stack_frame_size);
 	}
 		break;
@@ -629,7 +629,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			}
 			int stack_frame_size = baseline_prepare_arguments(buf, 0, NULL, context,
 									  PREPARE_ARGUMENTS_MUSTALIGN);
-			emit_jals(buf, REGISTER_V0);
+			emit_jal(buf, REGISTER_V0);
 			STACK_FREE(stack_frame_size);
 		} else {
 			baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
@@ -657,7 +657,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			emit_li(buf, REGISTER_A0, ast->children[0]->children_nr);
 		}
 		emit_la(buf, REGISTER_V0, &new_array);
-		emit_jals(buf, REGISTER_V0);
+		emit_jal(buf, REGISTER_V0);
 		// We now have the allocated array in REGISTER_V0
 		PUSH(REGISTER_V0);
 		for (int i = 0; i < ast->children[0]->children_nr; i++) {
@@ -709,7 +709,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 
 		// index is valid
 		if (ast->type & AST_FLAG_LVALUE) {
-			emit_addiu(buf, REGISTER_V0, 16); // +16 um ueber Typ-ID und Arraygroesse zu springen
+			emit_addi(buf, REGISTER_V0, 16); // +16 um ueber Typ-ID und Arraygroesse zu springen
 			emit_optmove(buf, dest_register, REGISTER_V0);
 		} else {
 			emit_ld(buf, dest_register, 16, REGISTER_V0);
@@ -795,7 +795,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_la(buf, REGISTER_V0, object_get_member_method);
 		int stack_frame_size = baseline_prepare_arguments(buf, 0, NULL, context,
 								  PREPARE_ARGUMENTS_MUSTALIGN);
-		emit_jals(buf, REGISTER_V0);
+		emit_jal(buf, REGISTER_V0);
 		STACK_FREE(stack_frame_size);
 		
 		// Speichere Sprungadresse
@@ -811,7 +811,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 						   | PREPARE_ARGUMENTS_SKIP_A0);
 		emit_ld(buf, REGISTER_A0, (context->stack_depth - a0_offset) * sizeof(void *), REGISTER_SP);
 		emit_ld(buf, REGISTER_V0, (context->stack_depth - v0_offset) * sizeof(void *), REGISTER_SP);
-		emit_jals(buf, REGISTER_V0);
+		emit_jal(buf, REGISTER_V0);
 		STACK_FREE(stack_frame_size + 2);
 		emit_optmove(buf, dest_register, REGISTER_V0);
 	}
@@ -835,7 +835,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		}
 		int stack_frame_size = baseline_prepare_arguments(buf, 0, NULL, context,
 								  PREPARE_ARGUMENTS_MUSTALIGN);
-		emit_jals(buf, REGISTER_V0);
+		emit_jal(buf, REGISTER_V0);
 		STACK_FREE(stack_frame_size);
 		emit_optmove(buf, dest_register, REGISTER_V0);
 	}
@@ -872,7 +872,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 				buffer_setlabel(&lab, sym->r_mem);
 			} else {
 				emit_la(buf, REGISTER_V0, sym->r_mem);
-				emit_jals(buf, REGISTER_V0);
+				emit_jal(buf, REGISTER_V0);
 			}
 
 			// Stapelrahmen nachbereiten, soweit noetig

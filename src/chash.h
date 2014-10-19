@@ -123,7 +123,6 @@ hashtable_get(hashtable_t *tbl, void *key);
 void
 hashtable_foreach(hashtable_t *tbl, visit_fn_t visit, void *state);
 
-
 /**
  * Klont eine Hashtabelle
  *

@@ -122,6 +122,13 @@ class Arg(object):
     def isDisabled(self):
         return False
 
+    def genLatex(self, m):
+        '''
+        Generates LaTeX description.  Updates map `m' if needed.  In m:
+        'r' keeps the register count (0 initially)
+        'v' stores the desired representation for the immediate arg
+        '''
+        pass
 
 
 class PCRelative(Arg):
@@ -170,6 +177,8 @@ class PCRelative(Arg):
         return (['%s'], ['%s_buf' % self.strName()])
         # return (["%p"], [self.strName()])
 
+    def genLatex(self, m):
+        return 'addr'
 
 class Reg(Arg):
     '''
@@ -225,6 +234,12 @@ class Reg(Arg):
         p('int %s = %s;' % (self.strName(), ' | ' .join(decoding)))
         return (['%s'], ['register_names[' + self.strName() + '].mips'])
 
+    def genLatex(self, m):
+        n = m['r']
+        m['r'] = n + 1
+        return '\\texttt{\\$r' + str(n) + '}'
+
+
 class JointReg(Arg):
     '''
     Multiple destinations for a single register argument (no exclusive range)
@@ -265,6 +280,9 @@ class JointReg(Arg):
     def printDisassemble(self, dataptr, offset_shift, p):
         return self.subs[0].printDisassemble(dataptr, offset_shift, p)
 
+    def genLatex(self, m):
+        return self.subs[0].genLatex(m)
+
 
 class Imm(Arg):
     '''
@@ -272,8 +290,9 @@ class Imm(Arg):
 
     name_lookup: should this number be looked up in the address store to check for special meanings?
     '''
-    def __init__(self, ctype, cformatstr, bytenr, bytelen, name_lookup=True, format_prefix=''):
+    def __init__(self, ctype, docname, cformatstr, bytenr, bytelen, name_lookup=True, format_prefix=''):
         self.ctype = ctype
+        self.docname = docname
         self.cformatstr = cformatstr
         self.bytenr = bytenr
         self.bytelen = bytelen
@@ -310,6 +329,11 @@ class Imm(Arg):
             p('snprintf(%s_buf, %d, "%s%%%s", %s);' % (self.strName(), maxsize, self.format_prefix, self.cformatstr, self.strName()))
         return (['%s'], ['%s_buf' % self.strName()])
 
+    def genLatex(self, m):
+        name = self.docname + str(self.bytelen * 8)
+        assert 'v' not in m
+        m['v'] = name
+        return name
 
 class DisabledArg(Arg):
     '''
@@ -334,6 +358,8 @@ class DisabledArg(Arg):
     def isDisabled(self):
         return True
 
+    def genLatex(self, m):
+        return self.arg.genLatex(m)
 
 def mkp(indent):
     '''Helper for indented printing'''
@@ -345,8 +371,9 @@ def mkp(indent):
 class Insn(object):
     emit_prefix = "emit_"
 
-    def __init__(self, name, machine_code, args):
+    def __init__(self, name, descr, machine_code, args):
         self.name = name
+        self.descr = descr
         self.function_name = name
         self.is_static = False
         self.machine_code = machine_code
@@ -496,13 +523,45 @@ class Insn(object):
         pp('return machine_code_len;')
         p('}')
 
+    def genLatexTable(self):
+        '''Returns list with the following elements (as LaTeX): [insn-name, args, short description]'''
+
+        args = []
+        m = { 'r' : 0 }
+        for a in self.args:
+            args.append(a.genLatex(m))
+
+        valstr = m['v'] if 'v' in m else '?'
+
+        descr = (self.descr
+                 .replace('\\', '\\')
+                 .replace('%v', '\\texttt{' + valstr + '}')
+                 .replace('%a', '\\texttt{addr}'))
+
+        regnames = ['pc', 'sp', 'gp', 'fp']
+        for (pfx, count) in [('r', 4), ('a', 6), ('v', 1), ('t', 2), ('s', 4)]:
+            for c in range(0, count + 1):
+                regnames.append(pfx + str(c))
+
+        for r in regnames:
+            descr = descr.replace('$' + r, '\\texttt{\\$' + r + '}')
+
+        descr = (descr
+                 .replace('$$', '$')
+                 .replace('_', '\\_'))
+                 
+        name = '\\textcolor{dblue}{\\textbf{\\texttt{' + self.name.replace('_', '\\_') + '}}}'
+
+
+        return [name, ', '.join(args), descr]
+
 
 
 class InsnAlternatives(Insn):
     '''
     Multiple alternative instruction encodings wrapped into the same call
     '''
-    def __init__(self, name, default, options):
+    def __init__(self, name, descr, default, options):
         '''
         name: Name of the joint instruction
         default: Default instruction encoding, a pair of (machine_code, args) as for Insn
@@ -512,8 +571,8 @@ class InsnAlternatives(Insn):
                  Alternative encodings may skip args (specify as "None").  Make sure to
                  maintain the order of the original argument list, though.
         '''
-        Insn.__init__(self, name, default[0], default[1])
-        self.options = {opt : Insn(name, machine_code, args) for (opt, (machine_code, args)) in options}
+        Insn.__init__(self, name, descr, default[0], default[1])
+        self.options = {opt : Insn(name, descr, machine_code, args) for (opt, (machine_code, args)) in options}
 
         name_nr = 0
 
@@ -522,7 +581,7 @@ class InsnAlternatives(Insn):
             o.function_name = o.name + '__%d' % name_nr
             name_nr += 1
 
-        self.default_option = Insn(name, default[0], default[1])
+        self.default_option = Insn(name, descr, default[0], default[1])
         self.default_option.is_static = True
         self.default_option.function_name = self.default_option.name + '__%d' % name_nr
 
@@ -575,6 +634,9 @@ class InsnAlternatives(Insn):
         # otherwise default
         p(invoke(self.default_option))
         print '}'
+
+    def printLatex(self, m):
+        return self.options[0].printLatex(m)
         
 
 class OptPrefixInsn (Insn):
@@ -582,8 +644,8 @@ class OptPrefixInsn (Insn):
     Eine Insn, die ein optionales Praefix-Byte erlaubt.  Dieses wird erzeugt gdw ein Bit in Byte -1 auf nicht-0 gesetzt werden muss.
     '''
 
-    def __init__(self, name, opt_prefix, machine_code, args):
-        Insn.__init__(self, name, [opt_prefix] + machine_code, args)
+    def __init__(self, name, descr, opt_prefix, machine_code, args):
+        Insn.__init__(self, name, descr, [opt_prefix] + machine_code, args)
         self.opt_prefix = opt_prefix
 
     def machineCodeLen(self):
@@ -614,19 +676,19 @@ class OptPrefixInsn (Insn):
 
 
 def ImmInt(offset):
-    return Imm('int', 'd', offset, 4, name_lookup = False)
+    return Imm('int', 's', 'd', offset, 4, name_lookup = False)
 
 def ImmUInt(offset):
-    return Imm('unsigned int', 'x', offset, 4, name_lookup = False, format_prefix='0x')
+    return Imm('unsigned int', 'u', 'x', offset, 4, name_lookup = False, format_prefix='0x')
 
 def ImmByte(offset):
-    return Imm('unsigned char', 'x', offset, 1, name_lookup = False, format_prefix='0x')
+    return Imm('unsigned char', 'u', 'x', offset, 1, name_lookup = False, format_prefix='0x')
 
 def ImmLongLong(offset):
-    return Imm('long long', 'llx', offset, 8, format_prefix='0x')
+    return Imm('long long', 's', 'llx', offset, 8, format_prefix='0x')
 
 def ImmReal(offset):
-    return Imm('double', 'f', offset, 8, name_lookup = False)
+    return Imm('double', 'f', 'f', offset, 8, name_lookup = False)
 
 
 def Name(mips, intel=None):
@@ -668,37 +730,37 @@ def printDisassembler(instructions):
 
 
 instructions = [
-    Insn("add", [0x48, 0x01, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
-    Insn("sub", [0x48, 0x29, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
-    Insn(Name(mips="move", intel="mov"), [0x48, 0x89, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
-    Insn(Name(mips="mul", intel="imul"), [0x48, 0x0f, 0xaf, 0xc0], [ArithmeticSrcReg(3), ArithmeticDestReg(3)]),
-    Insn(Name(mips="div_a2v0", intel="idiv"), [0x48, 0xf7, 0xf8], [ArithmeticDestReg(2)]),
+    Insn("add", '$r0 := $r0 + $r1', [0x48, 0x01, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn("sub", '$r0 := $r0 $$-$$ $r1', [0x48, 0x29, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn(Name(mips="move", intel="mov"), '$r0 := $r1', [0x48, 0x89, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn(Name(mips="mul", intel="imul"), '$r0 := $r0 * $r1', [0x48, 0x0f, 0xaf, 0xc0], [ArithmeticSrcReg(3), ArithmeticDestReg(3)]),
+    Insn(Name(mips="div_a2v0", intel="idiv"), '$v0 := $a2:$v0 / $r0, $a2 := remainder', [0x48, 0xf7, 0xf8], [ArithmeticDestReg(2)]),
 
-    Insn(Name(mips="slli", intel="shld"), [0x48, 0x0f, 0xa4, 0xc0, 0], [ArithmeticDestReg(3), ArithmeticSrcReg(3), ImmByte(4)]),
-    Insn(Name(mips="srli", intel="shrd"), [0x48, 0x0f, 0xac, 0xc0, 0], [ArithmeticDestReg(3), ArithmeticSrcReg(3), ImmByte(4)]),
+    Insn(Name(mips="slli", intel="shld"), '$r0 := $r0 bit-shifted left by %v', [0x48, 0x0f, 0xa4, 0xc0, 0], [ArithmeticDestReg(3), ArithmeticSrcReg(3), ImmByte(4)]),
+    Insn(Name(mips="srli", intel="shrd"), '$r0 := $r0 bit-shifted right by %v', [0x48, 0x0f, 0xac, 0xc0, 0], [ArithmeticDestReg(3), ArithmeticSrcReg(3), ImmByte(4)]),
 
-    Insn(Name(mips="andi", intel="and"), [0x48, 0x81, 0xe0, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
-    Insn(Name(mips="ori", intel="or"), [0x48, 0x81, 0xc8, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
-    Insn(Name(mips="xori", intel="xor"), [0x48, 0x81, 0xf0, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
+    Insn(Name(mips="andi", intel="and"), '$r0 := $r0 bitwise-and %v', [0x48, 0x81, 0xe0, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
+    Insn(Name(mips="ori", intel="or"), '$r0 := $r0 bitwise-or %v', [0x48, 0x81, 0xc8, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
+    Insn(Name(mips="xori", intel="xor"), '$r0 := $r0 bitwise-exclusive-or %v', [0x48, 0x81, 0xf0, 0, 0, 0, 0], [ArithmeticDestReg(3), ImmUInt(3)]),
 
-    Insn(Name(mips="and", intel="and"), [0x48, 0x21, 0xc0,], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn(Name(mips="and", intel="and"), '$r0 := $r0 bitwise-and $r1', [0x48, 0x21, 0xc0,], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
 
-    Insn(Name(mips="li", intel="mov"), [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
-    Insn(Name(mips="jreturn", intel="ret"), [0xc3], []),
-    Insn(Name(mips="jal", intel="callq"), [0xe8, 0x00, 0x00, 0x00, 0x00], [PCRelative(1, 4, -5)]),
-    OptPrefixInsn(Name(mips="jals", intel="callq"), 0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
-    Insn(Name(mips="bgt", intel="cmp_jg"), [0x48, 0x39, 0xc0, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="bge", intel="cmp_jge"), [0x48, 0x39, 0xc0, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="blt", intel="cmp_jl"), [0x48, 0x39, 0xc0, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="ble", intel="cmp_jle"), [0x48, 0x39, 0xc0, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="beq", intel="cmp_je"), [0x48, 0x39, 0xc0, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="bne", intel="cmp_jne"), [0x48, 0x39, 0xc0, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
-    Insn(Name(mips="bgtz", intel="cmp0_jg"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="bgez", intel="cmp0_jge"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="bltz", intel="cmp0_jl"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="blez", intel="cmp0_jle"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="bnez", intel="cmp0_jnz"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-    Insn(Name(mips="beqz", intel="cmp0_jz"), [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="li", intel="mov"), '$r0 := %v', [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
+    Insn(Name(mips="jreturn", intel="ret"), 'jump to mem[$sp]; $sp := $sp + 8', [0xc3], []),
+    Insn(Name(mips="jal", intel="callq"), 'mem[$sp] := next instruction address, jump to %a', [0xe8, 0x00, 0x00, 0x00, 0x00], [PCRelative(1, 4, -5)]),
+#    OptPrefixInsn(Name(mips="jals", intel="callq"), 0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
+    Insn(Name(mips="bgt", intel="cmp_jg"), 'if $r0 $$>$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bge", intel="cmp_jge"), 'if $r0 $$\\ge$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="blt", intel="cmp_jl"), 'if $r0 $$<$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="ble", intel="cmp_jle"), 'if $r0 $$\\le$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="beq", intel="cmp_je"), 'if $r0 = $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bne", intel="cmp_jne"), 'if $r0 $$\\ne$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
+    Insn(Name(mips="bgtz", intel="cmp0_jg"), 'if $r0 $$>$$ 0, then jump to %a', [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bgez", intel="cmp0_jge"), 'if $r0 $$\ge$$ 0, then jump to %a', [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bltz", intel="cmp0_jl"), 'if $r0 $$<$$ 0, then jump to %a', [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="blez", intel="cmp0_jle"), 'if $r0 $$\\le$$ 0, then jump to %a', [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="bnez", intel="cmp0_jnz"), 'if $r0 $$\\ne$$ 0, then jump to %a', [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
+    Insn(Name(mips="beqz", intel="cmp0_jz"), 'if $r0 = 0, then jump to %a', [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
 
     # Insn(Name(mips="not", intel="xor_test_sete"),  [0x48, 0x85, 0xc0, 0x40, 0xb8, 0,0,0,0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2)])]),
     # Insn(Name(mips="slt", intel="xor_cmp_setl"),  [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x9c, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
@@ -706,11 +768,11 @@ instructions = [
     # Insn(Name(mips="seq", intel="xor_cmp_sete"),  [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
     # Insn(Name(mips="sne", intel="xor_cmp_setne"), [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x95, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
 
-    Insn(Name(mips="not", intel="test_mov0_sete"),  [0x48, 0x85, 0xc0, 0x40, 0xb8, 0,0,0,0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2)])]),
-    Insn(Name(mips="slt", intel="cmp_mov0_setl"),  [0x48, 0x39, 0xc0, 0x40, 0xb8, 0,0,0,0,  0x40, 0x0f, 0x9c, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
-    Insn(Name(mips="sle", intel="cmp_mov0_setle"), [0x48, 0x39, 0xc0, 0x40, 0xb8, 0,0,0,0,  0x40, 0x0f, 0x9e, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
-    Insn(Name(mips="seq", intel="cmp_mov0_sete"),  [0x48, 0x39, 0xc0, 0x40, 0xb8, 0,0,0,0,  0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), ArithmeticSrcReg(2), ArithmeticDestReg(2)]),
-    Insn(Name(mips="sne", intel="cmp_mov0_setne"), [0x48, 0x39, 0xc0, 0x40, 0xb8, 0,0,0,0,  0x40, 0x0f, 0x95, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), ArithmeticSrcReg(2), ArithmeticDestReg(2)]),
+    Insn(Name(mips="not", intel="test_mov0_sete"), 'if $r1 = 0 then $r1 := 1 else $r1 := 0',  [0x48, 0x85, 0xc0, 0x40, 0xb8, 0,0,0,0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2)])]),
+    Insn(Name(mips="slt", intel="cmp_mov0_setl"), 'if $r1 < $r2 then $r1 := 1 else $r1 := 0',  [0x48, 0x39, 0xc0, 0x40, 0xb8, 0,0,0,0,  0x40, 0x0f, 0x9c, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn(Name(mips="sle", intel="cmp_mov0_setle"), 'if $r1 $$\le$$ $r2 then $r1 := 1 else $r1 := 0', [0x48, 0x39, 0xc0, 0x40, 0xb8, 0,0,0,0,  0x40, 0x0f, 0x9e, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn(Name(mips="seq", intel="cmp_mov0_sete"), 'if $r1 = $r2 then $r1 := 1 else $r1 := 0',  [0x48, 0x39, 0xc0, 0x40, 0xb8, 0,0,0,0,  0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), ArithmeticSrcReg(2), ArithmeticDestReg(2)]),
+    Insn(Name(mips="sne", intel="cmp_mov0_setne"), 'if $r1 $$\\ne$$ $r2 then $r1 := 1 else $r1 := 0', [0x48, 0x39, 0xc0, 0x40, 0xb8, 0,0,0,0,  0x40, 0x0f, 0x95, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), ArithmeticSrcReg(2), ArithmeticDestReg(2)]),
 
 # mov0: 0x40, 0xb8, 0,0,0,0
 # xor: 0x48, 0x31, 0xc0
@@ -720,21 +782,36 @@ instructions = [
 # sete: 0x40 0x0f 0x94 0xc0
 # setne: 0x40 0x0f 0x95 0xc0
 
-    Insn(Name(mips="push", intel="push"), [0x48, 0x50], [ArithmeticDestReg(1)]),
-    Insn(Name(mips="pop", intel="pop"), [0x48, 0x58], [ArithmeticDestReg(1)]),
-    Insn(Name(mips="addiu", intel="add"), [0x48, 0x81, 0xc0, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
-    Insn(Name(mips="subiu", intel="add"), [0x48, 0x81, 0xe8, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
-    InsnAlternatives(Name(mips="sd", intel="mov_qword_r"),
+# ----------------------------------------
+# NOT TESTED YET:
+
+    Insn(Name(mips="srai", intel="shrd"), '$r0 := $r0 bit-shifted right by %v, sign extension', [0x48, 0x0f, 0xac, 0xc0, 0], [ArithmeticDestReg(3), ArithmeticSrcReg(3), ImmByte(4)]),
+
+    Insn(Name(mips="sll", intel="?"), '$r0 := $r0 bit-shifted left by $r1', [0x48, 0x21, 0xc0,], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn(Name(mips="srl", intel="?"), '$r0 := $r0 bit-shifted right by $r1', [0x48, 0x21, 0xc0,], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn(Name(mips="sra", intel="?"), '$r0 := $r0 bit-shifted right by $r1, sign-extended', [0x48, 0x21, 0xc0,], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+
+    Insn(Name(mips="or", intel="or"), '$r0 := $r0 bitwise-or $r1', [0x48, 0x21, 0xc0,], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn(Name(mips="xor", intel="xor"), '$r0 := $r0 bitwise-exclusive-or $r1', [0x48, 0x21, 0xc0,], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+
+# ----------------------------------------
+
+    Insn(Name(mips="syscall", intel="syscall"), 'system call', [0x0f, 0x05], [ArithmeticDestReg(1)]),
+    Insn(Name(mips="push", intel="push"), '$sp := $sp - 8; mem[$sp] = $r0', [0x48, 0x50], [ArithmeticDestReg(1)]),
+    Insn(Name(mips="pop", intel="pop"), '$r0 = mem[$sp]; $sp := $sp + 8', [0x48, 0x58], [ArithmeticDestReg(1)]),
+    Insn(Name(mips="addi", intel="add"), '$r0 := $r0 + %v', [0x48, 0x81, 0xc0, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
+    Insn(Name(mips="subi", intel="add"), '$r0 := $r0 $$-$$ %v', [0x48, 0x81, 0xe8, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
+    InsnAlternatives(Name(mips="sd", intel="mov_qword_r"), 'mem[$r1 + %v] := $r0',
                      ([0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(3), ArithmeticDestReg(2)]), [
                          ('{arg2} == 4', ([0x48, 0x89, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(4), DisabledArg(ArithmeticDestReg(2), '4')]))
                      ]).setFormat('%s, %s(%s)'),
     #    Insn(Name(mips="sd", intel="mov-qword[],r"), [0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
-    InsnAlternatives(Name(mips="ld", intel="mov_r_qword"),
+    InsnAlternatives(Name(mips="ld", intel="mov_r_qword"), '$r0 := mem[$r1 + %v]',
                      ([0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(3), ArithmeticDestReg(2)]), [
                          ('{arg2} == 4', ([0x48, 0x8b, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(4), DisabledArg(ArithmeticDestReg(2), '4')]))
                      ]).setFormat('%s, %s(%s)'),
     # Insn(Name(mips="ld", intel="mov-r,qword[]"), [0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
-    Insn(Name(mips="j", intel="jmp"), [0xe9, 0, 0, 0, 0], [PCRelative(1, 4, -5)]),
+    Insn(Name(mips="j", intel="jmp"), 'jump to %a', [0xe9, 0, 0, 0, 0], [PCRelative(1, 4, -5)]),
 ]
 
 
@@ -742,6 +819,7 @@ def printUsage():
     print 'usage: '
     print '\t' + sys.argv[0] + ' headers'
     print '\t' + sys.argv[0] + ' code'
+    print '\t' + sys.argv[0] + ' latex'
 
 def printWarning():
     print '// This is GENERATED CODE.  Do not modify by hand, or your modifications will be lost on the next re-buld!'
@@ -759,6 +837,13 @@ def printCodeHeader():
     print '#include "registers.h"'
     
 
+def printDocs():
+    print '\\begin{tabular}{llp{8cm}}'
+    for i in instructions:
+        [a,b,c] = i.genLatexTable()
+        print a + '&\t' + b + '&\t' + c + '\\\\'
+    print '\\end{tabular}'
+
 if len(sys.argv) > 1:
     if sys.argv[1] == 'headers':
         printWarning()
@@ -775,6 +860,9 @@ if len(sys.argv) > 1:
             insn.printGenerator()
             print "\n"
         printDisassembler(instructions)
+
+    elif sys.argv[1] == 'latex':
+        printDocs()
 
     else:
         printUsage()

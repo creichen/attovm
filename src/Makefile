@@ -17,6 +17,9 @@ BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.
 FINAL_OBJS = atl.o atl backend-test.o backend-test assembler-buffer-test
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
+ASM_OBJS = 2opm/assembler.o 2opm/asm.o 2opm/asm-lexer.o chash.o address-store.o \
+		registers.o assembler.o assembler-buffer.o
+
 .PHONY: clean tidy all
 
 # ========================================
@@ -49,6 +52,12 @@ test-assembler-buffer: assembler-buffer-test
 
 test: test-frontend test-backend
 
+asm: ${ASM_OBJS}
+	$(CC) $(CFLAGS) $(ASM_OBJS) -o asm
+
+TAGS:
+	etags -R -f TAGS *.c *.h
+
 # ========================================
 # Generated code
 
@@ -76,4 +85,9 @@ parser.h: mk-parser.py parser.template.h
 unparser.c: mk-parser.py unparser.template.c parser.h ast.h
 	${PYTHON} mk-parser.py unparser.c > unparser.c
 
+2opm/assembler-instructions.h: mk-codegen.py
+	${PYTHON} mk-codegen.py assembler-header > 2opm/assembler-instructions.h
+
+2opm/assembler.c: mk-codegen.py 2opm/assembler-instructions.h
+	${PYTHON} mk-codegen.py assembler > 2opm/assembler.c
 

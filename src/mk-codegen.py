@@ -130,6 +130,10 @@ class Arg(object):
         '''
         pass
 
+    def getType(self):
+        '''Returns the type (ASM_ARG_*) for reflection purposes'''
+        pass
+
 
 class PCRelative(Arg):
     '''
@@ -179,6 +183,10 @@ class PCRelative(Arg):
 
     def genLatex(self, m):
         return 'addr'
+
+    def getType(self):
+        return 'ASM_ARG_LABEL'
+
 
 class Reg(Arg):
     '''
@@ -239,6 +247,9 @@ class Reg(Arg):
         m['r'] = n + 1
         return '\\texttt{\\$r' + str(n) + '}'
 
+    def getType(self):
+        return 'ASM_ARG_REG'
+
 
 class JointReg(Arg):
     '''
@@ -282,6 +293,9 @@ class JointReg(Arg):
 
     def genLatex(self, m):
         return self.subs[0].genLatex(m)
+
+    def getType(self):
+        return self.subs[0].getType()
 
 
 class Imm(Arg):
@@ -335,6 +349,9 @@ class Imm(Arg):
         m['v'] = name
         return name
 
+    def getType(self):
+        return 'ASM_ARG_IMM' + str(self.bytelen * 8) + self.docname.upper()
+
 class DisabledArg(Arg):
     '''
     Disables an argument.  The argument will still be pretty-print for disassembly (with the provided
@@ -366,6 +383,27 @@ def mkp(indent):
     def p(s):
         print ('\t' * indent) + s
     return p
+
+
+class Effect(object):
+    def __init__(self, text):
+        self.text = text
+
+    def getDescription(self):
+        return self.text
+
+class ArithmeticEffect(Effect):
+    def __init__(self, c_operator, plaintext = None, immediate = False):
+        if plaintext is None:
+            plaintext = c_operator
+        arg = '$r1'
+        if immediate:
+            arg = '%a'
+        Effect.__init__(self, '$r0 := $r0 ' + plaintext + ' ' + arg)
+        self.c_operator = c_operator
+
+def ArithmeticImmediateEffect(operand, plaintext = None):
+    return ArithmeticEffect(operand, plaintext, True)
 
 
 class Insn(object):
@@ -407,6 +445,9 @@ class Insn(object):
 
     def allEncodings(self):
         return [self]
+
+    def getArgs(self):
+        return self.args
 
     def printHeader(self, trail=';'):
         arglist = []
@@ -533,13 +574,20 @@ class Insn(object):
 
         valstr = m['v'] if 'v' in m else '?'
 
-        descr = (self.descr
+        descr = self.descr
+
+        if type(descr) is not str:
+            descr = self.descr.getDescription()
+
+        descr = (descr
                  .replace('\\', '\\')
                  .replace('%v', '\\texttt{' + valstr + '}')
                  .replace('%a', '\\texttt{addr}'))
 
+        anonymous_regnames = 4
+
         regnames = ['pc', 'sp', 'gp', 'fp']
-        for (pfx, count) in [('r', 4), ('a', 6), ('v', 1), ('t', 2), ('s', 4)]:
+        for (pfx, count) in [('a', 6), ('v', 1), ('t', 2), ('s', 4)]:
             for c in range(0, count + 1):
                 regnames.append(pfx + str(c))
 
@@ -550,6 +598,9 @@ class Insn(object):
                  .replace('$$', '$')
                  .replace('_', '\\_'))
                  
+        for c in range(0, anonymous_regnames):
+            descr = descr.replace('$r' + str(c), '$\\texttt{\\$r}_{' + str(c) + '}$')
+
         name = '\\textcolor{dblue}{\\textbf{\\texttt{' + self.name.replace('_', '\\_') + '}}}'
 
 
@@ -635,8 +686,11 @@ class InsnAlternatives(Insn):
         p(invoke(self.default_option))
         print '}'
 
+    def getArgs(self):
+        return self.default_option.getArgs()
+
     def printLatex(self, m):
-        return self.options[0].printLatex(m)
+        return self.default_option.printLatex(m)
         
 
 class OptPrefixInsn (Insn):
@@ -730,10 +784,10 @@ def printDisassembler(instructions):
 
 
 instructions = [
-    Insn("add", '$r0 := $r0 + $r1', [0x48, 0x01, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
-    Insn("sub", '$r0 := $r0 $$-$$ $r1', [0x48, 0x29, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn("add", ArithmeticEffect('+'), [0x48, 0x01, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
+    Insn("sub", ArithmeticEffect('-'), [0x48, 0x29, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
     Insn(Name(mips="move", intel="mov"), '$r0 := $r1', [0x48, 0x89, 0xc0], [ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
-    Insn(Name(mips="mul", intel="imul"), '$r0 := $r0 * $r1', [0x48, 0x0f, 0xaf, 0xc0], [ArithmeticSrcReg(3), ArithmeticDestReg(3)]),
+    Insn(Name(mips="mul", intel="imul"), ArithmeticEffect('*'), [0x48, 0x0f, 0xaf, 0xc0], [ArithmeticSrcReg(3), ArithmeticDestReg(3)]),
     Insn(Name(mips="div_a2v0", intel="idiv"), '$v0 := $a2:$v0 / $r0, $a2 := remainder', [0x48, 0xf7, 0xf8], [ArithmeticDestReg(2)]),
 
     Insn(Name(mips="slli", intel="shld"), '$r0 := $r0 bit-shifted left by %v', [0x48, 0x0f, 0xa4, 0xc0, 0], [ArithmeticDestReg(3), ArithmeticSrcReg(3), ImmByte(4)]),
@@ -748,7 +802,7 @@ instructions = [
     Insn(Name(mips="li", intel="mov"), '$r0 := %v', [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
     Insn(Name(mips="jreturn", intel="ret"), 'jump to mem[$sp]; $sp := $sp + 8', [0xc3], []),
     Insn(Name(mips="jal", intel="callq"), 'mem[$sp] := next instruction address, jump to %a', [0xe8, 0x00, 0x00, 0x00, 0x00], [PCRelative(1, 4, -5)]),
-#    OptPrefixInsn(Name(mips="jals", intel="callq"), 0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
+#    OptPrefixInsn(Name(mips="jalr", intel="callq"), "?" ,0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
     Insn(Name(mips="bgt", intel="cmp_jg"), 'if $r0 $$>$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
     Insn(Name(mips="bge", intel="cmp_jge"), 'if $r0 $$\\ge$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
     Insn(Name(mips="blt", intel="cmp_jl"), 'if $r0 $$<$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
@@ -761,12 +815,6 @@ instructions = [
     Insn(Name(mips="blez", intel="cmp0_jle"), 'if $r0 $$\\le$$ 0, then jump to %a', [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x8e, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
     Insn(Name(mips="bnez", intel="cmp0_jnz"), 'if $r0 $$\\ne$$ 0, then jump to %a', [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x85, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
     Insn(Name(mips="beqz", intel="cmp0_jz"), 'if $r0 = 0, then jump to %a', [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
-
-    # Insn(Name(mips="not", intel="xor_test_sete"),  [0x48, 0x85, 0xc0, 0x40, 0xb8, 0,0,0,0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2)])]),
-    # Insn(Name(mips="slt", intel="xor_cmp_setl"),  [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x9c, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
-    # Insn(Name(mips="sle", intel="xor_cmp_setle"), [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x9e, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
-    # Insn(Name(mips="seq", intel="xor_cmp_sete"),  [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
-    # Insn(Name(mips="sne", intel="xor_cmp_setne"), [0x48, 0x31, 0xc0, 0x48, 0x39, 0xc0, 0x40, 0x0f, 0x95, 0xc0], [JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2), ArithmeticDestReg(9, baseoffset=6)]), ArithmeticDestReg(5, baseoffset=3), ArithmeticSrcReg(5, baseoffset=3)]),
 
     Insn(Name(mips="not", intel="test_mov0_sete"), 'if $r1 = 0 then $r1 := 1 else $r1 := 0',  [0x48, 0x85, 0xc0, 0x40, 0xb8, 0,0,0,0, 0x40, 0x0f, 0x94, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), JointReg([ArithmeticSrcReg(2), ArithmeticDestReg(2)])]),
     Insn(Name(mips="slt", intel="cmp_mov0_setl"), 'if $r1 < $r2 then $r1 := 1 else $r1 := 0',  [0x48, 0x39, 0xc0, 0x40, 0xb8, 0,0,0,0,  0x40, 0x0f, 0x9c, 0xc0], [JointReg([ArithmeticDestReg(12, baseoffset=9), ArithmeticDestReg(4, baseoffset = 3)]), ArithmeticDestReg(2), ArithmeticSrcReg(2)]),
@@ -796,7 +844,7 @@ instructions = [
 
 # ----------------------------------------
 
-    Insn(Name(mips="syscall", intel="syscall"), 'system call', [0x0f, 0x05], [ArithmeticDestReg(1)]),
+    Insn(Name(mips="syscall", intel="syscall"), 'system call', [0x0f, 0x05], []),
     Insn(Name(mips="push", intel="push"), '$sp := $sp - 8; mem[$sp] = $r0', [0x48, 0x50], [ArithmeticDestReg(1)]),
     Insn(Name(mips="pop", intel="pop"), '$r0 = mem[$sp]; $sp := $sp + 8', [0x48, 0x58], [ArithmeticDestReg(1)]),
     Insn(Name(mips="addi", intel="add"), '$r0 := $r0 + %v', [0x48, 0x81, 0xc0, 0, 0, 0, 0], [ArithmeticDestReg(2), ImmUInt(3)]),
@@ -805,12 +853,10 @@ instructions = [
                      ([0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(3), ArithmeticDestReg(2)]), [
                          ('{arg2} == 4', ([0x48, 0x89, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(4), DisabledArg(ArithmeticDestReg(2), '4')]))
                      ]).setFormat('%s, %s(%s)'),
-    #    Insn(Name(mips="sd", intel="mov-qword[],r"), [0x48, 0x89, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
     InsnAlternatives(Name(mips="ld", intel="mov_r_qword"), '$r0 := mem[$r1 + %v]',
                      ([0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(3), ArithmeticDestReg(2)]), [
                          ('{arg2} == 4', ([0x48, 0x8b, 0x84, 0x24, 0, 0, 0, 0], [ArithmeticSrcReg(2), ImmInt(4), DisabledArg(ArithmeticDestReg(2), '4')]))
                      ]).setFormat('%s, %s(%s)'),
-    # Insn(Name(mips="ld", intel="mov-r,qword[]"), [0x48, 0x8b, 0x80, 0, 0, 0, 0], [ArithmeticSrcReg(2), ArithmeticDestReg(2), ImmInt(3)]),
     Insn(Name(mips="j", intel="jmp"), 'jump to %a', [0xe9, 0, 0, 0, 0], [PCRelative(1, 4, -5)]),
 ]
 
@@ -820,6 +866,8 @@ def printUsage():
     print '\t' + sys.argv[0] + ' headers'
     print '\t' + sys.argv[0] + ' code'
     print '\t' + sys.argv[0] + ' latex'
+    print '\t' + sys.argv[0] + ' assembler'
+    print '\t' + sys.argv[0] + ' assembler-header'
 
 def printWarning():
     print '// This is GENERATED CODE.  Do not modify by hand, or your modifications will be lost on the next re-buld!'
@@ -835,7 +883,122 @@ def printCodeHeader():
     print '#include "assembler-buffer.h"'
     print '#include "address-store.h"'
     print '#include "registers.h"'
-    
+
+def printAssemblerHeader():
+    print """
+// This code is AUTO-GENERATED.  Do not modify, or you may lose your changes!
+#ifndef _ATTOL_2OPM_INSTRUCTIONS_H
+#define _ATTOL_2OPM_INSTRUCTIONS_H
+
+#include "../assembler-buffer.h"
+
+typedef union {
+	label_t *label;
+	int r;			// register nr
+	unsigned long long imm;	// immediate
+} asm_arg;
+
+#define ASM_ARG_ERROR	0
+#define ASM_ARG_REG	1
+#define ASM_ARG_LABEL	2
+#define ASM_ARG_IMM8U	3
+#define ASM_ARG_IMM32U	4
+#define ASM_ARG_IMM32S	5
+#define ASM_ARG_IMM64U	6
+#define ASM_ARG_IMM64S	7
+// We may get further combinations later.
+
+/**
+ * Returns the number of arguments, or -1 if the instruction is unknown
+ */
+int
+asm_insn_get_args_nr(char *insn);
+
+/**
+ * Decodes the type of the specified argument
+ */
+int
+asm_insn_get_arg(char *insn, int arg_nr);
+
+/**
+ * Issues a single instruction.  No error checking is performed.
+ */
+void
+asm_insn(buffer_t *buf, char *insn, asm_arg *args, int args_nr);
+
+"""
+    print "#endif // !defined(_ATTOL_2OPM_INSTRUCTIONS_H)"
+
+def printAssemblerModule():
+    print """
+// This code is AUTO-GENERATED.  Do not modify, or you may lose your changes!
+#include <stdio.h>
+#include <strings.h>
+
+#include "../assembler-buffer.h"
+#include "../assembler.h"
+#include "assembler-instructions.h"
+
+#define INSTRUCTIONS_NR {instructions_nr}
+#define ARGS_MAX 5
+
+static struct {{
+	char *name;
+	int args_nr;
+	int args[ARGS_MAX];
+}} instructions[INSTRUCTIONS_NR] = {{""".format(instructions_nr = len(instructions))
+    for insn in instructions:
+        args = insn.getArgs()
+        print ('\t{{ name:"{name}", args_nr:{args_nr}, args:{{ {args} }} }},'
+               .format(name = insn.name,
+                       args_nr = len(insn.args),
+                       args = ', '.join(a.getType() for a in args)))
+    print '};'
+
+    print """
+int
+asm_insn_get_args_nr(char *insn)
+{
+	for (int i = 0; i < INSTRUCTIONS_NR; i++) {
+		if (0 == strcasecmp(insn, instructions[i].name)) {
+			return instructions[i].args_nr;
+		}
+	}
+	return -1;
+}
+
+int
+asm_insn_get_arg(char *insn, int arg_nr)
+{
+	for (int i = 0; i < INSTRUCTIONS_NR; i++) {
+		if (0 == strcasecmp(insn, instructions[i].name)) {
+			if (arg_nr < 0 || arg_nr >= instructions[i].args_nr) {
+				return -1;
+			} else {
+				return instructions[i].args[arg_nr];
+			}
+		}
+	}
+	return -1;
+}
+
+void
+asm_insn(buffer_t *buf, char *insn, asm_arg *args, int args_nr)
+{
+	// This isn't terribly efficient, but that's probably okay."""
+    for insn in instructions:
+        args = insn.getArgs()
+        arglist = list(args)
+        for i in range(0, len(args)):
+            arglist[i] = 'args[{i}].{select}'.format(i = str(i), select = args[i].strGenericName())
+            
+        print ('\tif (0 == (strcasecmp(insn, "{name}"))) {{\n\t\temit_{name}({args});\n\t\treturn;\n\t}}'
+               .format(name = insn.name, args = ', '.join(['buf'] + arglist)))
+
+    print '\tfprintf(stderr, "Unexpected instruction: %s\\n", insn);'
+    print '\treturn;'
+    print '}'
+
 
 def printDocs():
     print '\\begin{tabular}{llp{8cm}}'
@@ -863,6 +1026,12 @@ if len(sys.argv) > 1:
 
     elif sys.argv[1] == 'latex':
         printDocs()
+
+    elif sys.argv[1] == 'assembler':
+        printAssemblerModule()
+
+    elif sys.argv[1] == 'assembler-header':
+        printAssemblerHeader()
 
     else:
         printUsage()

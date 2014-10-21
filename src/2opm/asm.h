@@ -41,7 +41,8 @@ extern yylval_t yylval;
 
 #define T_ID		0x101
 #define T_INT		0x102
-#define T_STR		0x103
+#define T_UINT		0x103
+#define T_STR		0x104
 
 #define T_S_DATA	0x110
 #define T_S_TEXT	0x111

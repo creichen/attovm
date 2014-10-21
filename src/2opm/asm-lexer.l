@@ -26,13 +26,14 @@
 ***************************************************************************/
 
 %{
+#include "asm.h"
 #include <math.h>
 #include <string.h>
 
 void yyerror(const char *s); // Fehler beim Lexen/Parsen
 
 // Map `n' to `\n' etc.
-static char* unescape_string(char *text);
+char* unescape_string(char *text);
 
 char* mk_unique_string(char *text);
 
@@ -114,10 +115,11 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 
 
 
-[[:blank:]]+ // Eat whitespace
+[[:blank:]]+ {} // Eat whitespace
+
 \n	{ // Eat whitespace
 	++yy_line_nr;
-	return '\n'
+	return '\n';
 }
 
 <<EOF>> {
@@ -127,7 +129,7 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 
 ";"[^\n]*\n {
 	++yy_line_nr;
-	return '\n'
+	return '\n';
 }
 
 <*>.|\n {

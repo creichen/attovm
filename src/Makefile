@@ -17,8 +17,8 @@ BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.
 FINAL_OBJS = atl.o atl backend-test.o backend-test assembler-buffer-test
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
-ASM_OBJS = 2opm/assembler.o 2opm/asm.o 2opm/asm-lexer.o chash.o address-store.o \
-		registers.o assembler.o assembler-buffer.o
+ASM_OBJS = 2opm/asm-lexer.o 2opm/assembler.o 2opm/asm.o chash.o address-store.o \
+		registers.o assembler.o assembler-buffer.o lexer-support.o
 
 .PHONY: clean tidy all
 
@@ -90,4 +90,7 @@ unparser.c: mk-parser.py unparser.template.c parser.h ast.h
 
 2opm/assembler.c: mk-codegen.py 2opm/assembler-instructions.h
 	${PYTHON} mk-codegen.py assembler > 2opm/assembler.c
+
+2opm/asm-lexer.c: 2opm/asm-lexer.l
+	if [ x`which ${FLEX}` != x ]; then $(LEX) $(LFLAGS) -o $@ $^; fi
 

@@ -488,6 +488,19 @@ class Insn(object):
                     builders.append('(' + builder + ')')
         return builders
 
+    def printOffsetCalculatorBranch(self, tabs, argarg):
+        al = []
+        for arg in self.args:
+            exclusive_region = arg.getExclusiveRegion()
+            if (exclusive_region):
+                al.append('%d' % exclusive_region[0])
+            else:
+                al.append('-1')
+
+        print (tabs + 'return ({arg} < 0 || {arg} >= {max})?-1: ((int[]){{ {offsets} }})[{arg}];'
+               .format(arg=argarg, max=len(self.args),
+                       offsets=', '.join(al)))
+
     def printGenerator(self):
         self.printHeader(trail='')
         print '{'
@@ -646,6 +659,20 @@ class InsnAlternatives(Insn):
         self.default_option.setFormat(fmt);
         return self
 
+    def printOffsetCalculatorBranch(self, tabs, argarg):
+        print '{'
+        argdict = {}
+        count = 0
+        for arg in self.args:
+            n = arg.strGenericName()
+            argdict['arg%d' % count] = 'args[%d].%s' % (count, n)
+            count += 1
+        for (condition, option) in self.options.iteritems():
+            print (tabs + 'if (%s)' % (condition.format(**argdict)))
+            option.printOffsetCalculatorBranch('\t' + tabs, argarg)
+        self.default_option.printOffsetCalculatorBranch(tabs, argarg)
+        print '{t}}}'.format(t = tabs)
+
     def printGenerator(self):
         self.default_option.printGenerator()
         print ''
@@ -654,9 +681,14 @@ class InsnAlternatives(Insn):
             print ''
 
         # Print selection function
-        argdict = {}
         arglist = []
+        argdict = {}
         count = 0
+        for arg in self.args:
+            n = arg.strName()
+            argdict['arg%d' % count] = n
+            arglist.append(n)
+            count += 1
 
         def invoke(insn):
             ma = ['buf']
@@ -666,12 +698,6 @@ class InsnAlternatives(Insn):
                     ma.append(arglist[mc])
                 mc += 1
             return Insn.emit_prefix + insn.function_name + '(' + ', '.join(ma) + ');'
-
-        for arg in self.args:
-            n = arg.strName()
-            argdict['arg%d' % count] = n
-            arglist.append(n)
-            count += 1
 
         self.printHeader(trail='')
         print '{'
@@ -802,7 +828,7 @@ instructions = [
     Insn(Name(mips="li", intel="mov"), '$r0 := %v', [0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0], [ArithmeticDestReg(1), ImmLongLong(2)]),
     Insn(Name(mips="jreturn", intel="ret"), 'jump to mem[$sp]; $sp := $sp + 8', [0xc3], []),
     Insn(Name(mips="jal", intel="callq"), 'mem[$sp] := next instruction address, jump to %a', [0xe8, 0x00, 0x00, 0x00, 0x00], [PCRelative(1, 4, -5)]),
-#    OptPrefixInsn(Name(mips="jalr", intel="callq"), "?" ,0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
+    OptPrefixInsn(Name(mips="jalr", intel="callq"), "?" ,0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
     Insn(Name(mips="bgt", intel="cmp_jg"), 'if $r0 $$>$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x8f, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
     Insn(Name(mips="bge", intel="cmp_jge"), 'if $r0 $$\\ge$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x8d, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
     Insn(Name(mips="blt", intel="cmp_jl"), 'if $r0 $$<$$ $r1, then jump to %a', [0x48, 0x39, 0xc0, 0x0f, 0x8c, 0, 0, 0, 0], [ArithmeticDestReg(2), ArithmeticSrcReg(2), PCRelative(5, 4, -9)]),
@@ -884,6 +910,11 @@ def printCodeHeader():
     print '#include "address-store.h"'
     print '#include "registers.h"'
 
+def printOffsetCalculatorHeader(trail=';'):
+    print 'int'
+    print 'asm_arg_offset(char *insn, asm_arg *args, int arg_nr)' + trail
+
+
 def printAssemblerHeader():
     print """
 // This code is AUTO-GENERATED.  Do not modify, or you may lose your changes!
@@ -926,7 +957,12 @@ asm_insn_get_arg(char *insn, int arg_nr);
 void
 asm_insn(buffer_t *buf, char *insn, asm_arg *args, int args_nr);
 
+/**
+ * Computes the offset of the `arg_nr'th argument in the given instruction, or -1 if it has no unique memory offset
+ */
+
 """
+    printOffsetCalculatorHeader()
     print "#endif // !defined(_ATTOL_2OPM_INSTRUCTIONS_H)"
 
 def printAssemblerModule():
@@ -998,7 +1034,15 @@ asm_insn(buffer_t *buf, char *insn, asm_arg *args, int args_nr)
     print '\tfprintf(stderr, "Unexpected instruction: %s\\n", insn);'
     print '\treturn;'
     print '}'
-
+    print ''
+    printOffsetCalculatorHeader('')
+    print '{'
+    for insn in instructions:
+        print ('\tif (0 == strcasecmp("{name}", insn)) '
+               .format(name = insn.name)),
+        insn.printOffsetCalculatorBranch('\t\t', 'arg_nr')
+    print '\treturn -1;'
+    print '}'
 
 def printDocs():
     print '\\begin{tabular}{llp{8cm}}'

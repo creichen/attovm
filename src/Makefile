@@ -18,7 +18,10 @@ FINAL_OBJS = atl.o atl backend-test.o backend-test assembler-buffer-test
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 ASM_OBJS = 2opm/asm-lexer.o 2opm/assembler.o 2opm/asm.o chash.o address-store.o \
-		registers.o assembler.o assembler-buffer.o lexer-support.o
+		registers.o assembler.o assembler-buffer.o lexer-support.o \
+		2opm/asm-builtins.o 2opm/asm-debug.o  2opm/asm-errors.o  2opm/asm-labels.o \
+		2opm/asm-memory.o  2opm/asm-parse.o
+
 
 .PHONY: clean tidy all
 
@@ -27,7 +30,7 @@ ASM_OBJS = 2opm/asm-lexer.o 2opm/assembler.o 2opm/asm.o chash.o address-store.o 
 all: atl backend-test assembler-buffer-test
 
 clean:
-	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) ${FINAL_OBJS}
+	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) ${FINAL_OBJS} ${ASM_OBJS}
 
 tidy: clean
 	rm -f $(FRONTEND_GENSRC) $(BACKEND_GENSRC)

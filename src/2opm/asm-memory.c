@@ -32,12 +32,20 @@
 #define DATA_SECTION_SIZE (1024 * 1024)
 
 buffer_t text_buffer;
-char data_section[DATA_SECTION_SIZE];
+byte data_section[DATA_SECTION_SIZE];
 bool in_text_section = false; // which section are we operating on?
-int data_offset = 0;
+int data_offset;
+
+byte *
+end_of_data(void)
+{
+	byte *d = (byte *) data_section;
+	d += data_offset;
+	return d;
+}
 
 void *
-current_offset()
+current_location()
 {
 	if (in_text_section) {
 		return buffer_target(&text_buffer);
@@ -46,9 +54,10 @@ current_offset()
 	}
 }
 
-void init_memory()
+void
+init_memory()
 {
-	data_offset = 0;
+	data_offset = 16;  // reserve 16 bytes; this is a hack to help asm-label identify memory as allocated
 	text_buffer = buffer_new(1024);
 	in_text_section = false;
 }

@@ -26,29 +26,77 @@
 ***************************************************************************/
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
+#include <strings.h>
+#include <ctype.h>
 
 #include <sys/user.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
 
+#include "../address-store.h"
 #include "../registers.h"
+#include "../assembler.h"
 
 #include "asm.h"
+
+#define MAX_INSN_SIZE 32
+
+#define DEBUG_COMMAND_STEP	1
+#define DEBUG_COMMAND_QUIT	2
+
+static int multistep_count = 0;
+static byte *breakpoint = NULL;
+
+#define MESSAGE_FORMAT "\033[33m"
+#define END_FORMAT "\033[0m"
+
+static void
+start_message(void)
+{
+	fprintf(stdout, MESSAGE_FORMAT);
+}
+
+static void
+start_disasm(void)
+{
+	fprintf(stdout, "\033[32m");
+}
+
+static void
+stop_message(void)
+{
+	fprintf(stdout, END_FORMAT);
+}
+
+static void
+message(const char *fmt, ...)
+{
+	va_list args;
+	start_message();
+	va_start(args, fmt);
+	vfprintf(stdout, fmt, args);
+	stop_message();
+	printf("\n");
+	va_end(args);
+}
 
 static void
 print_memmap(int pid)
 {
 	char s[1024];
+	start_message();
 	sprintf(s, "cat /proc/%d/maps", pid);
 	system(s);
+	stop_message();
 }
 
-
 static void
-decode_regs(unsigned long long *regs, void **pc, struct user_regs_struct *uregs)
+decode_regs(signed long long *regs, byte **pc, struct user_regs_struct *uregs)
 {
-	*pc = (void *) uregs->rip;
+	*pc = (byte *) uregs->rip;
 	regs[0] = uregs->rax;
 	regs[1] = uregs->rcx;
 	regs[2] = uregs->rdx;
@@ -67,123 +115,456 @@ decode_regs(unsigned long long *regs, void **pc, struct user_regs_struct *uregs)
 	regs[15] = uregs->r15;
 }
 
-// putdata/getdata by Pradeep Padala
 void
-getdata(pid_t child, unsigned long long addr, char *str, int len)
+getdata(pid_t child, unsigned long long addr, byte *str, int len)
 {
-	char *laddr;
-	int i, j;
-	union u {
-		long val;
-		char chars[sizeof(long)];
-	}data;
-	i = 0;
-	j = len / sizeof(long);
-	laddr = str;
-	while(i < j) {
-		data.val = ptrace(PTRACE_PEEKDATA, child,
-				  addr + i * 4, NULL);
-		memcpy(laddr, data.chars, sizeof(long));
-		++i;
-		laddr += sizeof(long);
+	while (len >= sizeof(long)) {
+		long v = ptrace(PTRACE_PEEKDATA, child,
+					addr, NULL);
+		memcpy(str, &v, sizeof(long));
+		addr += sizeof(long);
+		str += sizeof(long);
+		len -= sizeof(long);
 	}
-	j = len % sizeof(long);
-	if(j != 0) {
-		data.val = ptrace(PTRACE_PEEKDATA, child,
-                          addr + i * 4, NULL);
-		memcpy(laddr, data.chars, j);
+	if (len) {
+		long v = ptrace(PTRACE_PEEKDATA, child,
+					addr, NULL);
+		memcpy(str, &v, len);
 	}
-	str[len] = '\0';
 }
 
-void putdata(pid_t child, unsigned long long addr, char *str, int len)
+// putdata based on code by Pradeep Padala, used with permission
+void putdata(pid_t child, unsigned long long addr, byte *str, int len)
 {
-	char *laddr;
-	int i, j;
-	union u {
-		long val;
-		char chars[sizeof(long)];
-	}data;
-	i = 0;
-	j = len / sizeof(long);
-	laddr = str;
-	while(i < j) {
-		memcpy(data.chars, laddr, sizeof(long));
-		ptrace(PTRACE_POKEDATA, child,
-		       addr + i * 4, data.val);
-		++i;
-		laddr += sizeof(long);
+	while (len >= sizeof(long)) {
+		long v;
+		memcpy(&v, str, sizeof(long));
+		ptrace(PTRACE_POKEDATA, child, addr, v);
+		addr += sizeof(long);
+		str += sizeof(long);
+		len -= sizeof(long);
 	}
-	j = len % sizeof(long);
-	if(j != 0) {
-		memcpy(data.chars, laddr, j);
-		ptrace(PTRACE_POKEDATA, child,
-		       addr + i * 4, data.val);
+	if (len) {
+		long v = ptrace(PTRACE_PEEKDATA, child, addr, v);
+		memcpy(&v, str, len);
+		ptrace(PTRACE_POKEDATA, child, addr, v);
 	}
 }
 
 #define PTRACE(a, b, c, d) if (-1 == ptrace(a, b, c, d)) { fprintf(stderr, "ptrace failure in %d\n", __LINE__); perror(#a); return; }
 
+#define MAX_INPUT 4095
+static char last_command[MAX_INPUT + 1] = "";
+
+static struct {
+	bool running;
+	bool failure;
+	int pid;
+	byte *debug_region_end, *debug_region_start;
+	signed long long registers[REGISTERS_NR];
+	byte *pc;
+	byte *initial_stack;
+} status = {
+	.running = false,
+	.failure = false
+};
+
+static int
+cmd_help(char *_);
+
+static int
+cmd_quit(char *_)
+{
+	return DEBUG_COMMAND_QUIT;
+}
+
+static int
+cmd_step(char * s)
+{
+	int steps_nr = 1;
+	if (s) {
+		steps_nr = atoi(s);
+	}
+
+	if (steps_nr > 0) {
+		multistep_count = steps_nr - 1;
+	}
+
+	return DEBUG_COMMAND_STEP;
+}
+
+static int
+cmd_registers(char * s)
+{
+	// translate registers for naming scheme
+	int register_table[REGISTERS_NR] = {
+		0,			// $v0
+		7, 6, 2, 1, 8, 9,	// $a0..$a5
+		10, 11,			// $t0, $t1
+		3, 12, 13, 14,		// $s0..$s3
+		4,			// $sp
+		5,			// $fp
+		15			// $gp
+	};
+	for (int i = 0; i < REGISTERS_NR; i++) {
+		int k = register_table[i];
+		printf ("  %-5s  %016llx  %lld\n", register_names[k].mips, status.registers[k], status.registers[k]);
+	}
+	return 0;
+}
+
+static int
+cmd_cont(char *s)
+{
+	multistep_count = -1;
+	return DEBUG_COMMAND_STEP;
+}
+
+static int
+cmd_break(char *s)
+{
+	if (!s) {
+		message("Must specify breakpoint name or address");
+		return 0;
+	}
+	breakpoint = relocation_get_resolved_text_label(s);
+	if (!breakpoint) {
+		char *end;
+		if (s[0] == '0' && s[1] == 'x') {
+			s += 2;
+		}
+		breakpoint = (byte *) strtoull(s, &end, 16);
+		if (*end || !breakpoint) {
+			message("I don't understand address `%s', sorry", s);
+			breakpoint = NULL;
+			return 0;
+		}
+	}
+	multistep_count = -1;
+	message("==> %p", breakpoint);
+	return DEBUG_COMMAND_STEP;
+}
+
+/**
+ * Do any registers point to this address?  If so, print them to dest_buffer and return `true', otherwise `false'
+ */
+static bool
+have_any_registers_at(char *dest_buffer, byte *addr)
+{
+	char *dest = dest_buffer;
+	bool match = false;
+	for (int i = 0; i < REGISTERS_NR; i++) {
+		if ((byte *) status.registers[i] == addr) {
+			if (match) {
+				dest += sprintf(dest, ", ");
+			}
+			dest += sprintf(dest, register_names[i].mips);
+			match = true;
+		}
+	}
+	return match;
+}
+
+#define MAX_REGISTER_OBSERVATIONS 7
+
+static int
+cmd_static(char *s) {
+	// hilight data if a register happens to point at it
+	int registersets_observed = 0;
+	char registerset_observations[MAX_REGISTER_OBSERVATIONS][256];
+
+	byte *data = data_section;
+	size_t data_section_size = end_of_data() - data;
+
+	char pre_buffer[1024], post_buffer[1024];
+	char *pre = NULL, *post = NULL;
+	for (int i = 0; i < data_section_size; i++) {
+		if (!(i & 0xf)) {
+			start_message();
+			printf("[%p]\t", data);
+			pre_buffer[0] = '\0';
+			post_buffer[0] = '\0';
+			pre = pre_buffer;
+			post = post_buffer;
+			stop_message();
+		}
+
+		getdata(status.pid, (unsigned long long) data, data, 1);
+
+		bool must_reset_font = false;
+		if (registersets_observed < MAX_REGISTER_OBSERVATIONS) {
+			if (have_any_registers_at(registerset_observations[registersets_observed], data)) {
+				++registersets_observed;
+				must_reset_font = true;
+				pre += sprintf(pre, "\033[1;4%dm", registersets_observed);
+				post += sprintf(post, "\033[1;4%dm", registersets_observed);
+			}
+		}
+
+		pre += sprintf(pre, "%02x", *data);
+		post += sprintf(post, "%c", (*data >= ' ' && *data < 127) ? *data : '.');
+		if (must_reset_font) {
+			pre += sprintf(pre, END_FORMAT MESSAGE_FORMAT);
+			post += sprintf(post, END_FORMAT MESSAGE_FORMAT);
+		}
+		pre += sprintf(pre, " ");
+
+		if ((i & 0xf) == 7) {
+			printf(" ");
+		} else if ((i & 0xf) == 0xf) {
+			message("%s [%s]", pre_buffer, post_buffer);
+		}
+
+		++data;
+	}
+	int missing_chars = data_section_size & 0xf;
+	if (missing_chars) {
+		int filler = missing_chars * 3 + ((missing_chars < 7) ? 1 : 0);
+		message("%s%-*s [%s]", pre_buffer, filler, "", post_buffer);
+	}
+
+	for (int i = 0; i < registersets_observed; i++) {
+		message(" - \033[1;4%dm%s" END_FORMAT,
+		       i + 1,
+		       registerset_observations[i]);
+	}
+	return 0;
+}
+
+
+#define MAX_STACK 256
+
+static int
+cmd_stack(char *s)
+{
+	unsigned long long *stack = (unsigned long long *) status.initial_stack;
+	int stack_entries_nr;
+	unsigned long long *stack_end = (unsigned long long *) status.registers[REGISTER_SP];
+
+	if (stack_end > stack) {
+		message("Stack has shrunk above its original start at %p, nothing to show", stack);
+		return 0;
+	} else if ((stack - stack_end) > MAX_STACK) {
+		stack_entries_nr = 256;
+	} else {
+		stack_entries_nr = (stack - stack_end) + 1;
+	}
+
+
+	//fprintf(stderr, "%d stack entries (%p to %p)\n", stack_entries_nr, stack,>" stack_end);
+
+	for (int i = 0; i < stack_entries_nr; i++) {
+		unsigned long long data;
+		getdata(status.pid, (unsigned long long) stack, (byte *) &data, sizeof (unsigned long long));
+
+		start_message();
+		printf("  %p: \033[1m %016llx  %-22lld", stack,
+		       data, (signed long long) data);
+		stop_message();
+
+		char regs_here[1024] = "\0";
+		if (have_any_registers_at(regs_here, (byte *) stack)) {
+			start_message();
+			printf(" <--- %s", regs_here);
+		}
+		stop_message();
+		printf("\n");
+		--stack;
+	}
+	return 0;
+}
+
+static struct {
+	char *name;
+	char *descr;
+	int (*f)(char *); // returns nonzero DEBUG_COMMAND (optionally); takes optional args
+} commands[] = {
+	{ "help", "print help message", &cmd_help },
+	{ "quit", "stop executing and exit", &cmd_quit },
+	{ "s", "step forward a single step; \"s <n>\" steps forward n steps", &cmd_step },
+	{ "r", "print registers", &cmd_registers },
+	{ "regs", "print registers", &cmd_registers },
+	{ "break", "continue until label or address (passed as argument)", &cmd_break },
+	{ "cont", "continue executing", &cmd_cont },
+	{ "stack", "print out the current stack", &cmd_stack },
+	{ "static", "print out the contents of static memory", &cmd_static },
+	//	{ "", "", &cmd_ },
+	{ NULL, NULL, NULL }
+};
+
+static int
+cmd_help(char *_)
+{
+	start_message();
+	printf("Usage:\n");
+	for (int i = 0; commands[i].name; i++) {
+		printf("  %-12s  %s\n", commands[i].name, commands[i].descr);
+	}
+	printf("Empty input will repeat the previous command.\n");
+	stop_message();
+	return 0;
+}
+
+/**
+ * Read user commands until the user instructs us to proceed
+ */
+static int
+debug_command()
+{
+	breakpoint = NULL;
+	static char command[MAX_INPUT + 1] = "";
+
+	while (true) {
+		// update instruction in local memory for disassembly
+		int max_insn_size = MAX_INSN_SIZE;
+		long long int bytes_until_pc_end = status.debug_region_end - status.pc;
+		if (bytes_until_pc_end < max_insn_size) {
+			max_insn_size = bytes_until_pc_end;
+		}
+		// update local (in-process) copy of instruction memory from child
+		getdata(status.pid, (unsigned long long) status.pc, status.pc, max_insn_size);
+
+		start_disasm();
+		if (addrstore_get_prefix(status.pc)) {
+			printf("%s:\n", addrstore_get_suffix(status.pc));
+		}
+		printf("\t");
+		disassemble_one(stdout, status.pc, max_insn_size);
+		printf("\n");
+		start_message();
+		printf("%p%s>", status.pc, status.running? "" : ":HALTED");
+		stop_message();
+		printf(" ");
+
+		
+
+		if (fgets(command, MAX_INPUT, stdin) == (char *) EOF) {
+			// end-of-file
+			return DEBUG_COMMAND_QUIT;
+		}
+		char *tail = command + strlen(command);
+		// Remove trailing whitespace:
+		while (tail > command && isspace(tail[-1])) {
+			--tail;
+			*tail = '\0';
+		}
+
+		if (!command[0]) { // empty? repeat last command
+			strcpy(command, last_command);
+		} else {
+			strcpy(last_command, command);
+		}
+
+		char *args = strchr(command, ' ');
+
+		if (args) {
+			*args = '\0';
+			++args;
+			while (*args == ' ') {
+				++args;
+			}
+		}
+
+		bool match = false;
+		for (int i = 0; commands[i].name; i++) {
+			if (!strcasecmp(commands[i].name, command)) {
+				match = true;
+				int retcode = commands[i].f(args);
+				if (retcode)
+					return retcode;
+				break;
+			}
+		}
+		if (!match) {
+			message("Unknown command `%s'", command);
+		}
+	}
+}
+
 void
 debug(buffer_t *buffer, void (*entry_point)())
 {
-	unsigned long long debug_region_start = (unsigned long long) buffer_entrypoint(*buffer);
-	unsigned long long debug_region_end = debug_region_start + buffer_size(*buffer);
+	status.debug_region_start = (byte *) buffer_entrypoint(*buffer);
+	status.debug_region_end = (byte *) status.debug_region_start + buffer_size(*buffer);
 
 	static int wait_for_me = 0; // used to sync up child process
 	
 	int child;
 	//	signal(SIGSTOP, &sighandler);
 
+	status.initial_stack = (byte *) &child;
+	while (((unsigned long long) status.initial_stack) & 0x7ll) {
+		// align, just in case
+		--status.initial_stack;
+	}
+
+	message("Starting up debugger; enter `help' for help.");
+
 	if ((child = fork())) {
 		struct user_regs_struct regs_struct;
-		unsigned long long regs[16];
-		void *pc;
-		int status;
+		int child_status;
 
 		// parent
 		PTRACE(PTRACE_ATTACH, child, NULL, NULL);
-		wait(&status);
+		wait(&child_status);
 		ptrace(PTRACE_SETOPTIONS, child, NULL, PTRACE_O_TRACEEXIT);
 		wait_for_me = 1;
-		putdata(child, (unsigned long long) &wait_for_me, (char *) &wait_for_me, sizeof(wait_for_me));
+		putdata(child, (unsigned long long) &wait_for_me, (byte *) &wait_for_me, sizeof(wait_for_me));
 		do {
 			PTRACE(PTRACE_GETREGS, child, &regs_struct, &regs_struct);
 			if (((void *)regs_struct.rip) != entry_point) {
 				break;
 			}
 			PTRACE(PTRACE_SINGLESTEP, child, NULL, NULL);
-			if (status >> 8 == (SIGTRAP | (PTRACE_EVENT_EXIT<<8))) {
-				printf("Early exit.");
+			if (child_status >> 8 == (SIGTRAP | (PTRACE_EVENT_EXIT<<8))) {
+				error("Unexpected early exit (internal error?)");
 				return;
 			}
-			wait(&status);
+			wait(&child_status);
 		} while (true);
 
+		status.pid = child;
+		status.running = true;
+
 		while (true) {
-			if (WIFEXITED(status)) {// >> 8 == (SIGTRAP | (PTRACE_EVENT_EXIT<<8))) {
-				printf("===>> Normal exit: %x.\n", status);
+			if (WIFEXITED(child_status)) {
+				message("Program finished executing.");
+				status.running = false;
 				return;
-			} else if (WIFSIGNALED(status)) {// >> 8 == (SIGTRAP | (PTRACE_EVENT_EXIT<<8))) {
-				PTRACE(PTRACE_DETACH, child, NULL, NULL);
-				printf("===>> SIGNAL received: %d.\n", WTERMSIG(status));
-				return;
-			} else if (WIFSTOPPED(status)
-				   && WSTOPSIG(status) != SIGSTOP
-				   && WSTOPSIG(status) != SIGTRAP) {// >> 8 == (SIGTRAP | (PTRACE_EVENT_EXIT<<8))) {
-				PTRACE(PTRACE_DETACH, child, NULL, NULL);
-				printf("===>> SIGNAL received: %d, %s.\n", WSTOPSIG(status), strsignal(WSTOPSIG(status)));
-				return;
+			} else if (WIFSTOPPED(child_status)
+				   && WSTOPSIG(child_status) != SIGSTOP
+				   && WSTOPSIG(child_status) != SIGTRAP) {
+				message("Program halted on signal %d, %s.\n", WSTOPSIG(child_status), strsignal(WSTOPSIG(child_status)));
+				status.running = false;
+				status.failure = true;
 			}
 			PTRACE(PTRACE_GETREGS, child, &regs_struct, &regs_struct);
-			decode_regs(regs, &pc, &regs_struct);
-			
-			if ((unsigned long long) pc >= debug_region_start
-			    && (unsigned long long) pc <= debug_region_end) {
-				printf("%p : %llu\n", pc, regs[REGISTER_A0]);
+			decode_regs(status.registers, &status.pc, &regs_struct);
+
+			if (status.pc == breakpoint) {
+				multistep_count = 0;
+				message("(breakpoint)");
 			}
+			if (status.pc >= status.debug_region_start
+			    && status.pc <= status.debug_region_end
+			    && text_instruction_location(status.pc)) {
+				if (!multistep_count) {
+					int command = debug_command();
+					switch (command) {
+					case DEBUG_COMMAND_QUIT:
+						kill(9, child);
+						//PTRACE(PTRACE_DETACH, child, NULL, NULL);
+						return;
+					default:
+						;
+					}
+				} else {
+					--multistep_count;
+				}
+			}
+
 			PTRACE(PTRACE_SINGLESTEP, child, NULL, NULL);
-			wait(&status);
+			wait(&child_status);
 		}
 	} else {
 		// child

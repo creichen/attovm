@@ -32,13 +32,17 @@
 #include "../chash.h"
 #include "../assembler-buffer.h"
 
+// Relocation types
+#define RELOC_32_RELATIVE	1ll
+#define RELOC_64_ABSOLUTE	2ll
+
 typedef struct {
 	char *name;
-	void *text_location;
+	void *absolute_location;
 	int int_offset;
 	bool text_section;
 	hashtable_t *label_references;	// contains mallocd label_t* s
-	hashtable_t *gp_references;	// contains sint32* s
+	hashtable_t *mem_references;	// contains memory references; value determines RELOC_* type
 } relocation_list_t;
 
 static hashtable_t *labels_table = NULL;
@@ -65,24 +69,24 @@ get_label_relocation_list(char *name)
 		hashtable_put(labels_table, name, rellist, NULL);
 		rellist->name = name;
 		rellist->label_references = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 3);
-		rellist->gp_references = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 3);
+		rellist->mem_references = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 3);
 	}
 	return rellist;
 }
 
+#include <stdio.h>
 void
 relocation_add_label(char *name, void *offset)
 {
 	relocation_list_t *rellist = get_label_relocation_list(name);
-	if (rellist->text_location || rellist->int_offset) {
+	if (rellist->absolute_location || rellist->int_offset) {
 		error("Multiple definitions of label `%s'", name);
 		return;
 	}
 
 	rellist->text_section = in_text_section;
-	if (in_text_section) {
-		rellist->text_location = offset;
-	} else {
+	rellist->absolute_location = offset;
+	if (!in_text_section) {
 		rellist->int_offset = ((char *)offset) - ((char *)data_section);
 	}
 }
@@ -96,7 +100,7 @@ relocate_label(void *key, void *value, void *state)
 	if (!rellist->text_section) {
 		error("Label %s defined for data but used in code", rellist->name);
 	} else {
-		buffer_setlabel(label, rellist->text_location);
+		buffer_setlabel(label, rellist->absolute_location);
 		free(label);
 	}
 }
@@ -104,11 +108,23 @@ relocate_label(void *key, void *value, void *state)
 static void
 relocate_displacement(void *key, void *value, void *state)
 {
+	unsigned long long relocation_type = (unsigned long long) value;
 	relocation_list_t *rellist = (relocation_list_t *) state;
-	if (rellist->text_section) {
-		error("Label %s defined for code but used in data", rellist->name);
-	} else {
+
+	switch (relocation_type) {
+	case RELOC_32_RELATIVE:
+		if (!rellist->int_offset) {
+			error("Label %s used as 32-bit $gp-relative label in an instruction that doesn't support it.  Consider using `la' instead.", rellist->name);
+			return;
+		}
 		*((int *) key) = rellist->int_offset;
+		break;
+	case RELOC_64_ABSOLUTE:
+		*((void **) key) = rellist->absolute_location;	
+		break;
+	default:
+		error("Internal error: Unknown relocation type %d", relocation_type);
+		break;
 	}
 }
 
@@ -117,12 +133,12 @@ static void
 relocate_one(void *key, void *value, void *state)
 {
 	relocation_list_t *rellist = (relocation_list_t *) value;
-	if (!rellist->text_location && !rellist->int_offset) {
+	if (!rellist->absolute_location && !rellist->int_offset) {
 		error("Label `%s' used but not defined!", rellist->name);
 		return;
 	}
 	hashtable_foreach(rellist->label_references, relocate_label, rellist);
-	hashtable_foreach(rellist->gp_references, relocate_displacement, rellist);
+	hashtable_foreach(rellist->mem_references, relocate_displacement, rellist);
 }
 
 void
@@ -142,12 +158,12 @@ relocation_add_jump_label(char *label)
 }
 
 void
-relocation_add_gp_label(char *label, void *addr, int offset)
+relocation_add_data_label(char *label, void *addr, int offset, bool gp_relative)
 {
 	relocation_list_t *t = get_label_relocation_list(label);
-	hashtable_put(t->gp_references,
+	hashtable_put(t->mem_references,
 		      ((unsigned char *) addr) + offset,
-		      (void *) ((signed long long) offset), NULL);
+		      (void *) (gp_relative ? RELOC_32_RELATIVE : RELOC_64_ABSOLUTE), NULL);
 }
 
 void *
@@ -155,8 +171,7 @@ relocation_get_resolved_text_label(char *name)
 {
 	relocation_list_t *list = get_label_relocation_list(name);
 	if (list->text_section) {
-		return list->text_location;
+		return list->absolute_location;
 	}
-	error("Required label `%s' not defined or not in text segment", name);
 	return NULL;
 }

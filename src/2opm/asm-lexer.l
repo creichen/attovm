@@ -55,12 +55,12 @@ IDENTIFIER [a-zA-Z_][a-zA-Z0-9_]*
 	return T_S_TEXT;
 }
 
-".bytes" {
-	return T_S_BYTES;
+".byte" {
+	return T_S_BYTE;
 }
 
-".words" {
-	return T_S_WORDS;
+".word" {
+	return T_S_WORD;
 }
 
 ".asciiz" {

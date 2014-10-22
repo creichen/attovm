@@ -34,6 +34,8 @@
 
 #include "../assembler-buffer.h"
 
+typedef unsigned char byte;
+
 typedef union {
 	signed long int num;
 	char  *str;
@@ -50,10 +52,11 @@ extern yylval_t yylval;
 
 #define T_S_DATA	0x110
 #define T_S_TEXT	0x111
-#define T_S_BYTES	0x112
-#define T_S_WORDS	0x113
+#define T_S_BYTE	0x112
+#define T_S_WORD	0x113
 #define T_S_ASCIIZ	0x114
 
+extern int error_line_nr; // line number for which we report errors, if > 0
 extern int errors_nr; // total # of errors encountered
 
 /**
@@ -71,18 +74,30 @@ warn(const char *fmt, ...);
 /* -- memory -- */
 
 extern buffer_t text_buffer;
-extern char data_section[];
+extern byte data_section[];
 extern bool in_text_section; // which section are we operating on?
+
+/**
+ * Is the specified location the location of an instruction?
+ */
+extern bool
+text_instruction_location(byte *location);
 
 void
 init_memory(void);
+
+/**
+ * Compute the address immediately after the end of the data section
+ */
+byte *
+end_of_data(void);
 
 /**
  * Determines the pointer of the current write position in text or static data.
  * Uses `in_text_section' to determine which section we are writing to.
  */
 void *
-current_offset();
+current_location();
 
 /**
  * Allocates memory in the current section
@@ -104,14 +119,29 @@ void
 relocation_finish(void);
 
 /**
- * Adds a $gp-relative label reference
+ * Adds a label reference
+ *
+ * If gp_relative: during relocation, a $gp-relative signed 32 bit value will be stored here.
+ * Otherwise: during relocation, an absolute unsigned 64 bit address will be stored here.
+ *
+ * @param label Name of the label to add
+ * @param addr Address of the instruction that references the label
+ * @param offset Byte address into the instruction
+ * @param gp_relative: whether to store a relative 32 bit address (true) or an absolute 64 bit one (false)
+ */
+void
+relocation_add_data_label(char *label, void *addr, int offset, bool gp_relative);
+
+/**
+ * Adds an absolute label reference
+ *
  *
  * @param label Name of the label to add
  * @param addr Address of the instruction that references the label
  * @param offset Byte address into the instruction
  */
 void
-relocation_add_gp_label(char *label, void *addr, int offset);
+relocation_add_absolute_label(char *label, void *addr, int offset);
 
 /**
  * Adds a new label reference as part of a branch/jump instruction

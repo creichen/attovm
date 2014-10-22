@@ -31,19 +31,18 @@
 
 #include "asm.h"
 
+int error_line_nr = 0;
 int errors_nr = 0;
 int warnings_nr = 0;
-
-extern int yy_line_nr;
 
 void
 error(const char *fmt, ...)
 {
 	va_list args;
-	if (yy_line_nr < 0) {
+	if (error_line_nr < 0) {
 		fprintf(stderr, "Error: ");
 	} else {
-		fprintf(stderr, "[line %d] error: ", yy_line_nr);
+		fprintf(stderr, "[line %d] error: ", error_line_nr);
 	}
 	va_start(args, fmt);
 	vfprintf(stderr, fmt, args);
@@ -56,10 +55,10 @@ void
 warn(const char *fmt, ...)
 {
 	va_list args;
-	if (yy_line_nr < 0) {
+	if (error_line_nr < 0) {
 		fprintf(stderr, "Warning: ");
 	} else {
-		fprintf(stderr, "[line %d] warning: ", yy_line_nr);
+		fprintf(stderr, "[line %d] warning: ", error_line_nr);
 	}
 	va_start(args, fmt);
 	vfprintf(stderr, fmt, args);

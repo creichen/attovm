@@ -32,6 +32,9 @@
 #include <strings.h>
 
 #include "../registers.h"
+#include "../address-store.h"
+#include "../assembler.h"
+#include "../chash.h"
 
 #include "assembler-instructions.h"
 #include "asm.h"
@@ -42,6 +45,14 @@ int yylex();
 yylval_t yylval;
 extern int yy_line_nr;
 extern FILE *yyin;
+
+hashtable_t *valid_text_locations = NULL;
+
+bool
+text_instruction_location(byte *loc)
+{
+	return (valid_text_locations && hashtable_get(valid_text_locations, loc));
+}
 
 static int
 check_bounds(int type, signed long long v, bool is_signed)
@@ -117,6 +128,97 @@ ty_name(int ty)
 	}
 }
 
+void
+do_emit_la(buffer_t *buf, asm_arg *args)
+{
+	emit_li(buf, args[0].r, 0);
+}
+
+struct pseudo_op {
+	char *name;
+	int args_nr;
+	byte types[5];
+	char offsets[5];
+	bool gp_relative_relocation[5];
+	void (*emit)(buffer_t *buf, asm_arg *args);
+} pseudo_ops[] = {
+	{ "la", 2, { ASM_ARG_REG, ASM_ARG_IMM64U }, { -1, 2 }, { false, false }, &do_emit_la },
+	{ NULL, 0, {}, {}, {}, NULL }
+};
+
+struct pseudo_op *
+get_pseudo_op(char *n)
+{
+	int offset = 0;
+	while (pseudo_ops[offset].name) {
+		if (!strcmp(n, pseudo_ops[offset].name)) {
+			return pseudo_ops + offset;
+		}
+		++offset;
+	}
+	return NULL;
+}
+
+int
+insn_get_args_nr(char *insn)
+{
+	struct pseudo_op *pseudo_op = get_pseudo_op(insn);
+	if (pseudo_op) {
+		return pseudo_op->args_nr;
+	}
+	return asm_insn_get_args_nr(insn);
+}
+
+int
+insn_get_arg(char *insn, int arg)
+{
+	struct pseudo_op *pseudo_op = get_pseudo_op(insn);
+	if (pseudo_op) {
+		if (arg < 0 || arg >= pseudo_op->args_nr) {
+			return -1;
+		}
+		return pseudo_op->types[arg];
+	}
+	return asm_insn_get_arg(insn, arg);
+}
+
+int
+insn_arg_offset(char *insn, asm_arg *args, int arg)
+{
+	struct pseudo_op *pseudo_op = get_pseudo_op(insn);
+	if (pseudo_op) {
+		if (arg < 0 || arg >= pseudo_op->args_nr) {
+			return -1;
+		}
+		return pseudo_op->offsets[arg];
+	}
+	return asm_arg_offset(insn, args, arg);
+}
+
+bool
+insn_get_relocation_type(char *insn, int arg)
+{
+	struct pseudo_op *pseudo_op = get_pseudo_op(insn);
+	if (pseudo_op) {
+		if (arg < 0 || arg >= pseudo_op->args_nr) {
+			return -1;
+		}
+		return pseudo_op->gp_relative_relocation[arg];
+	}
+	return true; // The other instructions use $gp-relative addressing
+}
+
+void
+emit_insn(buffer_t *buffer, char *insn, asm_arg *args, int args_nr)
+{
+	struct pseudo_op *pseudo_op = get_pseudo_op(insn);
+	if (pseudo_op) {
+		pseudo_op->emit(buffer, args);
+		return;
+	}
+	asm_insn(buffer, insn, args, args_nr);
+}
+
 /**
  * args_types are preliminary types:
  *   - ASM_ARG_IMM64(U|S) marks literal ints
@@ -129,7 +231,7 @@ ty_name(int ty)
 static void
 try_emit_insn(buffer_t *buffer, char *insn, int args_nr, int *args_types, asm_arg *args)
 {
-	int expected_args_nr = asm_insn_get_args_nr(insn);
+	int expected_args_nr = insn_get_args_nr(insn);
 	if (expected_args_nr < 0) {
 		error("Unknown assembly instruction: `%s'", insn);
 		return;
@@ -140,7 +242,7 @@ try_emit_insn(buffer_t *buffer, char *insn, int args_nr, int *args_types, asm_ar
 	}
 	for (int i = 0; i < args_nr; i++) {
 		int ty = args_types[i];
-		int expected_ty = asm_insn_get_arg(insn, i);
+		int expected_ty = insn_get_arg(insn, i);
 		if (expected_ty == ASM_ARG_REG) {
 			if (ty != ASM_ARG_REG) {
 				error("Assembly instruction `%s': expects register as parameter #%d, but received %s",
@@ -161,20 +263,27 @@ try_emit_insn(buffer_t *buffer, char *insn, int args_nr, int *args_types, asm_ar
 				      insn, i + 1);
 				return;
 			} else if (ty == ASM_ARG_LABEL) {
-				const int offset = asm_arg_offset(insn, args, i);
+				const int offset = insn_arg_offset(insn, args, i);
 				char *label = (char *) args[i].label;
 				if (offset == -1) {
-					error("Assembly instruction `%s': Argument #%d cannot reference label (not relocable)", i);
+					error("Assembly instruction `%s': Argument #%d cannot reference label (not relocable)",
+					      insn, i + 1);
 					free(label);
 					return;
 				}
-				relocation_add_gp_label(label, buffer_target(buffer), offset);
+				relocation_add_data_label(label, buffer_target(buffer), offset, insn_get_relocation_type(insn, i));
 			} else {
 				check_bounds(expected_ty, args[i].imm, ty == ASM_ARG_IMM64S);
 			}
 		}
 	}
-	asm_insn(buffer, insn, args, args_nr);
+
+	if (!valid_text_locations) {
+		valid_text_locations = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 10);
+	}
+	hashtable_put(valid_text_locations, current_location(), current_location(), NULL);
+
+	emit_insn(buffer, insn, args, args_nr);
 }
 
 #define INSN_MODE_EXPECT_END		1
@@ -311,35 +420,54 @@ parse(buffer_t *buffer)
 	while ((input = yylex())) {
 		switch (input) {
 		case T_ID: {
-			data_mode = 0;
+			error_line_nr = yy_line_nr;
 			char *id = yylval.str;
 			int next = yylex();
 			if (next == ':') {
-				addrstore_put(current_offset, in_text_section ? ADDRSTORE_KIND_SPECIAL : ADDRSTORE_KIND_DATA, id);
-				relocation_add_label(id, current_offset());
+				addrstore_put(current_location(),
+					      in_text_section ? ADDRSTORE_KIND_SPECIAL : ADDRSTORE_KIND_DATA, id);
+				relocation_add_label(id, current_location());
 			} else {
-				if (!in_text_section) {
-					error("Assembly instructions not supported in .data section");
-					return;
+				if (in_text_section) {
+					data_mode = 0;
+					parse_insn(buffer, id, next);
+				} else {
+					if (data_mode == T_S_WORD) {
+						relocation_add_data_label(id,
+									  alloc_data_in_section(8),
+									  0,
+									  false);
+					} else {
+						error("Assembly instructions not supported in .data section");
+						return;
+					}
 				}
-				parse_insn(buffer, id, next);
 			}
 			break;
 		}
 
 		case T_S_DATA:
+			error_line_nr = yy_line_nr;
 			in_text_section = false;
 			data_mode = 0;
 			break;
 
 		case T_S_TEXT:
+			error_line_nr = yy_line_nr;
 			in_text_section = true;
 			data_mode = 0;
 			break;
 
-		case T_S_BYTES:
-		case T_S_WORDS:
+		case T_S_WORD:
+			// align, if needed:
+			if (((long long)current_location()) & 7ll) {
+				alloc_data_in_section(8ll - ((long long)current_location() & 7ll));
+			}
+			// fall through
+		case T_S_BYTE:
+			// fall through
 		case T_S_ASCIIZ:
+			error_line_nr = yy_line_nr;
 			data_mode = input;
 			break;
 
@@ -351,15 +479,17 @@ parse(buffer_t *buffer)
 			}
 			break;
 
+		case T_UINT:
 		case T_INT: {
 			switch (data_mode) {
-			case T_S_BYTES:
+			case T_S_BYTE:
 				((unsigned char *)alloc_data_in_section(1))[0] = yylval.num;
 				break;
-			case T_S_WORDS:
+			case T_S_WORD:
 				memcpy(alloc_data_in_section(8), &yylval.num, 8);
 				break;
 			case T_S_ASCIIZ:
+
 			default:
 				error("Unexpected raw integer data");
 				return;
@@ -368,21 +498,25 @@ parse(buffer_t *buffer)
 		}
 
 		case T_STR: {
+			int len = strlen(yylval.str) + 1;
+			error_line_nr = yy_line_nr;
 			switch (data_mode) {
-			case T_S_ASCIIZ:
-				memcpy(alloc_data_in_section(8), &yylval.str, strlen(yylval.str) + 1);
+			case T_S_ASCIIZ: {
+				void * dest = alloc_data_in_section(len);
+				memcpy(dest, yylval.str, len);
+			}
 				break;
-			case T_S_BYTES:
-			case T_S_WORDS:
+			case T_S_BYTE:
+			case T_S_WORD:
 			default:
-				error("Unexpected asciiz strings");
+				error("Unexpected asciiz string");
 				return;
 			}
 			break;
 		}
 
 		default:
-			error("Unexpected control character `%c'\n", input);
+			error("Unexpected control character `%c' (%x)\n", input, input);
 			return;
 		}
 	}
@@ -400,6 +534,6 @@ parse_file(buffer_t *buf, char *filename)
 	}
 
 	parse(buf);
-	yy_line_nr = -1;
+	error_line_nr = -1;
 }
 

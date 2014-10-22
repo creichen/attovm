@@ -27,7 +27,7 @@ ASM_OBJS = 2opm/asm-lexer.o 2opm/assembler.o 2opm/asm.o chash.o address-store.o 
 
 # ========================================
 
-all: atl backend-test assembler-buffer-test
+all: atl backend-test assembler-buffer-test asm
 
 clean:
 	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) ${FINAL_OBJS} ${ASM_OBJS}

@@ -237,7 +237,7 @@ try_emit_insn(buffer_t *buffer, char *insn, int args_nr, int *args_types, asm_ar
 		return;
 	}
 	if (args_nr != expected_args_nr) {
-		error("Assembly instruction `%s' expects %d arguments, has %d, ", insn, args_nr, expected_args_nr);
+		error("Assembly instruction `%s' expects %d arguments, has %d, ", insn, expected_args_nr, args_nr);
 		return;
 	}
 	for (int i = 0; i < args_nr; i++) {

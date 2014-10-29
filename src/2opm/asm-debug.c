@@ -32,15 +32,50 @@
 #include <strings.h>
 #include <ctype.h>
 
+#include <signal.h>
+
+#ifdef __MACH__
+#  define _DARWIN_C_SOURCE // for sys/types.h
+#  include <mach/mach_init.h>
+#  include <mach/mach_vm.h>
+#  include <mach/mach.h>
+#  include <mach/machine/thread_state.h>
+#  include <mach/machine/thread_status.h>
+#endif
+
+#include <sys/types.h>
 #include <sys/user.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
+#include <unistd.h>
 
 #include "../address-store.h"
 #include "../registers.h"
 #include "../assembler.h"
 
 #include "asm.h"
+
+
+#ifdef __MACH__
+#  define PTRACE_ATTACH		PT_ATTACH
+#  define PTRACE_SINGLESTEP	PT_STEP
+// FIXME: this one's not working on Mach.  Have to use software breakpoints (0xcc) instead.
+#endif
+
+#define PTRACE(a, b, c, d) if (-1 == ptrace(a, b, c, d)) { fprintf(stderr, "ptrace failure in %d\n", __LINE__); perror(#a); return; }
+
+static struct machine_state {
+	bool running;
+	bool failure;
+	int pid;
+	byte *debug_region_end, *debug_region_start;
+	signed long long registers[REGISTERS_NR];
+	byte *pc;
+	byte *initial_stack;
+} status = {
+	.running = false,
+	.failure = false
+};
 
 #define MAX_INSN_SIZE 32
 
@@ -93,27 +128,65 @@ print_memmap(int pid)
 	stop_message();
 }
 
-static void
-decode_regs(signed long long *regs, byte **pc, struct user_regs_struct *uregs)
+#ifdef __MACH__
+void
+getdata(pid_t child, unsigned long long addr, byte *str, int len)
 {
-	*pc = (byte *) uregs->rip;
-	regs[0] = uregs->rax;
-	regs[1] = uregs->rcx;
-	regs[2] = uregs->rdx;
-	regs[3] = uregs->rbx;
-	regs[4] = uregs->rsp;
-	regs[5] = uregs->rbp;
-	regs[6] = uregs->rsi;
-	regs[7] = uregs->rdi;
-	regs[8] = uregs->r8;
-	regs[9] = uregs->r9;
-	regs[10] = uregs->r10;
-	regs[11] = uregs->r11;
-	regs[12] = uregs->r12;
-	regs[13] = uregs->r13;
-	regs[14] = uregs->r14;
-	regs[15] = uregs->r15;
+        vm_size_t read_bytes;
+	if (KERN_SUCCESS != vm_read_overwrite(child, addr, len, (vm_address_t) str, &read_bytes)) {
+                perror("vm_read_overwrite");
+                return;
+        }
+
+        if (read_bytes != len) {
+                error("vm_read_overwrite() read %d instead of %d bytes",
+                      len, read_bytes);
+        }
 }
+
+void
+putdata(pid_t child, unsigned long long addr, byte *str, int len)
+{
+        if (KERN_SUCCESS != vm_write(child, addr, (vm_address_t) str, len)) {
+                perror("vm_write");
+                return;
+        }
+}
+
+static void
+get_registers_for_process(int process, struct machine_state *state)
+{
+	byte **pc = &state->pc;
+	signed long long *regs = &(state->registers[0]);
+	x86_thread_state64_t* x86_thread_state64;
+
+	unsigned int count = MACHINE_THREAD_STATE_COUNT;
+
+	thread_get_state(process, x86_THREAD_STATE64,
+			 (thread_state_t)&x86_thread_state64,
+			 &count);
+
+	regs[0] = x86_thread_state64->__rax;
+	regs[1] = x86_thread_state64->__rcx;
+	regs[2] = x86_thread_state64->__rdx;
+	regs[3] = x86_thread_state64->__rbx;
+	regs[4] = x86_thread_state64->__rsp;
+	regs[5] = x86_thread_state64->__rbp;
+	regs[6] = x86_thread_state64->__rsi;
+	regs[7] = x86_thread_state64->__rdi;
+	regs[8] = x86_thread_state64->__r8;
+	regs[9] = x86_thread_state64->__r9;
+	regs[10] = x86_thread_state64->__r10;
+	regs[11] = x86_thread_state64->__r11;
+	regs[12] = x86_thread_state64->__r12;
+	regs[13] = x86_thread_state64->__r13;
+	regs[14] = x86_thread_state64->__r14;
+	regs[15] = x86_thread_state64->__r15;
+
+	*pc = (byte *) x86_thread_state64->__rip;
+}
+
+#else // not __MACH__
 
 void
 getdata(pid_t child, unsigned long long addr, byte *str, int len)
@@ -133,8 +206,8 @@ getdata(pid_t child, unsigned long long addr, byte *str, int len)
 	}
 }
 
-// putdata based on code by Pradeep Padala, used with permission
-void putdata(pid_t child, unsigned long long addr, byte *str, int len)
+void
+putdata(pid_t child, unsigned long long addr, byte *str, int len)
 {
 	while (len >= sizeof(long)) {
 		long v;
@@ -151,23 +224,37 @@ void putdata(pid_t child, unsigned long long addr, byte *str, int len)
 	}
 }
 
-#define PTRACE(a, b, c, d) if (-1 == ptrace(a, b, c, d)) { fprintf(stderr, "ptrace failure in %d\n", __LINE__); perror(#a); return; }
+static void
+get_registers_for_process(int process, struct machine_state *state)
+{
+	byte **pc = &state->pc;
+	signed long long *regs = &(state->registers[0]);
+	struct user_regs_struct uregs;
+	PTRACE(PTRACE_GETREGS, process, &uregs, &uregs);
 
-#define MAX_INPUT 4095
-static char last_command[MAX_INPUT + 1] = "";
+	*pc = (byte *) uregs.rip;
+	regs[0] = uregs.rax;
+	regs[1] = uregs.rcx;
+	regs[2] = uregs.rdx;
+	regs[3] = uregs.rbx;
+	regs[4] = uregs.rsp;
+	regs[5] = uregs.rbp;
+	regs[6] = uregs.rsi;
+	regs[7] = uregs.rdi;
+	regs[8] = uregs.r8;
+	regs[9] = uregs.r9;
+	regs[10] = uregs.r10;
+	regs[11] = uregs.r11;
+	regs[12] = uregs.r12;
+	regs[13] = uregs.r13;
+	regs[14] = uregs.r14;
+	regs[15] = uregs.r15;
+}
 
-static struct {
-	bool running;
-	bool failure;
-	int pid;
-	byte *debug_region_end, *debug_region_start;
-	signed long long registers[REGISTERS_NR];
-	byte *pc;
-	byte *initial_stack;
-} status = {
-	.running = false,
-	.failure = false
-};
+#endif // not __MACH
+
+#define MAX_INPUT_2OPMDEBUG 4095
+static char last_command[MAX_INPUT_2OPMDEBUG + 1] = "";
 
 static int
 cmd_help(char *_);
@@ -258,7 +345,7 @@ have_any_registers_at(char *dest_buffer, byte *addr)
 			if (match) {
 				dest += sprintf(dest, ", ");
 			}
-			dest += sprintf(dest, register_names[i].mips);
+			dest += sprintf(dest, "%s", register_names[i].mips);
 			match = true;
 		}
 	}
@@ -412,7 +499,7 @@ static int
 debug_command()
 {
 	breakpoint = NULL;
-	static char command[MAX_INPUT + 1] = "";
+	static char command[MAX_INPUT_2OPMDEBUG + 1] = "";
 
 	while (true) {
 		// update instruction in local memory for disassembly
@@ -438,7 +525,7 @@ debug_command()
 
 		
 
-		if (fgets(command, MAX_INPUT, stdin) == (char *) EOF) {
+		if (fgets(command, MAX_INPUT_2OPMDEBUG, stdin) == (char *) EOF) {
 			// end-of-file
 			return DEBUG_COMMAND_QUIT;
 		}
@@ -501,30 +588,34 @@ debug(buffer_t *buffer, void (*entry_point)())
 	message("Starting up debugger; enter `help' for help.");
 
 	if ((child = fork())) {
-		struct user_regs_struct regs_struct;
 		int child_status;
 
 		// parent
-		PTRACE(PTRACE_ATTACH, child, NULL, NULL);
+		PTRACE(PTRACE_ATTACH, child, NULL, 0);
 		wait(&child_status);
-		ptrace(PTRACE_SETOPTIONS, child, NULL, PTRACE_O_TRACEEXIT);
 		wait_for_me = 1;
 		putdata(child, (unsigned long long) &wait_for_me, (byte *) &wait_for_me, sizeof(wait_for_me));
 		do {
-			PTRACE(PTRACE_GETREGS, child, &regs_struct, &regs_struct);
-			if (((void *)regs_struct.rip) != entry_point) {
+			get_registers_for_process(child, &status);
+			if ((void *) status.pc != entry_point) {
 				break;
 			}
-			PTRACE(PTRACE_SINGLESTEP, child, NULL, NULL);
+			PTRACE(PTRACE_SINGLESTEP, child, NULL, 0);
+#ifdef __MACH__
+			// FIXME: no internal consistency check on Mach kernels
+#else
 			if (child_status >> 8 == (SIGTRAP | (PTRACE_EVENT_EXIT<<8))) {
 				error("Unexpected early exit (internal error?)");
 				return;
 			}
+#endif
 			wait(&child_status);
 		} while (true);
 
 		status.pid = child;
 		status.running = true;
+
+		void *last_safe_pc = NULL;
 
 		while (true) {
 			if (WIFEXITED(child_status)) {
@@ -538,17 +629,29 @@ debug(buffer_t *buffer, void (*entry_point)())
 				status.running = false;
 				status.failure = true;
 			}
-			PTRACE(PTRACE_GETREGS, child, &regs_struct, &regs_struct);
-			decode_regs(status.registers, &status.pc, &regs_struct);
+			get_registers_for_process(child, &status);
 
 			if (status.pc == breakpoint) {
 				multistep_count = 0;
 				message("(breakpoint)");
 			}
-			if (status.pc >= status.debug_region_start
-			    && status.pc <= status.debug_region_end
-			    && text_instruction_location(status.pc)) {
-				if (!multistep_count) {
+
+			if (status.failure) {
+				// Restore to some PC that the programmer understands
+				if (status.pc < status.debug_region_start || status.pc > status.debug_region_end) {
+					message("$pc=%p at time of error (outside of your code)", status.pc);
+					message("Setting $pc=%p (last instruction in your code)", last_safe_pc);
+					message("NOTE: registers/memory may have changed since this instruction was executed!", last_safe_pc);
+				}
+				status.pc = last_safe_pc;
+			}
+
+			if (status.failure
+			    || (status.pc >= status.debug_region_start
+				&& status.pc <= status.debug_region_end
+				&& text_instruction_location(status.pc))) {
+				last_safe_pc = status.pc;
+				if (status.failure || !multistep_count) {
 					int command = debug_command();
 					switch (command) {
 					case DEBUG_COMMAND_QUIT:
@@ -563,7 +666,7 @@ debug(buffer_t *buffer, void (*entry_point)())
 				}
 			}
 
-			PTRACE(PTRACE_SINGLESTEP, child, NULL, NULL);
+			PTRACE(PTRACE_SINGLESTEP, child, NULL, 0);
 			wait(&child_status);
 		}
 	} else {

@@ -891,6 +891,7 @@ instructions = [
     Insn(Name(mips="beqz", intel="cmp0_jz"), 'if $r0 = 0, then jump to %a', [0x48, 0x83, 0xc0, 0x00, 0x0f, 0x84, 0, 0, 0, 0], [ArithmeticDestReg(2), PCRelative(6, 4, -10)]),
 
     Insn(Name(mips="j", intel="jmp"), 'jump to %a', [0xe9, 0, 0, 0, 0], [PCRelative(1, 4, -5)]),
+    Insn(Name(mips="jr", intel="jmp"), 'jump to $r', [0x40, 0xff, 0xe0], [ArithmeticDestReg(2)]),
     Insn(Name(mips="jal", intel="callq"), 'push next instruction address, jump to %a', [0xe8, 0x00, 0x00, 0x00, 0x00], [PCRelative(1, 4, -5)]),
     OptPrefixInsn(Name(mips="jalr", intel="callq"), "push next instruction address, jump to $r0" ,0x40, [0xff, 0xd0], [OptionalArithmeticDestReg(1)]),
     Insn(Name(mips="jreturn", intel="ret"), 'jump to mem64[$sp]; $sp := $sp + 8', [0xc3], []),
@@ -1017,7 +1018,7 @@ static struct {{
 }} instructions[INSTRUCTIONS_NR] = {{""".format(instructions_nr = len(instructions))
     for insn in instructions:
         args = insn.getArgs()
-        print ('\t{{ name:"{name}", args_nr:{args_nr}, args:{{ {args} }} }},'
+        print ('\t{{ .name = "{name}", .args_nr = {args_nr}, .args = {{ {args} }} }},'
                .format(name = insn.name,
                        args_nr = len(insn.args),
                        args = ', '.join(a.getType() for a in args)))

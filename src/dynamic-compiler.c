@@ -52,7 +52,7 @@ dyncomp_build_generic()
 	emit_move(&buf, REGISTER_A1, REGISTER_SP);
 	emit_addi(&buf, REGISTER_A1, sizeof(void*) * REGISTERS_ARGUMENT_NR); // Alle Argumentregister
 	emit_la(&buf, REGISTER_V0, dyncomp_compile_function);
-	emit_jal(&buf, REGISTER_V0);
+	emit_jalr(&buf, REGISTER_V0);
 	for (int i = 0; i < REGISTERS_ARGUMENT_NR; i++) {
 		emit_ld(&buf, registers_argument[i], i * sizeof(void*), REGISTER_SP);
 	}

@@ -3,29 +3,48 @@ CFLAGS=-O0 -g -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200
 PYTHON=python
 FLEX=flex
 
-FRONTEND_HEADERS = chash.h symbol-table.h analysis.h lexer-support.h
+# --------------------
+# ATL frontend
+FRONTEND_HEADERS = chash.h symbol-table.h analysis.h lexer-support.h errors.h compiler-options.h version.h
 FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c ast.h parser.h
+FRONTEND_SRC = parser.template.c parser.template.h ast.template.h lexer.template.l unparser.template.c \
+		mk-codegen.py mk-parser.py lexer-support.c ast.c chash.c symbol-table.c \
+		name-analysis.c type-analysis.c storage-allocation.c atl.c backend-test.c
 FRONTEND_OBJS = parser.o lexer.o lexer-support.o ast.o unparser.o chash.o symbol-table.o \
 		name-analysis.o type-analysis.o storage-allocation.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
+# --------------------
+# ATL backend
 BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registers.h runtime.h address-store.h \
 		dynamic-compiler.h
 BACKEND_GENSRC = assembler.c assembler.h
+BACKEND_SRC = assembler-buffer.c baseline-backend.c object.c class.c registers.c \
+		builtins.c runtime.c address-store.c dynamic-compiler.c
 BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o \
 		 builtins.o runtime.o address-store.o dynamic-compiler.o
-FINAL_OBJS = atl.o atl backend-test.o backend-test assembler-buffer-test
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
+# --------------------
+# ATL main objects
+FINAL_SRC = atl.c backend-test.c assembler-buffer-test.c
+FINAL_OBJS = atl.o atl backend-test.o backend-test assembler-buffer-test
+
+
+# --------------------
+# 2OPM stand-alone assembler
 ASM_OBJS = 2opm/asm-lexer.o 2opm/assembler.o 2opm/asm.o chash.o address-store.o \
 		registers.o assembler.o assembler-buffer.o lexer-support.o \
 		2opm/asm-builtins.o 2opm/asm-debug.o  2opm/asm-errors.o  2opm/asm-labels.o \
 		2opm/asm-memory.o  2opm/asm-parse.o
 
 
-.PHONY: clean tidy all
+.PHONY: clean tidy all echo-distfiles
 
 # ========================================
+
+echo-distfiles:
+	echo DIST-START Makefile ${BACKEND_HEADERS} ${FRONTEND_HEADERS} ${FRONTEND_GENSRC} ${BACKEND_GENSRC} ${FRONTEND_SRC} ${BACKEND_SRC} DIST-END
 
 all: atl backend-test assembler-buffer-test asm
 

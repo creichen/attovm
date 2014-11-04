@@ -974,9 +974,8 @@ baseline_compile_entrypoint(ast_node_t *root,
 buffer_t
 baseline_compile_static_callable(symtab_entry_t *sym)
 {
-	/* Funktions-Aufrufrahmen
+	/*d Funktions-Aufrufrahmen
 	 *
-	 * (Fuer nicht-Konstruktor)
 	 *    ....
 	 * | param 8 |
          * +---------+
@@ -987,6 +986,22 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 	 * | old-$fp |
          * +---------+  <- $fp
 	 * |   $a0   |  // Mit Konstruktor ist hier noch die Konstruktor-Referenz eingeschoben
+         * +---------+
+	 * |   $a1   |
+	 *    .....
+	 */
+	/*e Function stack frame
+	 *
+	 *    ....
+	 * | param 8 |
+         * +---------+
+	 * | param 7 |
+         * +---------+
+	 * |   ret   |
+         * +---------+
+	 * | old-$fp |
+         * +---------+  <- $fp
+	 * |   $a0   |  // When calling a constructor, we reserve this as `future' SELF argument
          * +---------+
 	 * |   $a1   |
 	 *    .....
@@ -1013,20 +1028,23 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 	const int args_nr = node->children[1]->children_nr;
 	ast_node_t *body = node->children[2];
 
-	// Parameter in Argumentregistern auf Stapel
+	//d Parameter in Argumentregistern auf Stapel
+	//e Move parameters in argument registers onto the stack
 	const int spilled_args = args_nr > REGISTERS_ARGUMENT_NR ? REGISTERS_ARGUMENT_NR : args_nr; 
 	int storage_start = 1;
 	int allocated_spilled_args = spilled_args;
 
-	int local_variables_on_stack = 0; // nur fuer Konstruktor
+	int local_variables_on_stack = 0; /*d nur fuer Konstruktor */ /*e Constructor only */
 
 	if (sym->symtab_flags & SYMTAB_CONSTRUCTOR) {
-		// Fuer Konstruktoren legen wir noch eine zusaetzliche Variable am Anfang an,
-		// in der wir `SELF' speichern
+		//d Fuer Konstruktoren legen wir noch eine zusaetzliche Variable am Anfang an,
+		//d in der wir `SELF' speichern
+		//e Constructor: allocate extra variable at the start to store `SELF'
 		mcontext.self_stack_location = -8;
 		storage_start = 2;
 		++allocated_spilled_args;
-		// Positionen auf dem Stapel fuer lokale Variablen
+		//d Positionen auf dem Stapel fuer lokale Variablen
+		//e Stack positions for locals
 		local_variables_on_stack = sym->astref->children[2]->storage;
 		mcontext.variable_storage = -(allocated_spilled_args + local_variables_on_stack);
 	}
@@ -1039,10 +1057,10 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 			emit_sd(buf, registers_argument[i], offset * sizeof(void *), REGISTER_FP);
 			args[i]->sym->offset = offset;
 		}
-		// spilled_args > REGISTERS_ARGUMENT_NR ?
-		// Berechnen der Adressen der Parameter hinter $a5
+		//d Berechnen der Adressen der Parameter hinter $a5
+		//e Computes addresses of parameters behind $a5
 		for (int i = spilled_args; i < args_nr; i++) {
-			const int offset = 2 // ($sp und Ruecksprungadresse auf dem Stapel)
+			const int offset = 2 /*d ($sp und Ruecksprungadresse auf dem Stapel) */ /*e $sp and return address on stack */
 				+ i - REGISTERS_ARGUMENT_NR;
 			args[i]->sym->offset = offset;
 		}
@@ -1075,10 +1093,11 @@ baseline_compile_method(symtab_entry_t *sym)
 
 	assert(NODE_TY(node) == AST_NODE_FUNDEF);
 	ast_node_t **args = node->children[1]->children;
-	const int args_nr = node->children[1]->children_nr + 1; // implizites SELF-Argument
+	const int args_nr = node->children[1]->children_nr + 1; /*d implizites SELF-Argument */ /*e implicit SELF reference */
 	ast_node_t *body = node->children[2];
 
-	// Parameter in Argumentregistern auf Stapel
+	//d Parameter in Argumentregistern auf Stapel
+	//e Move parameters in argument registers onto the stack
 	const int spilled_args = args_nr > REGISTERS_ARGUMENT_NR ? REGISTERS_ARGUMENT_NR : args_nr; 
 	int storage_start = 1;
 	int allocated_spilled_args = spilled_args;
@@ -1089,7 +1108,7 @@ baseline_compile_method(symtab_entry_t *sym)
 	const int stack_space = allocated_spilled_args + local_variable_storage;
 
 	STACK_ALLOC(stack_space);
-	mcontext.variable_storage = -stack_space; // Platz auf dem Stapel fuer lokale Variablen
+	mcontext.variable_storage = -stack_space; /*d Platz auf dem Stapel fuer lokale Variablen */ /*e Allocate stack space for locals */
 
 	if (allocated_spilled_args) {
 		for (int i = 0; i < spilled_args; i++) {
@@ -1100,9 +1119,10 @@ baseline_compile_method(symtab_entry_t *sym)
 			}
 		}
 		// spilled_args > REGISTERS_ARGUMENT_NR ?
-		// Berechnen der Adressen der Parameter hinter $a5
+		//d Berechnen der Adressen der Parameter hinter $a5
+		//e computes addresses of parameters behind $a5
 		for (int i = spilled_args; i < args_nr; i++) {
-			const int offset = 2 // ($sp und Ruecksprungadresse auf dem Stapel)
+			const int offset = 2 /*d ($sp und Ruecksprungadresse auf dem Stapel) */ /*e $sp and return address on stack */
 				+ i - REGISTERS_ARGUMENT_NR;
 			args[i - 1]->sym->offset = offset;
 		}

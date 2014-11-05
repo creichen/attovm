@@ -1,0 +1,673 @@
+\documentclass[11pt,a4paper]{article} 
+\usepackage[margin=2cm]{geometry}
+\usepackage{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usepackage{pgf}
+\usepackage{color}
+\usepackage{moresize}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{wasysym}
+\usepackage{mips}
+\usepackage{pgfpages}
+\renewcommand{\theenumi}{\alph{enumi}}
+\renewcommand{\theenumii}{\roman{enumii}}
+\usetikzlibrary{decorations.pathreplacing, backgrounds, trees, arrows.new, patterns, arrows, shapes, decorations.markings, calc, positioning, fit, matrix, decorations.pathmorphing}
+\renewcommand*\ttdefault{txtt}
+
+\newcommand{\mybackslash}{\backslash{}{}{}{}{}{}{}}
+
+\definecolor{dcyan}{rgb}{0,0.4,0.4}
+
+\newcommand{\Cinclude}[1]{\textcolor{dgreen}{\#include $<$#1$>$}}
+\newcommand{\Cty}[1]{\textcolor{dblue}{\texttt{#1}}}
+\newcommand{\Ccom}[1]{\textcolor{dgreen}{\texttt{#1}}}
+\newcommand{\Cpp}[1]{\textcolor{dcyan}{\texttt{#1}}}
+\newcommand{\Ckw}[1]{\textbf{\texttt{#1}}}
+
+
+\newcommand{\coloneq}{\mathrel{\mathop:}=}
+\newcommand{\bincode}[1]{\texttt{\textcolor{blue}{#1}}}
+\newcommand{\black}[1]{{\color{black}#1}}
+\newcommand{\bincodeB}[1]{\texttt{\textbf{\textcolor{black}{#1}}}}
+
+\newcommand{\ONE}{\texttt{1}}
+\newcommand{\ZERO}{\texttt{0}}
+\newcommand{\NO}{\node {\ONE};}
+\newcommand{\NZ}{\node {\ZERO};}
+
+%% \setbeameroption{show notes}
+%% \setbeameroption{show notes on second screen=right}
+
+%\newcommand{\fquote}[1]{\frqq #1\flqq}
+\newcommand{\fquote}[1]{\glqq #1\grqq}
+
+\tikzstyle{dflowarrow} = [very thick, rounded corners, double distance=1pt, > = triangle 45 new, arrow head=3mm]
+\tikzstyle{choicearrow} = [thick, arrow head=3mm]
+\tikzstyle{editarrow} = [thick, decorate, decoration=snake, > = triangle 45 new, arrow head=3mm]
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{dgreen}{rgb}{0,0.4,0}
+\definecolor{dblue}{rgb}{0,0,0.5}
+\definecolor{grey}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\newcommand{\Prod}{::=}
+\newcommand{\VB}{\ |\ }
+\newcommand{\tuple}[1]{\ensuremath{\langle #1 \rangle}}
+\newcommand{\nt}[1]{\ensuremath{\tuple{\hspace{-0.02cm}\nta{#1}\hspace{0.02cm}}}}
+\newcommand{\sem}[1]{\ensuremath{\llbracket #1 \rrbracket}}
+\newcommand{\nta}[1]{\ensuremath{\textit{#1}}}
+\newcommand{\terminal}[1]{\textit{#1}}
+\newcommand{\vterminal}[1]{\textsf{`}\texttt{#1}\textsf{'}}
+
+%% \lstset{ %
+%%   language=C       % the language of the code
+%%   }
+ 
+\lstset{ %
+  language=C,       % the language of the code
+  basicstyle=\small\tt,       % the size of the fonts that are used for the code
+%  numbers=left,                   % where to put the line-numbers
+  numberstyle=\small\color{grey},  % the style that is used for the line-numbers
+  stepnumber=1,                   % the step between two line-numbers. If it's 1, each line 
+                                  % will be numbered
+  numbersep=5pt,                  % how far the line-numbers are from the code
+  backgroundcolor=\color{white},  % choose the background color. You must add \usepackage{color}
+  showspaces=false,               % show spaces adding particular underscores
+  showstringspaces=false,         % underline spaces within strings
+  showtabs=false,                 % show tabs within strings adding particular underscores
+%  frame=single,                   % adds a frame around the code
+  rulecolor=\color{black},        % if not set, the frame-color may be changed on line-breaks within not-black text (e.g. commens (green here))
+  tabsize=4,                      % sets default tabsize to 2 spaces
+  captionpos=b,                   % sets the caption-position to bottom
+  breaklines=true,                % sets automatic line breaking
+  breakatwhitespace=false,        % sets if automatic breaks should only happen at whitespace
+  title=\lstname,                 % show the filename of files included with \lstinputlisting;
+                                  % also try caption instead of title
+  keywordstyle=\color{blue},          % keyword style
+  commentstyle=\color{dkgreen},       % comment style
+  stringstyle=\color{mauve},         % string literal style
+  escapeinside={\%*}{*)},            % if you want to add a comment within your code
+  morekeywords={*,eingabe,ausgabe,...},               % if you want to add more keywords to the set
+  belowskip=-1em
+}
+
+\title{AttoL and AttoVM overview}
+\begin{document}
+\maketitle
+
+%% sed 's/*/\asterisk/' | awk '{ l = $2; m= $3;  rest=""; for (i = 4; i <= NF; i++) { p = "nt"; r = $i; k = substr(r, 0, 1); r = substr(r, 1); if (k == "%") { p = "varepsilon"; } else if (k == ",") { p = "vterminal"} else if (k == ":") {p = "terminal"} else { p = "nt"};  rest = rest " " p "{" r "}"; } ; printf "\nta{%s} & %s & %s \n", l, m, rest}'
+
+%% PROGRAM ::= STMT*
+%% TY ::= ,int
+%%      | ,obj
+%% FORMAL ::= TY :id
+%% FORMALS ::= %
+%%           | FORMAL
+%%           | FORMALSL
+%% FORMALSL ::= FORMAL
+%%            | FORMAL ,, FORMALSL
+%% ACTUALS ::= %
+%%           | EXPR
+%%           | ACTUALSL
+%% ACTUALSL ::= EXPR
+%%            | EXPR ,, ACTUALSL
+%% BLOCK ::= ,{ STMT* ,}
+%% STMT ::= BLOCK
+%%        | TY :id ,;
+%%        | TY :id = EXPR ,;
+%%        | EXPR ,;
+%%        | EXPR ,:= EXPR ,;
+%%        | ,;
+%%        | ,if EXPR STMT ,;
+%%        | ,if EXPR STMT ,else STMT
+%%        | ,while ,( EXPR ,) STMT
+%%        | ,break ,;
+%%        | ,continue ,;
+%%        | ,return ,;
+%%        | ,return EXPR ,;
+%%        | TY :id ,( FORMALSL ,) BLOCK
+%%        | ,class :id ,( FORMALSL ,) BLOCK
+%% EXPR ::= ,not EXPR
+%%        | EXPR BINOP EXPR
+%%        | EXPR ,is ,id
+%%        | EXPR ,is TY
+%%        | EXPR ,. EXPR
+%%        | EXPR ,( ACTUALSL ,)
+%%        | EXPR ,[ EXPR ,]
+%%        | ,[ ACTUALSL ,]
+%%        | ,[ ACTUALSL / EXPR ,]
+%%        | :int
+%%        | :string
+%%        | ,NULL
+%%        | :real
+%%        | :id
+%%        | ,( EXPR ,)
+%% BINOP ::= ,==
+%%         | ,!=
+%%         | ,\lt
+%%         | ,\gt
+%%         | ,\lt =
+%%         | ,\gt =
+%%         | ,+
+%%         | ,-
+%%         | ,*
+%%         | ,/
+
+\[
+\]
+
+\begin{figure}
+\begin{verbatim}
+int size = 1000;
+int max = 0;
+obj sieve = [/size]; // Alloziere Array
+int x = 2;
+while (x < size) {
+    if (sieve[x] == NULL) { // leerer Eintrag
+        max := x;
+	int fill = x + x;
+        while (fill < size) {
+            sieve[fill] := x;
+            fill := fill + x;
+        }
+    }
+    x := x + 1;
+}
+print(max);
+\end{verbatim}
+\label{Sieve of Eratosthenes in AttoL}
+\end{figure}
+
+
+\item (optional) Schreiben Sie eine äquivalente Implementierung für Java oder Haskell.
+\item Übersetzen Sie alle Implementierungen (für C sowie ggf.\@ Java und Haskell) bei maximaler Optimierung.
+      Stellen Sie zunächst sicher, daß alle Implementierungen das korrekte Ergebnis liefern.
+\item Messen Sie nun die Laufzeit aller verwendeten Implementierungen (C, Python, AttoVM und ggf.\@ Java oder Haskell).
+  Damit Sie nicht für jedes Programm ein eigenes Zeitmeßsystem entwickeln müssen, können Sie
+  dazu den Kommandozeilenbefehl `time' verwenden:  \texttt{time python eratosthenes.py}; dieser Befehl gibt Ihnen eine Ausgabe ähnlich der folgenden:
+\begin{verbatim}
+real    0m0.018s
+user    0m0.004s
+sys     0m0.004s
+\end{verbatim}
+Uns interessiert dabei die \texttt{real}-Zeit, also die für den Nutzer
+sichtbare Zeit\footnote{\texttt{user} beschreibt die Prozessorzeit, die der
+  Prozeß und alle seine Threads auf allen Prozessorkernen aufgewendet haben, und \texttt{sys} beschreibt die Zeit,
+  die der Kernel auf Betreiben des Prozesses aufgewendet hat.
+  Nicht berücksichtigt ist dabei Zeit, die der Prozeß warten mußte, z.B.\@
+  weil dynamische Bibliotheken von der Festplatte geladen werden mußten oder
+  andere Prozesse das System belegten.}.
+
+  Da das Sammeln von mehreren Messungen umständlich sein kann, stellen wir Ihnen dafür ein Skript zur Verfügung:
+
+\url{http://web.sepl.cs.uni-frankfurt.de/2014-ss/b-sysp/mtime}
+
+Laden Sie dieses Skript in Ihr aktuelles Arbeitsverzeichnis.  Mit \texttt{bash mtime \emph{python eratosthenes.py}} erhalten Sie nun 11 Zeitmessungen, aufsteigend sortiert.
+
+\item Was beobachten Sie über die Laufzeiten?  Gibt es wahrscheinliche Gewinner oder Verlierer im Vergleich der Extrempunkte der Ausführungszeit?
+
+\item Erhöhen Sie in all Ihren Implementierungen \texttt{size} auf 10000000 (10 Millionen).  Übersetzen Sie erneut und messen Sie erneut.  Ändern Sich Ihre Beobachtungen?
+\end{itemize}
+
+Beachten Sie, daß Ihre Messungen \emph{nur} für diesen speziellen
+Mikrobenchmark relevant sind-- Sie können daraus keine
+allgemeingültigen Schlüsse über die relative Performanz der Systeme
+ziehen.
+
+
+
+\section{Verpacken und Entpacken von Werten in AttoVM [13.[2,3]]}
+Wir konzentrieren uns nun auf das AttoVM-System.  Wie in der Vorlesung
+besprochen, packt AttoVM Integer-Werte automatisch in Objekte und
+entpackt sie auch wieder, genau wie die anderen hier betrachteten
+Sprachen (außer C).  Wir untersuchen dieses Konzept nun genauer.
+
+Dazu verwenden wir ein spezielles Sprachfeature von AttoL:  In AttoL muß man Variablen einen Typ geben.
+Die beiden hier betrachteten Typen sind \Cty{int} (ein 64-Bit-Integer-Wert) und \Cty{obj} (ein beliebiges Objekt; ähnlich Python).
+
+
+\begin{enumerate}
+  \item Die vorgegebene Implementierung des Sieb des Eratosthenes für
+    AttoL aus der letzten Aufgabe verwendet gezielt \Cty{int}, um die
+    Performanz zu verbessern.  Ändern Sie dies auf \Cty{obj} und
+    vergleichen Sie die Laufzeiten.  Welche Performanz-Auswirkung hat
+    unnötiges Verpacken/Entpacken in diesem Algorithmus?
+
+  \item Kehren Sie wieder zur ursprünglichen, \Cty{int}-optimierten
+    Fassung zurück.  AttoVM implementiert zwei Optionen, um die
+    Performanz von Arrayzugriffen zu beschleunigen.  Beide Optionen
+    sind nicht für den `Normalbetrieb' geeignet und müssen daher von
+    Hand aktiviert werden.  Die Optionen sind:
+
+    \begin{enumerate}
+      \item \texttt{-f int-arrays}:  Diese Option zwingt AttoVM dazu, alle Arrays als \Cty{int}-Arrays zu sehen.  Auf diese Weise wird
+        Verpacken/Entpacken in diesem Fall komplett deaktiviert.  Sie müssen dazu das Programm allerdings ein wenig ändern, da ein \Cty{int}-Array
+        statt dem Wert \Ckw{NULL} auf den Wert \texttt{0} initialisiert wird.
+      \item \texttt{-f no-bounds-checks}:  Diese Option zwingt AttoVM dazu, keinen Code für Arrayschrankenprüfung zu erzeugen (und, ähnlich
+        C, dem Programmierer blind zu trauen).
+    \end{enumerate}
+
+    Messen Sie beide Optionen, und vergleichen Sie deren
+    Performanzauswirkungen.
+
+  \item Sie können AttoVM bitten, den erzeugten Maschinencode auszudrucken, indem Sie die Option \texttt{-p asm} angeben.
+    AttoVM erzeugt 64-Bit-Intel-Maschinencode, druckt diesen aber in einer für Sie einfacher lesbaren Form aus, 
+    \emph{Zwei-Operanden MIPS-Pseudocode} (Appendix~\ref{a:2omp}).  Diese Kodierung ist den Ihnen bekannten MIPS-Befehlen sehr ähnlich.
+
+    Betrachten Sie zunächst den Maschinencode zum Speichern des Wertes 17:
+\begin{verbatim}
+  int x = 17;
+\end{verbatim}
+
+   Wenn Sie dieses Programm übersetzen, sehen Sie um den relevanten Code herum noch Rahmen-Code:
+\begin{verbatim}
+   push  $gp
+   li    $gp, ....
+   ...        ; der relevante Code
+   pop   $gp
+   jreturn
+\end{verbatim}
+
+   Die \texttt{push}-Operation legt einen Wert auf den Stapel und verringert gleichzeitig den Stapelzeiger \texttt{\$sp}, während
+\texttt{pop} die Umkehroperation ist und einen Wert vom Stapel in das gegebene Register liest und dabei den Stapelzeiger wieder erhöht.
+Diese Operationen sichern also den globalen Zeiger \texttt{\$gp}, der in den statischen Variablenbereich zeigt, und stellen ihn wieder her.
+
+Die \texttt{li}-Operation wiederum läd den globalen Zeiger zur Ausführung dieses speziellen Programmes.
+Die \texttt{jreturn}-Operation kehrt zum Aufrufer zurück:  Dies ist ähnlich dem \texttt{jr}-Befehl in MIPS, läd allerdings die Rücksprungadresse
+vom Stapel.
+
+    Betrachten Sie nun
+    den Maschinencode im folgendem Programm (Verpacken der Zahl 17) und vergleichen Sie ihn:
+\begin{verbatim}
+  obj x = 17;
+\end{verbatim}
+
+  Wieviele Maschineninstruktionen werden zum Verpacken generiert?  Falls Funktionen aufgerufen werden, verfolgen Sie diese weiter in
+den Quellcode (\texttt{object.c}); wie genau wird das Verpackungsobjekt alloziert und initialisiert?
+
+  \item 
+    Untersuchen Sie nun den Maschinencode zum Entpacken von Werten:
+
+\begin{verbatim}
+  obj x = 17;
+  int y = x;
+\end{verbatim}
+
+   Wie groß ist hier der Aufwand?
+
+\end{enumerate}
+
+\section{Maschinencode in AttoVM erzeugen [Synthese: 4, 9, 13.[1,2]]}
+In der Ihnen zur Verfügung gestellten AttoVM-Implementierung ist ein Sprachkonstrukt noch nicht implementiert,
+und zwar der dynamische Typ-Test (\texttt{v \textbf{is} typname}):
+
+\begin{tabular}{l}
+\texttt{\textbf{if} (1 is \Cty{int}) \{}\\
+\texttt{\ \ print({"{}}Zahlen werden erkannt");}\\
+\texttt{\}}\\
+\\
+\texttt{\textbf{if} ("foo"{} is \Cty{string}) \{}\\
+\texttt{\ \ print({"{}}Zeichenketten werden erkannt");}\\
+\texttt{\}}\\
+\end{tabular}
+
+Dieser Test stellt zur Laufzeit fest, ob ein bestimmtes Objekt den angegebenen Wert hat.  Er entspricht also \Ckw{instanceof} in Java bzw.\@
+\texttt{\Ckw{type}(expr) == ty} in Python.
+
+In dieser Aufgabe implementieren Sie diesen Test.
+
+\begin{enumerate}
+  \item Starten Sie \texttt{atl} mit dem obigen Programm.  Sie erhalten eine Fehlermeldung, die Ihnen sagt, daß dieser Befehl noch nicht
+    installiert ist.  Dabei gibt es Ihnen auch ein Fragment des abstrakten Syntaxbaumes (AST) aus (Appendix~\ref{a:ast})
+    Welche Art von AST-Knoten repräsentiert den Typvergleich?
+
+  \item 
+    Starten Sie nun \texttt{atl -p semantic \emph{<Programm>}}.  Dies druckt den abstrakten Syntaxbaum Ihres Programmes nach der semantischen Analyse aus
+    und bricht dann vor der Übersetzung ab.  Suchen Sie das in der letzten Teilaufgabe ausgedruckte Fragment des abstrakten Syntaxbaumes im gesamten
+    Baum.  Stimmt dies mit Ihrer Vorstellung der Programmstruktur überein?
+
+  \item Suchen Sie nun (in \texttt{baseline-backend.c}) die Programmstelle im Übersetzer, die Ihnen die Fehlermeldung in der Übersetzung ausgedruckt
+    hat.  Sie finden sich nun in einer großen \Ckw{switch}-Anweisung, die für jeden Knoten des abstrakten Syntaxbaumes angibt, wie dieser Knoten
+    zu übersetzen ist.  Da AttoVM eine sehr kleine Sprache ist, ist diese Struktur im Vergleich mit anderen Übersetzern recht einfach.
+
+    In der \Ckw{switch}-Anweisung ist bereits ein Fall (\Ckw{case}) für den `problematischen' Knoten vorgesehen.  Wenn Sie die richtige Stelle
+    gefunden haben, finden Sie dort Kommentare, die Ihnen bei der Implementierung weiterhelfen.
+
+  \item Schreiben Sie mit den dortigen Hinweisen C-Code, der Maschinencode generiert, der wiederum den Typvergleich durchführt:
+    \begin{itemize}
+      \item Sie können mit \texttt{atl -p asm} den erzeugten Maschinencode ausgeben.
+      \item Der abstrakte Syntaxbaum garantiert Ihnen, daß der Wert zum Vergleich immer ein Objekt ist; Ihr Code erhält einen Zeiger auf dieses Objekt.  Die Struktur von Objekten haben Sie
+        bereits in der letzten Teilaufgabe gesehen; sie ist in \texttt{object.h} genauer definiert.
+      \item Wenn Sie einen Fehler machen, erhalten Sie ein falsches Ergebnis bei der Ausführung, oder auch einen Segmentierungsfehler.
+        In letzterem Fall lohnt es sich, \texttt{atl -p asm} zu verwenden.
+      \item Die Größe Ihrer Lösung sollte zehn Zeilen C-Code nicht überschreiten; eine Lösung in drei Zeilen ist möglich.
+      \item Prüfen Sie Ihre Lösung mit dem obigen Programm.
+    \end{itemize}
+
+  \item Wie verhält sich Ihre Lösung, wenn \texttt{\Ckw{NULL} \Ckw{is} \Cty{string}} geprüft wird?
+
+  \item Es gibt mehrere mögliche Bedeutungen (Semantiken), die ein \Ckw{NULL}-Typvergleich haben kann; üblicherweise schreibt eine Sprachdefinition
+    die `korrekte' Bedeutung vor.  Sie haben sich in Ihrer Implementierung bewußt oder unbewußt für eine solche Bedeutung entschieden.
+
+    Denken Sie sich ein alternative Bedeutung aus, die Sie für praktisch wertvoll halten.  Vergleichen Sie die beiden Bedeutungen:
+    \begin{itemize}
+      \item Welche halten Sie für nützlicher?
+      \item Welche kann effizienter ausgeführt werden?
+    \end{itemize}
+
+\end{enumerate}
+
+
+%% \section{Funktionsaufrufe in AttoVM}
+%% AttoVM übersetzt Funktionsaufrufe erst dann, wenn eine Funktion benötigt wird
+
+
+\appendix
+
+\section{AttoVM-Module}\label{a:modules}
+
+AttoVM verwendet mehrere Module, von denen einige von Python-Skripten erzeugt werden.  Die meisten Module
+verwenden jeweils eine gleichnahmige Header-Datei (z.B. \texttt{ast.h} für \texttt{ast.c}).
+
+\subsection{Frontend}
+
+Mehrere Module im Frontend werden von dem Skript \texttt{mk-parser.py} erzeugt; diese sind mit einem  Stern (\textbf{*}) markiert.
+
+\begin{tabular}{p{4cm}p{12cm}}
+\texttt{lexer.l}\textbf{*} & Der Lexer wird vom Programm \texttt{flex} in ein C-Programm umgesetzt.  Er erkennt die Tokens/Lexeme von
+Eingabeprogrammen und meldet diese an den Parser. \\
+\texttt{parser.c}\textbf{*} & Der Parser liest die Lexeme des Lexers und versucht, diese in den abstrakten Syntaxbaum abzubilden. \\
+\texttt{ast.c} & Der abstrakte Syntaxbaum repräsentiert das Programm nach dem Parsen und während der Programmanalysen.  Dieses Modul stellt Operationen zum Erzeugen
+und Deallozieren von Baumknoten zur Verfügung.
+\\
+\texttt{builtins.c} & Dieses Modul definiert die fest eingebauten Typen und Operationen. \\
+\texttt{class.c} & Dieses Modul definiert das Konzept einer `Klasse' in AttoL.  Auch eingepackte \texttt{int}-Werte haben eine zugeordnete Klasse. \\
+\texttt{symbol-table.c} & Die Symboltabelle bildet Bezeichnernummern auf Symboltabelleneinträge ab.  Symboltabelleneinträge werden durch
+das gesamte System hindurch verwendet; sie geben jedem eingebauten oder benutzerdefinierten Bezeichner wichtige Kontextinformationen (z.B. Typinformationen, Parameter für Funktionsdefinitionen, Art des Symbols usw.). \\
+\texttt{unparser.c}\textbf{*} & Der \emph{Unparser} enthält Code, der einen abstrakten Syntaxbaum ausdruckt.\\
+\end{tabular}
+
+\subsection{Analysen}
+
+Die Analysen sind in \texttt{analyses.h} zusammengefaßt.  Sie sind
+strenggenommen Teil des Frontends und verwenden insbesondere die
+Symboltabelle intensiv.
+
+\begin{tabular}{p{4cm}p{12cm}}
+\texttt{name-analysis.c} & Die Namensanalyse identifiziert Namen im Eingabeprogramm und sorgt dafür, daß zusammengehörende Namen den gleichen Eintrag in der Symboltabelle haben.\\
+\texttt{type-analysis.c} & Die Typanalyse stellt sicher, daß das Programm korrekt getypt ist.  Sie führt notwendige Typkonversionen (Einpacken/Auspacken) ein und
+strukturiert Teile des abstrakten Syntaxbaumes, die sich auf Typen beziehen, um. \\
+\texttt{storage-allocation.c} & Speicherallozierung weist Variablen eine Speicherstelle zu. \\
+\end{tabular}
+
+\subsection{Backend}
+
+Das Assembler-Modul (mit einem  Stern (\textbf{*}) markiert) wird von einem Skript \texttt{mk-codegen.py} erzeugt.
+
+\begin{tabular}{p{4cm}p{12cm}}
+\texttt{assembler-buffer.c} & Assembler-Buffer werden verwendet, um Maschinenbefehle auszuschreiben.  Die Buffer definieren auch das Konzept einer Sprungmarke (\Cty{label\_t}), die verspätet aufgelöst werden kann.
+Mit Hilfe von \texttt{assembler.c} definiert dieses Modul auch einen Disassembler. \\
+\texttt{assembler.c}\textbf{*} & Dieses Modul definiert alle unterstützten Assemblerbefehle. \\
+\texttt{address-store.c} & Der Adreßspeicher wird als Hilfe bei der Disassemblierung verwendet.  Er merkt sich interessante Speicheradressen und druckt diese lesbar mit aus. \\
+\texttt{registers.c} & Das Registermodul definiert die verfügbaren Register.  \\
+\texttt{baseline-backend.c} & Der eigentliche Übersetzer. \\
+\texttt{backend-test.c} & Testprogramm für den Übersetzer. \\
+\end{tabular}
+
+\subsection{Laufzeitsystem}
+\begin{tabular}{p{4cm}p{12cm}}
+\texttt{runtime.c} & Ein generisches Laufzeit-Unterstützungsmodul. \\
+\texttt{object.c} & Objektallozierung. \\
+\end{tabular}
+
+\subsection{Unterstützung}
+
+\begin{tabular}{p{4cm}p{12cm}}
+\texttt{atl.c} & Hauptprogramm. \\
+\texttt{chash.c} & Eine generische Hashtabellenimplementierung. \\
+\end{tabular}
+
+
+\section{Abstrakter Syntaxbaum von AttoVM}\label{a:ast}
+
+Der abstrakte Syntaxbaum von AttoVM besteht aus verschiedenen Knotentypen.  In dieser Übung verwenden wir die wichtigsten davon.
+Der Baum hat zwei Arten von Knoten: \emph{Wertknoten} und \emph{Zweigknoten}.  Erstere beinhalten Werte, letztere können
+Kindknoten beinhalten.
+
+Tabelle~\ref{fig:valnodes} beschreibt die Wertknoten, und Tabelle~\ref{fig:rnodes} die Zweigknoten.
+
+Die komplette Liste ist in \texttt{ast.h} definiert.
+
+Wenn Sie den abstrakten Syntaxbaum ausgeben, werden u.U. noch
+zusätzliche Attribute der Baumknoten ausgegeben (mit \texttt{\#}
+markiert).  Die für uns relevanten Attribute sind folgende:
+
+\begin{itemize}
+\item   \texttt{\#INT}: Integer-Zahl
+\item   \texttt{\#OBJ}: Objekt
+\item   \texttt{\#LVALUE}: LValue (zuweisbarer Wert
+\item   \texttt{\#DECL}: Bezeichner wird an dieser Stelle deklariert
+\item   \texttt{\#CONST}: Bezeichner wurde als `konstant' (\texttt{const}) deklariert
+\end{itemize}
+
+Alle wesentlichen Berechnungen werden durch \textsf{FUNAPP}-Knoten dargestellt.  Unten sehen Sie z.B.
+den abstrakten Syntaxbaum des Programmes \texttt{print(1)} nach der Namensanalyse:
+
+\begin{verbatim}
+  (FUNAPP#OBJ
+    (SYM[-12] print):#OBJ
+    (ACTUALS
+      (FUNAPP#OBJ
+        (SYM[-3] *convert):#OBJ
+        (ACTUALS
+          1:INT#INT
+        )
+      )
+    )
+  )
+\end{verbatim}
+
+Dies zeigt uns, daß auf die Zahl $1$ (Typ-Markierung \texttt{\#INT}) zunächst die Funktion
+\texttt{*convert} mit Symboltabelleneintrag $-3$ angewendet wird.  \texttt{*convert} ist eine wichtige Funktion, die Typkonversionen
+(insbesondere Einpacken/Auspacken) durchführt.  Der Ergebnistyp ist in dem Funktionsaufruf mit angegeben:
+\begin{verbatim}
+        (SYM[-3] *convert):#OBJ
+\end{verbatim}
+Es wird also ein \texttt{\#OBJ} zurückgeliefert.  Das Ergebnis dieses Funktionsaufrufes ist nun wiederum ein Parameter
+für einen Funktionsaufruf der eingebauten Funktion \texttt{print}:
+\begin{verbatim}
+    (SYM[-12] print):#OBJ
+\end{verbatim}
+Diese druckt den Parameter aus (und liefert \Ckw{NULL} zurück).
+
+\begin{figure}[h]
+\begin{tabular}{|p{3cm}|p{14cm}|}
+\hline
+\textbf{Knoten} & \textbf{Inhalt} \\
+\hline
+\hline
+\textsf{INT} &  64-Bit-Integer-Zahl\\
+\hline
+\textsf{STRING} & Zeichenkette \\
+\hline
+\textsf{NAME  } & Name (wird bei Namensanalyse in \textsf{ID} umgewandelt) \\
+\hline
+\textsf{ID    } & Bezeichner: eine Zahl, die in die Symboltabelle deutet.  Negative Zahlen sind eingebaute Bezeichner.  \\
+\hline
+\end{tabular}
+\caption{Wertknoten mit ihren Wert-Inhalten}\label{fig:valnodes}
+\end{figure}
+
+\begin{figure}[h]
+\begin{tabular}{|p{2.5cm}|p{2cm}|p{12cm}|}
+\hline
+\textbf{Knoten} & \textbf{Kinder} & \textbf{Bedeutung} \\
+\hline
+\hline
+\textsf{BREAK}		& ---		& \texttt{break} aus einer Schleife heraus. \\
+\hline
+\textsf{CONTINUE} 	& ---		& \texttt{continue}: Rest des Schleifenkörpers überspringen, weiter in der Schleife. \\
+\hline
+\textsf{ISPRIMTY}	& $(e)$		& Primitiver Typtest; wird von der Typanalyse in \textsf{ISINSTANCE} oder \textsf{INT}-Konstante umgeschrieben. \\
+\hline
+\textsf{ISINSTANCE}	& $(e, \textit{id})$ & Typüberprüfung: hat der Ausdruck $e$ zur Laufzeit den Typ, der vom Bezeichner \textit{id} angegeben wird? \\
+\hline
+\textsf{SKIP} 		& ---		& Nichts tun. \\
+\hline
+\textsf{ACTUALS}	& $(e_0, \ldots, e_n)$ & Parameterliste für Funktionsaufruf. \\
+\hline
+\textsf{ARRAYSUB}	& $(e_0, e_1)$	& Zugriff auf Eintrag $e_1$ im Array $e_0$ ($\texttt{e}_0$[$\texttt{e}_1$]). \\
+\hline
+\textsf{VARDECL}	& $(\textit{id}, e)$ & Deklaration einer Variablen \textit{id}.  Kindknoten $e$ ist die optionale Initialisierung der Variablen, sonst \Cpp{NULL}. \\
+\hline
+\textsf{NULL}		& ---		& Der konstante Wert \Ckw{NULL}.\\
+\hline
+\textsf{ASSIGN}		& $(e_0, e_1)$  & Weist Variable oder Arrayeintrag  $e_0$ den Wert $e_1$ zu. $e_0$ muß ein LValue sein (s.u.). \\
+\hline
+\textsf{IF}		& $(e, s_t, s_f)$ & Wertet Ausdruck $e$ auf Integer-Zahl aus.  Wenn nicht-Null, wird $s_t$ ausgeführt, sonst $s_f$.  $s_f$ kann \Cpp{NULL} sein (in diesem Fall wird nichts ausgeführt). \\
+\hline
+\textsf{FUNAPP}		& $(\textit{id}, \textit{a})$ & Führt die Funktion \textit{id} mit den Parametern der Parameterliste \textit{a} (immer \textsf{ACTUALS}) aus. \\
+\hline
+\textsf{ARRAYLIST }	& $(e_0, \ldots, e_n)$ & Initialisierungsliste für Array. \\
+\hline
+\textsf{ARRAYVAL}	& $(\textit{al}, e)$ & Erzeuge ein Array mit initialen Werten \textit{al} (immer \textsf{ARRAYLIST}) der Größe $e$ (optional; wenn \Cpp{NULL}, wird Länge von \textit{al} genommen). \\
+\hline
+\textsf{WHILE}		& $(e, s)$	& Werte $e$ auf Integer-Zahl aus.  Wenn nicht $0$, führe $s$ aus.  Wiederhole, bis $e$ auf $0$ auswertet. \\
+\hline
+\textsf{BLOCK}		& $(s_0, \ldots, s_n)$ & Führe alle $s_i$ hintereinander aus. \\
+\hline
+\end{tabular}
+\caption{Wertknoten mit ihren Wert-Inhalten.  Ausdrücke (Berechnungen etc.) werden im Wesentlichen durch \textsf{FUNAPP} repräsentiert.  LValues sind
+entweder ein \textsf{ID} aus Abbildung~{fig:valnodes} oder ein \textsf{ARRAYSUB}.
+}\label{fig:rnodes}
+\end{figure}
+
+
+\section{Zwei-Operanden-MIPS-Pseudocode (2OMP-Code)}\label{a:2omp}
+
+  Der vom Übersetzer verwendete 2OMP-Code ist an MIPS-Code angelehnt.  Da die x86-64-Architektur aber
+fundamental anders aufgebaut ist, ist die Maschinencoderepräsentierung von Assemblerbefehlen oft deutlich anders.
+Zudem verfügt die x86-64-Architektur über weniger Register:
+
+\begin{tabular}{|l|l|l|l|l|l|}
+\hline
+\textbf{Rückgabe} & \textbf{Temporär} & \textbf{Gesichert} & \textbf{Parameter} & \textbf{Spezial} & \textbf{Programmzähler}\\
+\hline
+\hline
+\texttt{\$v0} & \texttt{\$t0} & \texttt{\$s0} & \texttt{\$a0} & \texttt{\$gp} & \texttt{\$pc} \\
+              & \texttt{\$t1} & \texttt{\$s1} & \texttt{\$a1} & \texttt{\$sp} &               \\
+              &               & \texttt{\$s2} & \texttt{\$a2} & \texttt{\$fp} &               \\
+              &               & \texttt{\$s3} & \texttt{\$a3} &               &               \\
+              &               &               & \texttt{\$a4} &               &               \\
+              &               &               & \texttt{\$a5} &               &               \\
+\hline
+\end{tabular}
+
+Die Bedeutung allerdings exakt analog zu MIPS:
+\begin{itemize}
+  \item \texttt{\$v0} ist das Rückgaberegister, in das Subroutinen ihr Ergebnis schreiben.
+  \item \texttt{\$t0}--\texttt{\$t1} sind die temporären Register.  Sie dürfen von aufgerufenem Code modifiziert werden.
+  \item \texttt{\$s0}--\texttt{\$s3} sind die vom Aufgerufenen zu sichernden Register.  Gemäß Konvention muß jede Subroutine diese Register
+    vor einem Rücksprung wiederherstellen.
+  \item \texttt{\$a0}--\texttt{\$a5} sind die Parameterregister.  Sie dürfen gemäß Konvention von aufgerufenem Code verändert werden.
+  \item \texttt{\$gp} ist der Zeiger in das statische Speichersegment (für globale Variablen).
+  \item \texttt{\$sp} ist der Stapelzeiger.
+  \item \texttt{\$fp} ist der Rahmenzeiger.
+  \item \texttt{\$pc} ist der Programmzähler.  Dieses Register kann nicht direkt gelesen oder beschrieben werden, sondern nur indirekt über Sprungbefehle.
+\end{itemize}
+
+
+Unten sind die für die Aufgabenstellung relevanten Operationen angegeben.  Wir verwenden zur Beschreibung
+die Notation \textsf{Mem64[$x$]}, um den 64-Bit-Wert an Speicheradresse $x$ anzugeben.  Die Operationen sind durchgehend zu den MIPS-Operationen
+identisch oder ihnen sehr ähnlich:
+\vspace{0.5cm}
+
+\begin{tabular}{|ll|p{9cm}|}
+\hline
+  \textcolor{dblue}{li}	&	\texttt{\$$d$, $v$} & $\texttt{\$}d := v$ (64-Bit-Wert) \\
+  \textcolor{dblue}{la}	&	\texttt{\$$d$, $v$} & $\texttt{\$}d := v$ (64-Bit-Adresse; Pseudonym für \texttt{li}) \\
+  \textcolor{dblue}{move} &	\texttt{\$$d$, \$$s$} & $\texttt{\$}d := \texttt{\$}s$ \\
+  \textcolor{dblue}{push} &	\texttt{\$$s$}    & $\texttt{\$sp} := \texttt{\$sp} - 8$; $\textsf{Mem64}[\texttt{\$sp}] := \texttt{\$}s$ \\
+  \textcolor{dblue}{pop} &	\texttt{\$$d$}	& $\texttt{\$}d := \textsf{Mem64}[\texttt{\$sp}]$; $\texttt{\$sp} := \texttt{\$sp} + 8$ \\
+  \textcolor{dblue}{ld} &	\texttt{\$$d$, $v$(\$$i$)} & $\texttt{\$}d := \textsf{Mem64}[\texttt{\$}i + v]$ \\
+  \textcolor{dblue}{sd} &	\texttt{\$$d$, $v$(\$$i$)} & $\textsf{Mem64}[\texttt{\$}i + v] := \texttt{\$}d $ \\
+  \textcolor{dblue}{addiu} &	\texttt{\$$d$, v} & $\texttt{\$}d := \texttt{\$}d + v$ (ohne Vorzeichen) \\
+  \textcolor{dblue}{subiu} &	\texttt{\$$d$, v} & $\texttt{\$}d := \texttt{\$}d - v$ (ohne Vorzeichen) \\
+  \textcolor{dblue}{beq} &	\texttt{\$$r$, \$$s$, $\ell$} & Wenn $\texttt{\$}r = \texttt{\$}s$, dann $\texttt{\$pc} := \ell$ \\
+  \textcolor{dblue}{bne} &	\texttt{\$$r$, \$$s$, $\ell$} & Wenn $\texttt{\$}r \ne \texttt{\$}s$, dann $\texttt{\$pc} := \ell$ \\
+  \textcolor{dblue}{bnez} &	\texttt{\$$r$, $\ell$} & Wenn $\texttt{\$}r = 0$, dann $\texttt{\$pc} := \ell$ \\
+  \textcolor{dblue}{beqz} &	\texttt{\$$r$, $\ell$} & Wenn $\texttt{\$}r \ne 0$, dann $\texttt{\$pc} := \ell$ \\
+  \textcolor{dblue}{seq} & 	\texttt{\$$d$, \$$r$, \$$s$} & $\texttt{\$}d = \left \{ \begin{array}{lcl} 1 &\iff& \texttt{\$}r = \texttt{\$}s \\ 0 && \textrm{ansonsten} \end{array} \right .$\\
+  \textcolor{dblue}{sne} & 	\texttt{\$$d$, \$$r$, \$$s$} & $\texttt{\$}d = \left \{ \begin{array}{lcl} 0 &\iff& \texttt{\$}r = \texttt{\$}s \\ 1 && \textrm{ansonsten} \end{array} \right .$\\
+  \textcolor{dblue}{jals} & 	\texttt{\$$r$} &  $\texttt{\$sp} := \texttt{\$sp} - 8$; $\textsf{Mem64}[\texttt{\$sp}] := \texttt{\$pc} + 2$; $\texttt{\$pc} := \texttt{\$}r$  \\
+  \textcolor{dblue}{jreturn} & 	 & $\texttt{\$pc} := \textsf{Mem64}[\texttt{\$sp}]$; $\texttt{\$sp} := \texttt{\$sp} + 8$; \\
+\hline
+\end{tabular}
+
+\vspace{0.5cm}
+
+2OMP verwendet noch weitere Operationen (Multiplikation, Division, Bitschiebeoperationen usw.), die Sie hier aber nicht benötigen.
+
+\subsection{Erzeugen von 2OMP-Code mit \texttt{assembler.c}}
+
+Zur Code-Erzeugung im Compiler-Backend stehen Ihnen Funktionen zur Verfügung, die Maschinenspracheinstruktionen an einen
+\emph{Maschinencode-Puffer} (per Konvention \texttt{buf} genannt) anhängen.  Um z.B.\@ das aktuelle \texttt{\$v0}-Register um $3$ zu erhöhen, würden
+Sie schreiben:
+
+\texttt{emit\_addiu(buf, REGISTER\_T0, 3);}
+
+Um einen Ihnen bereits bekannten Zeiger \texttt{addr} in Register \texttt{\$t1} zu laden, könnten Sie wiederum schreiben:
+
+\texttt{emit\_la(buf, REGISTER\_T1, addr);}
+
+Einige der oben genannten Assembler-Opcodes verwenden eine Sprungmarke $\ell$.  Falls Sie einen solchen Befehl verwenden wollen,
+stehen Sie vor der Herausforderung, daß Sie beim Schreiben des Befehls oft noch nicht die genaue Adresse kennen, an die Sie springen wollen.
+Um dieses Problem zu lösen, verwendet AttoVM Sprungmarkenvariablen (vom Typ \Cty{label\_t}).
+
+Wenn Sie den entsprechenden \texttt{emit\_}-Befehl ausführen, übergeben Sie einen Zeiger auf eine von Ihnen angelegte lokale
+Variable vom Typ \Cty{label\_t}.  Sie können (und müssen!) dann zu einem beliebigen späteren Zeitpunkt
+über diese Variable die korrekte Sprungzieladresse über die Funktion \texttt{buffer\_setlabel2(\&label, buf)} einsetzen, zum Beispiel:
+
+\vspace{0.5cm}
+
+\begin{tabular}{ll}
+&\texttt{\Cty{label\_t} label;}\\
+$A$&\texttt{emit\_beqz(buf, REGISTER\_T0, \&label);}\\
+&\ldots \\
+&\texttt{emit\_addiu(buf, REGISTER\_T0, 3);} \\
+$B$&\texttt{buffer\_setlabel2(\&label, buf);} \\
+&\texttt{emit\_la(buf, REGISTER\_T1, addr);} \\
+\end{tabular}
+
+\vspace{0.5cm}
+
+In diesem Beispiel teilen Sie dem Backend mit, daß Sie (falls die gegebene Bedingung erfüllt ist) von $A$ nach $B$ springen wollen.
+
+
+Sie können in Ihrem Code die folgenden Register verwenden:
+
+\vspace{0.5cm}
+
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Register} & \textbf{Präprozessormakro mit Registernummer} \\
+\hline
+  \texttt{\$t0} & \texttt{REGISTER\_T0} \\
+\hline
+  \texttt{\$t1} & \texttt{REGISTER\_T1} \\
+\hline
+  \texttt{\$v0} & \texttt{REGISTER\_V0} \\
+\hline
+  \texttt{\$gp} & \texttt{REGISTER\_GP} (Statische Variablen) \\
+\hline
+  \texttt{\$sp} & \texttt{REGISTER\_SP} (Stapelzeiger) \\
+\hline
+\end{tabular}
+
+\end{document}
+
+

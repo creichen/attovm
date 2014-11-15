@@ -92,6 +92,8 @@ mutate_node(ast_node_t *node, int ty)
 	node->type = ty;
 }
 
+//e @param node The node we're assigning to
+//e @param const_assignment_permitted Whether we're initialising the variable (in which case we should ignore CONST annotations)
 static ast_node_t *
 require_lvalue(ast_node_t *node, int const_assignment_permitted)
 {
@@ -564,5 +566,6 @@ type_analysis(ast_node_t **node, ast_node_t **callables, ast_node_t **classes)
 
 	error_count = 0;
 	*node = analyse(*node, NULL, NULL, &context);
+
 	return error_count;
 }

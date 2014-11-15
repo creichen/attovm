@@ -52,14 +52,16 @@ typedef struct relative_jump_label_list {
 	struct relative_jump_label_list *next;
 } relative_jump_label_list_t;
 
-// Uebersetzungskontext
+//d Uebersetzungskontext
+//e translation context
 typedef struct {
-	// Fuer den aktuellen Ausfuehrungsrahmen:  Welches Register indiziert temporaere Variablen?
-	int self_stack_location; // Speicherstelle der `SELF'-Referenz relativ zu $fp
-	int stack_depth; // Wieviele Variablen sind auf dem Ablagestapel alloziert?
-	int variable_storage; // Speicherstelle fuer Variable
+	//d Fuer den aktuellen Ausfuehrungsrahmen:  Welches Register indiziert temporaere Variablen?
+	//e for the current activation record: which register is used to index local/temporary variables?
+	int self_stack_location; /*e memory offset of the `SELF' reference, relative to $fp */ /*d Speicherstelle der `SELF'-Referenz relativ zu $fp */
+	int stack_depth; /*e how many variables have we allocated on the stack? */ /*d Wieviele Variablen sind auf dem Ablagestapel alloziert? */
+	int variable_storage; /*e precomputed storage space for locals  */ /*d Vorberechnet: Platz fuer lokale Variablen */
 
-	// Falls verfuegbar/in Schleife: Sprungmarken 
+	/*e if we're in a loop: jump labels */ /*d Falls verfuegbar/in Schleife: Sprungmarken */
 	relative_jump_label_list_t *continue_labels, *break_labels;
 } context_t;
 
@@ -325,11 +327,23 @@ baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
 }
 
 
+/**e
+ * Compiles the execution of a built-in operator (op)
+ *
+ * @param buf The buffer to write to
+ * @param ty_and_node_flags Flags for the AST node (used to extract the result type)
+ * @param op The operator to translate
+ * @param args Pointer to the AST node arguments to the operation
+ * @param dest_register The register we should store the result in
+ * @param context The translation context
+ */
 static void
 baseline_compile_builtin_op(buffer_t *buf, int ty_and_node_flags, int op, ast_node_t **args, int dest_register, context_t *context)
 {
-	// Bestimme Anzahl der Parameter
 	const int result_ty = ty_and_node_flags & TYPE_FLAGS;
+
+	//d Bestimme Anzahl der Parameter
+	//e Compute the number of arguments
 	int args_nr;
 
 	switch (op) {
@@ -340,22 +354,25 @@ baseline_compile_builtin_op(buffer_t *buf, int ty_and_node_flags, int op, ast_no
 	case BUILTIN_OP_ADD:
 	case BUILTIN_OP_MUL:
 	case BUILTIN_OP_SUB:
+	case BUILTIN_OP_XOR:
 	case BUILTIN_OP_TEST_EQ:
 	case BUILTIN_OP_TEST_LE:
 	case BUILTIN_OP_TEST_LT:
 		args_nr = 2;
 		break;
 
-	// CONVERT, ALLOCATE: hier nicht vorbereitet, da wir nicht so leicht testen koennen, ob der Stapel ausgerichtet werden muss
+	//e CONVERT, ALLOCATE: don't precompute arguments, since we might need a call and can't predict here whether the stack needs to be aligned
+	//d CONVERT, ALLOCATE: hier nicht vorbereitet, da wir nicht so leicht testen koennen, ob der Stapel ausgerichtet werden muss
 	case BUILTIN_OP_CONVERT:
 	case BUILTIN_OP_ALLOCATE:
 	case BUILTIN_OP_DIV:
+	case BUILTIN_OP_LOGIC_AND:
 	default:
 		args_nr = 0;
 		break;
 	}
 
-	// Parameter laden
+	/*e load parameters into $a0, $a1, ... */ /*d Parameter laden */
 	if (args_nr) {
 		int prep_stack_frame_size = baseline_prepare_arguments(buf, args_nr, args, context, 0);
 		STACK_FREE(prep_stack_frame_size);
@@ -395,11 +412,15 @@ baseline_compile_builtin_op(buffer_t *buf, int ty_and_node_flags, int op, ast_no
 		break;
 
 	case BUILTIN_OP_DIV:
+		//e Parameters haven't been computed/loaded yet
+		//e Compute lhs parameter
 		baseline_compile_expr(buf, args[0], REGISTER_V0, context);
+		PUSH(REGISTER_V0); //e push/pop, in case the next line clobbers $v0
 		baseline_compile_expr(buf, args[1], REGISTER_T0, context);
-		emit_li(buf, REGISTER_A2, 0); // muss vor Division auf 0 gesetzt werden
+		POP(REGISTER_V0);
+		emit_li(buf, REGISTER_A2, 0); /*e must be nulled prior to division */ /*d muss vor Division auf 0 gesetzt werden */
 		emit_div_a2v0(buf, registers_temp[0]);
-		emit_optmove(buf, dest_register, REGISTER_V0); // Ergebnis in $v0
+		emit_optmove(buf, dest_register, REGISTER_V0); /*e result in $v0 */ /*d Ergebnis in $v0 */
 		break;
 
 	case BUILTIN_OP_MUL:

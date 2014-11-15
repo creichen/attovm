@@ -44,14 +44,17 @@ typedef struct relative_jump_label {
 	void *base_position; // Position, relativ zu der der Sprung angegeben werden muss
 } label_t;
 
+//e Sets the label to a specific memory address
 void
 buffer_setlabel(label_t *label, void *target);
 
-// Setzt das Label auf den naechsten Befehl
+//d Setzt das Label auf den naechsten Befehl
+//e Sets the label to the next instruction
 void
 buffer_setlabel2(label_t *label, buffer_t *target);
 
-// Sprungziel: naechster Befehl
+//d Sprungziel: naechster Befehl
+//e Extract memory address that will be used for next instruction: for use with buffer_setlabel()
 void *
 buffer_target(buffer_t *target);
 

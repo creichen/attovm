@@ -25,7 +25,8 @@
 
 ***************************************************************************/
 
-// Recursive-Descent-Parser: Header-Datei, manuell erstellt
+//d Recursive-Descent-Parser: Header-Datei, manuell erstellt
+//e recursive descent parser: header file, created by hand
 
 #ifndef _ATTOL_PARSER_H
 #define _ATTOL_PARSER_H
@@ -45,9 +46,15 @@ $$VALUES$$
 
 extern yylval_t yylval;
 
-// Bereitet den Parser auf das Parsen der angegebenen Datei vor
+//d Bereitet den Parser auf das Parsen der angegebenen Datei vor
+//e prepares the parser for parsing the specified file
 void
 parser_restart(FILE *data);
+
+//d Meldet die Anzahl der Parse-Fehler
+//e reports the number of parse errors
+int
+parser_get_errors_nr(void);
 
 $$PARSER_DECLS$$
 

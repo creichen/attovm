@@ -39,11 +39,13 @@ extern int yy_line_nr;
 
 static ast_node_t *
 update_line_nr(ast_node_t *n);
+static int parse_errors_nr = 0;
 
 void
 yyerror(const char *str)
 {
 	fprintf(stderr, "[line %d] parse error: %s\n", yy_line_nr, str);
+	++parse_errors_nr;
 }
 
 typedef struct {
@@ -240,6 +242,12 @@ update_line_nr(ast_node_t *n)
 
 void
 yyrestart(FILE *new_file);
+
+int
+parser_get_errors_nr(void)
+{
+	return parse_errors_nr;
+}
 
 void
 parser_restart(FILE *data)

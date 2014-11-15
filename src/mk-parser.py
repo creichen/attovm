@@ -877,7 +877,7 @@ INT.addRegexp('{DIGIT}+',
 
 STRING = Term('STRING', 'str', 'char *').setErrorName('string').setFormatString('\\"%s\\"')
 STRING.addRegexp('\\"(\\\\.|[^\\"\\\\])*\\"',
-                 'unescape_string(yytext)')
+                 'unescape_string(yytext, yyerror)')
 
 
 ID = Term('NAME', 'str', 'char *').setPriority(10).setErrorName('identifier').setFormatString('%s')
@@ -895,6 +895,7 @@ MAYBECONST = NT('maybe_const', 'optional const specifier')
 #STMT.setFailHandlerUntil(';')
 EXPR = NT('expr', 'expression')
 EXPR0 = NT('expr0', 'expression')
+EXPRL = NT('expr_l', 'expression')
 EXPR1 = NT('expr1', 'expression')
 EXPR2 = NT('expr2', 'expression')
 EXPR3 = NT('expr3', 'expression')
@@ -984,8 +985,10 @@ rules = [
     Rule(STMT,		[ 'return', ';' ],				Cons('RETURN', NULL)),
     Rule(STMT,		[ 'return', EXPR, ';' ],			Cons('RETURN', EXPR)),
 
-    Rule(EXPR,		[EXPR0],					EXPR0),
-    Rule(EXPR,		['not', EXPR0],					ast_not(EXPR0)),
+    Rule(EXPR,		[EXPRL],					EXPRL),
+
+    Rule(EXPRL,		[EXPR0],					EXPR0),
+    Rule(EXPRL,		['not', EXPR0],					ast_not(EXPR0)),
 
     Rule(EXPR0,		[EXPR1, '==', EXPR1],				ast_funapp(Builtin('TEST_EQ'), [EXPR1(0), EXPR1(1)])),
     Rule(EXPR0,		[EXPR1, '!=', EXPR1],				ast_not(ast_funapp(Builtin('TEST_EQ'), [EXPR1(0), EXPR1(1)]))),

@@ -109,7 +109,7 @@ static void
 object_print_internal(FILE *f, object_t *obj, bool depth, int debug, char *sep)
 {
 	if (!obj) {
-		fprintf(f, "(null)");
+		fprintf(f, "NULL");
 		return;
 	}
 

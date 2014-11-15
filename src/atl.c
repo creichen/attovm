@@ -246,7 +246,7 @@ main(int argc, char **argv)
 
 		ast_node_t *root = NULL;
 		builtins_init();
-		if (!parse_program(&root)) {
+		if (!parse_program(&root) || parser_get_errors_nr()) {
 			fprintf(stderr, "Parse error\n");
 			return 1;
 		}
@@ -255,8 +255,10 @@ main(int argc, char **argv)
 
 		case ACTION_RUN: {
 			runtime_image_t *img = runtime_prepare(root, RUNTIME_ACTION_COMPILE);
-			runtime_execute(img);
-			runtime_free(img);
+			if (img) {
+				runtime_execute(img);
+				runtime_free(img);
+			}
 		}
 			break;
 

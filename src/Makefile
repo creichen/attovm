@@ -5,12 +5,13 @@ FLEX=flex
 
 # --------------------
 # ATL frontend
-FRONTEND_HEADERS = chash.h symbol-table.h analysis.h lexer-support.h errors.h compiler-options.h version.h
+FRONTEND_HEADERS = chash.h symbol-table.h analysis.h lexer-support.h errors.h compiler-options.h version.h \
+		cstack.h
 FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c ast.h parser.h
 FRONTEND_SRC = parser.template.c parser.template.h ast.template.h lexer.template.l unparser.template.c \
-		mk-codegen.py mk-parser.py lexer-support.c ast.c chash.c symbol-table.c \
+		mk-codegen.py mk-parser.py lexer-support.c ast.c chash.c cstack.c symbol-table.c \
 		name-analysis.c type-analysis.c storage-allocation.c atl.c backend-test.c
-FRONTEND_OBJS = parser.o lexer.o lexer-support.o ast.o unparser.o chash.o symbol-table.o \
+FRONTEND_OBJS = parser.o lexer.o lexer-support.o ast.o unparser.o chash.o cstack.o symbol-table.o \
 		name-analysis.o type-analysis.o storage-allocation.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
@@ -27,8 +28,8 @@ BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 # --------------------
 # ATL main objects
-FINAL_SRC = atl.c backend-test.c assembler-buffer-test.c
-FINAL_OBJS = atl.o atl backend-test.o backend-test assembler-buffer-test
+FINAL_SRC = atl.c containers-test.c backend-test.c assembler-buffer-test.c
+FINAL_OBJS = atl.o atl containers-test.o containers-test backend-test.o backend-test assembler-buffer-test
 
 
 # --------------------
@@ -60,8 +61,14 @@ atl: ${FRONTEND_GENSRC} $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) atl.o
 test-frontend: all
 	(cd ../test ; ./test.sh)
 
+test-containers: containers-test
+	./containers-test
+
 backend-test: $(FRONTEND_GENSRC) $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) backend-test.o
 	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) backend-test.o -o backend-test
+
+containers-test: $(FRONTEND_GENSRC) $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) containers-test.o
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) containers-test.o -o containers-test
 
 assembler-buffer-test: $(FRONTEND_GENSRC) $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) assembler-buffer-test.o
 	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) assembler-buffer-test.o -o assembler-buffer-test
@@ -72,7 +79,7 @@ test-backend: backend-test
 test-assembler-buffer: assembler-buffer-test
 	./assembler-buffer-test
 
-test: test-frontend test-backend
+test: test-containers test-backend
 
 asm: ${ASM_OBJS}
 	$(CC) $(CFLAGS) $(ASM_OBJS) -o asm

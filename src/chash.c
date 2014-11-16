@@ -136,7 +136,10 @@ _pointer_compare(const void *a, const void *b)
 
 hash_fn_t hashtable_string_hash = (hash_fn_t) _string_hash;
 hash_fn_t hashtable_pointer_hash = (hash_fn_t) _pointer_hash;
+hash_fn_t hashtable_long_hash = (hash_fn_t) _string_hash;
+
 compare_fn_t hashtable_pointer_compare = (compare_fn_t) _pointer_compare;
+compare_fn_t hashtable_long_compare = (compare_fn_t) _pointer_compare;
 
 void **
 hashtable_access(hashtable_t *tbl, void *key, void *value)
@@ -245,4 +248,275 @@ hashtable_clone(hashtable_t *tbl, void *(*clone_key)(const void *), void *(*clon
 	cstate.tbl = hashtable_alloc(tbl->hash_fn, tbl->compare_fn, size);
 	hashtable_foreach(tbl, hashtable_clone_helper, &cstate);
 	return cstate.tbl;
+}
+
+
+// ================================================================================
+
+struct hashset_ptr {
+	hashtable_t *ht;
+	size_t size;
+};
+	
+hashset_ptr_t *
+hashset_ptr_alloc()
+{
+	hashset_ptr_t *set = malloc(sizeof(hashset_ptr_t));
+	set->ht = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 4);
+	set->size = 0;
+	return set;
+}
+
+void
+hashset_ptr_add(hashset_ptr_t *set, void *ptr)
+{
+	void **access = hashtable_access(set->ht, ptr, (void *)1);
+	if (!access) {
+		++set->size;
+	}
+}
+
+void
+hashset_ptr_remove(hashset_ptr_t *set, void *ptr)
+{
+	void **access = hashtable_access(set->ht, ptr, NULL);
+	if (!access || !*access) {
+		return;
+	}
+	*access = NULL;
+	--set->size;
+}
+
+bool
+hashset_ptr_contains(hashset_ptr_t *set, void *ptr)
+{
+	return NULL != hashtable_get(set->ht, ptr);
+}	
+
+size_t
+hashset_ptr_size(hashset_ptr_t *set)
+{
+	return set->size;
+}
+
+static void
+_hashset_ptr_add_one(void *elt, hashset_ptr_t *set)
+{
+	hashset_ptr_add(set, elt);
+}
+
+void
+hashset_ptr_add_all(hashset_ptr_t *set, hashset_ptr_t *to_add)
+{
+	hashset_ptr_foreach(to_add, (void (*)(void *ptr, void *state)) _hashset_ptr_add_one, set);
+}
+
+static void
+_hashset_ptr_remove_one(void *elt, hashset_ptr_t *set)
+{
+	hashset_ptr_remove(set, elt);
+}
+
+void
+hashset_ptr_remove_all(hashset_ptr_t *set, hashset_ptr_t *to_remove)
+{
+	hashset_ptr_foreach(to_remove, (void (*)(void *ptr, void *state)) _hashset_ptr_remove_one, set);
+}
+
+struct hashset_ptr_pair {
+	hashset_ptr_t *l, *r;
+};
+
+static void
+_hashset_ptr_remove_unless_in_r(void *elt, struct hashset_ptr_pair *pair)
+{
+	if (!hashset_ptr_contains(pair->r, elt)) {
+		hashset_ptr_remove(pair->l, elt);
+	}
+}
+
+void
+hashset_ptr_retain_common(hashset_ptr_t *set, hashset_ptr_t *other_set)
+{
+	struct hashset_ptr_pair pair = { .l = set, .r = other_set };
+	hashset_ptr_foreach(set, (void (*)(void *ptr, void *state)) _hashset_ptr_remove_unless_in_r, &pair);
+}
+
+hashset_ptr_t *
+hashset_ptr_clone(hashset_ptr_t *set)
+{
+	hashset_ptr_t *cloneset = malloc(sizeof(hashset_ptr_t));
+	cloneset->ht =  hashtable_clone(set->ht, NULL, NULL);
+	cloneset->size = set->size;
+	return cloneset;
+}
+
+struct hashset_visitor_state {
+	void (*f)(void *ptr, void *state);
+	void *fstate;
+};
+
+static void
+hashset_ptr_table_visit(void *key, void *value, void *_state)
+{
+	struct hashset_visitor_state *state = (struct hashset_visitor_state *) _state;
+	if (value) {
+		state->f(key, state->fstate);
+	}
+}
+
+void
+hashset_ptr_foreach(hashset_ptr_t *set, void (*f)(void *ptr, void *state), void *state)
+{
+	struct hashset_visitor_state vstate = { .f = f, .fstate = state };
+	hashtable_foreach(set->ht, hashset_ptr_table_visit, &vstate);
+}
+
+void
+hashset_ptr_free(hashset_ptr_t *set)
+{
+	hashtable_free(set->ht, NULL, NULL);
+	free(set);
+}
+
+struct print_state {
+	FILE *file;
+	void (*p)(FILE *, void *);
+	bool is_first;
+};
+
+static void
+print_one_ptr(void *ptr, void *_state)
+{
+	struct print_state *state = (struct print_state *)_state;
+	if (!state->is_first) {
+		fprintf(state->file, ", ");
+	}
+	state->p(state->file, ptr);
+	state->is_first = false;
+}
+
+static void
+print_ptr(FILE *f, void *v)
+{
+	fprintf(f, "%p", v);
+}
+
+void
+hashset_ptr_print(FILE *f, hashset_ptr_t *set, void (*print_element)(FILE *, void *))
+{
+	fprintf(f, "{ ");
+	if (print_element == NULL) {
+		print_element = print_ptr;
+	}
+	struct print_state print_state = { .file = f, .p = print_element, .is_first = true };
+	hashset_ptr_foreach(set, print_one_ptr, &print_state);
+	if (!print_state.is_first) {
+		fprintf(f, " ");
+	}
+	fprintf(f, "}");
+}
+
+
+// ================================================================================
+
+struct hashset_long
+{
+	hashtable_t ht;
+};
+
+#define INVERT(x) (0x8000000000000000l ^ x)
+
+hashset_long_t *
+hashset_long_alloc()
+{
+	return (hashset_long_t *) hashset_ptr_alloc();
+}
+
+void
+hashset_long_add(hashset_long_t *set, long v)
+{
+	hashset_ptr_add((hashset_ptr_t *) set, (void *) INVERT(v));
+}
+
+void
+hashset_long_remove(hashset_long_t *set, long v)
+{
+	hashset_ptr_remove((hashset_ptr_t *) set, (void *) INVERT(v));
+}
+
+bool
+hashset_long_contains(hashset_long_t *set, long v)
+{
+	return hashset_ptr_contains((hashset_ptr_t *) set, (void *) INVERT(v));
+}
+
+size_t
+hashset_long_size(hashset_long_t *set)
+{
+	return hashset_ptr_size((hashset_ptr_t *) set);
+}
+
+void
+hashset_long_add_all(hashset_long_t *set, hashset_long_t *to_add)
+{
+	hashset_ptr_add_all((hashset_ptr_t *) set, (hashset_ptr_t *) to_add);
+}
+
+void
+hashset_long_remove_all(hashset_long_t *set, hashset_long_t *to_remove)
+{
+	hashset_ptr_remove_all((hashset_ptr_t *) set, (hashset_ptr_t *) to_remove);
+}
+
+
+void
+hashset_long_retain_common(hashset_long_t *set, hashset_long_t *other_set)
+{
+	hashset_ptr_retain_common((hashset_ptr_t *) set, (hashset_ptr_t *) other_set);
+}
+
+
+hashset_long_t *
+hashset_long_clone(hashset_long_t *set)
+{
+	return (hashset_long_t *) hashset_ptr_clone((hashset_ptr_t *) set);
+}
+
+struct hashset_long_visit_state {
+	void (*f)(long, void *);
+	void *fstate;
+};
+
+static void
+_hashset_long_visit(void *ptr, void *_state)
+{
+	struct hashset_long_visit_state *state = (struct hashset_long_visit_state *) state;
+	long inverted_v = (long) ptr;
+	state->f(INVERT(inverted_v), state->fstate);
+}
+
+void
+hashset_long_foreach(hashset_long_t *set, void (*f)(long value, void *state), void *state)
+{
+	struct hashset_long_visit_state fstate = { .f = f, .fstate = state };
+	hashset_ptr_foreach((hashset_ptr_t *) set, (void (*)(void *, void *)) f, &fstate);
+}
+
+void
+hashset_long_free(hashset_long_t *set)
+{
+	hashset_ptr_free((hashset_ptr_t *) set);
+}
+
+static void
+print_long(FILE *f, long v)
+{
+	fprintf(f, "%ld", INVERT(v));
+}
+
+void
+hashset_long_print(FILE *f, hashset_long_t *set)
+{
+	hashset_ptr_print(f, (hashset_ptr_t *) set, (void (*)(FILE *, void *)) print_long);
 }

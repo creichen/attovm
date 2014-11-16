@@ -354,7 +354,6 @@ baseline_compile_builtin_op(buffer_t *buf, int ty_and_node_flags, int op, ast_no
 	case BUILTIN_OP_ADD:
 	case BUILTIN_OP_MUL:
 	case BUILTIN_OP_SUB:
-	case BUILTIN_OP_XOR:
 	case BUILTIN_OP_TEST_EQ:
 	case BUILTIN_OP_TEST_LE:
 	case BUILTIN_OP_TEST_LT:
@@ -366,7 +365,6 @@ baseline_compile_builtin_op(buffer_t *buf, int ty_and_node_flags, int op, ast_no
 	case BUILTIN_OP_CONVERT:
 	case BUILTIN_OP_ALLOCATE:
 	case BUILTIN_OP_DIV:
-	case BUILTIN_OP_LOGIC_AND:
 	default:
 		args_nr = 0;
 		break;

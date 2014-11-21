@@ -116,8 +116,8 @@ dyncomp_compile_function(int symtab_entry, void **update_address_on_call_stack)
 		symtab_entry_t *class_sym = sym->parent;
 		class_t *class = class_new(class_sym);
 		class_sym->r_mem = class;
-		ast_node_t **method_defs = class_sym->astref->children[2]->children + class_sym->vars_nr;
-		int method_defs_nr = class_sym->methods_nr;
+		ast_node_t **method_defs = class_sym->astref->children[2]->children + class_sym->storage.fields_nr;
+		int method_defs_nr = class_sym->storage.functions_nr;
 		class_sym->r_trampoline = dyncomp_build_trampoline(buffer_entrypoint(runtime_current()->dyncomp),
 								   method_defs, method_defs_nr);
 		if (compiler_options.debug_dynamic_compilation) {

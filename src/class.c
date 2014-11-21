@@ -36,11 +36,11 @@ class_t *
 class_new(symtab_entry_t *entry)
 {
 	assert(entry->symtab_flags & SYMTAB_TY_CLASS);
-	int size = class_selector_table_size(entry->methods_nr, entry->vars_nr);
+	int size = class_selector_table_size(entry->storage.functions_nr, entry->storage.fields_nr);
 	class_t *classref = calloc(1, sizeof(class_t)
 				   + sizeof(class_member_t) * size
 				   // Virtuelle Methodentabelle
-				   + (entry->methods_nr * sizeof(void *)));
+				   + (entry->storage.functions_nr * sizeof(void *)));
 	classref->table_mask = size - 1;
 
 	return class_initialise_and_link(classref, entry);
@@ -65,6 +65,69 @@ find_last_set(int number)
 
 #undef TESTMASK
 	return count;
+}
+
+void
+class_print(FILE *file, class_t *classref)
+{
+	int vtable_size = 0;
+	if (!classref) {
+		fprintf(file, "<classref=NULL>\n");
+		return;
+	}
+	
+	void **vtable = CLASS_VTABLE(classref);
+	
+	fprintf(file, "class ");
+	symtab_entry_name_dump(file, classref->id);
+	fprintf(file, "[%d] at %p {\n", classref->id->id, classref);
+	fprintf(file, "\tsymbol-table-mask = %llx (size = %lld)\n", classref->table_mask, classref->table_mask + 1);
+	for (int i = 0; i <= classref->table_mask; i++) {
+		class_member_t *member = classref->members + i;
+		fprintf(file, "\t%d:\t", i);
+		int selector = CLASS_DECODE_SELECTOR_ID(member->selector_encoding);
+		int offset = CLASS_DECODE_SELECTOR_OFFSET(member->selector_encoding);
+		int type = CLASS_DECODE_SELECTOR_TYPE(member->selector_encoding);
+		if (selector) {
+			fprintf(file, "sel#%d ", selector);
+			if (CLASS_MEMBER_IS_METHOD(type)) {
+				if (offset >= vtable_size) {
+					vtable_size = offset + 1;
+				}
+				fprintf(file, "method@%d(%d args) -> %p  (%s %s)",
+					offset,
+					CLASS_MEMBER_METHOD_ARGS_NR(type),
+					vtable[offset],
+					addrstore_get_prefix(vtable[offset]),
+					addrstore_get_suffix(vtable[offset])
+					);
+			} else {
+				fprintf(file, "variable@%d : ", offset);
+				if (type == CLASS_MEMBER_VAR_OBJ) {
+					fprintf(file, "obj");
+				} else if (type == CLASS_MEMBER_VAR_INT) {
+					fprintf(file, "int");
+				} else {
+					fprintf(file, "?unknown-type");
+				}
+			}
+		}
+		if (member->symbol) {
+			fprintf(file, "\t[");
+			symtab_entry_name_dump(file, member->symbol);
+			fprintf(file, "]");
+		}
+		fprintf(file, "\n");
+	}
+	fprintf(file, "\tvtable[%d] = {\n", vtable_size);
+	for (int i = 0; i < vtable_size; i++) {
+		fprintf(file, "\t\t%p (%s %s)\n", vtable[i],
+			addrstore_get_prefix(vtable[i]),
+			addrstore_get_suffix(vtable[i])
+			);
+	}
+	fprintf(file, "\t}\n");
+	fprintf(file, "}");
 }
 
 int
@@ -106,7 +169,7 @@ class_initialise_and_link(class_t *classref, symtab_entry_t *entry)
 {
 	classref->id = entry;
 	entry->r_mem = classref;
-
+ast_node_dump(stderr, entry->astref, 6);
 	addrstore_put(classref, ADDRSTORE_KIND_TYPE, entry->name);
 
 	int definitions = 0;

@@ -41,7 +41,7 @@
  * @return Ein buffer_t mit dem Haupteinsprungpunkt
  */
 buffer_t
-baseline_compile_entrypoint(ast_node_t *node, void *static_memory);
+baseline_compile_entrypoint(ast_node_t *node, storage_record_t *storage, void *static_memory);
 
 /**
  * Uebersetzt ein AST-Fragment einer Funktion in ausfuehrbaren Maschinencode

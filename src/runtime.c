@@ -54,12 +54,12 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		return image;
 	}
 
-	if (name_analysis(ast, &image->functions_nr, &image->classes_nr)) {
+	if (name_analysis(ast, &image->storage, &image->classes_nr)) {
 		free(image);
 		return NULL;
 	}
 
-	image->callables_nr = image->functions_nr + image->classes_nr;
+	image->callables_nr = image->storage.functions_nr + image->classes_nr;
 
 	if (action == RUNTIME_ACTION_NAME_ANALYSIS) {
 		return image;
@@ -83,18 +83,18 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	}
 
 	image->ast = ast;
-	image->static_memory_size = storage_size(ast);
-	if (image->static_memory_size) {
-		image->static_memory = malloc(sizeof(void*) * image->static_memory_size);
+	fprintf(stderr, "storage[%d] ", image->storage.vars_nr);
+	if (image->storage.vars_nr) {
+		image->static_memory = malloc(sizeof(void*) * image->storage.vars_nr);
 	} else {
 		image->static_memory = NULL;
 	}
 
 	image->dyncomp = dyncomp_build_generic();
 	image->trampoline = dyncomp_build_trampoline(buffer_entrypoint(image->dyncomp),
-						     image->callables, image->functions_nr + image->classes_nr);
+						     image->callables, image->storage.functions_nr + image->classes_nr);
 
-	image->code_buffer = baseline_compile_entrypoint(ast, image->static_memory);
+	image->code_buffer = baseline_compile_entrypoint(ast, &image->storage, image->static_memory);
 	image->main_entry_point = buffer_entrypoint(image->code_buffer);
 
 	last = image;
@@ -109,7 +109,7 @@ start_dynamic() {};
 void
 runtime_execute(runtime_image_t *img)
 {
-	memset(img->static_memory, 0, sizeof(void*) * img->static_memory_size);
+	memset(img->static_memory, 0, sizeof(void*) * img->storage.vars_nr);
 	void (*f)(void) = (void (*)(void)) img->main_entry_point;
 	start_dynamic();
 	(*f)();
@@ -118,7 +118,7 @@ runtime_execute(runtime_image_t *img)
 void
 runtime_free(runtime_image_t *img)
 {
-	if (img->static_memory_size) {
+	if (img->storage.vars_nr) {
 		free(img->static_memory);
 		img->static_memory = NULL;
 	}

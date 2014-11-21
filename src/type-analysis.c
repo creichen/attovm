@@ -153,6 +153,7 @@ require_type(ast_node_t *node, int ty)
 	fun->sym = convert_sym;
 	ast_node_t *conversion = CONS(FUNAPP, fun,
 				      CONS(ACTUALS, node));
+	conversion->storage = node->storage;
 	set_type(fun, ty);
 	set_type(conversion, ty);
 	return conversion;
@@ -424,14 +425,16 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		constructor->children[0]->sym = constructor_sym;
 		context->callables[context->functions_nr++] = constructor;
 
-		// Neuen Klassenkoerper erzeugen: Felder nach vorne, Methoden nach hinten
+		//d Neuen Klassenkoerper erzeugen: Felder nach vorne, Methoden nach hinten
+		//e Create new class body: start with fields, put methods behind
 		ast_node_t *new_class_body_node =
 			ast_node_alloc_generic_without_init(AST_NODE_BLOCK,
-							    classref->vars_nr + classref->methods_nr);
+							    classref->storage.fields_nr + classref->storage.functions_nr);
+		fprintf(stderr, "vars = %d, methods = %d\n", classref->storage.fields_nr, classref->storage.functions_nr);
 
 		ast_node_t **new_class_body = new_class_body_node->children;
 		int field_ref = 0;
-		int method_ref = classref->vars_nr;
+		int method_ref = classref->storage.fields_nr;
 
 		for (int i = 0; i < class_body_size; i++) {
 			ast_node_t *ref = class_body[i];
@@ -449,9 +452,13 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 			}
 		}
 
-		// Neuen Klassenkoerper einsetzen
+		//d Neuen Klassenkoerper einsetzen
+		//e insert new class body
 		ast_node_free(node->children[2], 0);
 		node->children[2] = new_class_body_node;
+		fprintf(stderr, "Class body:\n");
+		ast_node_dump(stderr, new_class_body_node, 6);
+		/* exit(1); */
 	}
 		break;
 

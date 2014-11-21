@@ -63,6 +63,13 @@
 #define SYMTAB_IS_STACK_DYNAMIC(s)	(((s)->parent && (!((s)->symtab_flags & SYMTAB_MEMBER))) || s->id == BUILTIN_OP_SELF)	/*d Stapel/Register-Alloziert */ /*e stack or register */
 #define SYMTAB_IS_CONS_ARG(s)		(((s)->parent && ((s)->symtab_flags & SYMTAB_PARAM) && (SYMTAB_TY((s)->parent) == SYMTAB_TY_CLASS)))
 
+typedef struct {
+	short functions_nr;		/*e methods */
+	short vars_nr;			/*e locals (function) or fields (class) */
+	short temps_nr;			/*e temporary variables (for computing expressions) */
+	short fields_nr;		/*e fields (classes only) */
+} storage_record_t;
+
 typedef struct symtab_entry {
 	char *name;
 	struct symtab_entry *parent;		/*d Struktureller Elterneintrag */ /*e structural parent entry */
@@ -76,13 +83,6 @@ typedef struct symtab_entry {
 	unsigned short *parameter_types;
 	unsigned short parameters_nr;
 	unsigned short selector;		/*d Globale ID für Felder und Methoden */ /* Global ID for fields and methods */
-	unsigned short vars_nr;			/*d Klasse: Anzahl Felder
-						 * Methode/Funktion: Anzahl lokale Variablen
-						 */
-						/*e Class: number of fields
-						 * Method/functoin: number of local variables
-						 */
-	unsigned short methods_nr;
 	signed short offset;			/*d MEMBER | VAR: Offset in Speicher der Struktur
 						 * MEMBER | FUNCTION: Eindeutige Funktionsnummer
 						 * PARAM: Parameternummer
@@ -93,6 +93,7 @@ typedef struct symtab_entry {
 						 * PARAM: parameter number
 						 * VAR: variable number, either on stack or in static memory
 						 */
+	storage_record_t storage;
 } symtab_entry_t;
 
 //e Symbol IDs:

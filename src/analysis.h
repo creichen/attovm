@@ -29,18 +29,20 @@
 #define _ATTOL_ANALYSIS_H
 
 #include "ast.h"
+#include "symbol-table.h"
 
 /**
  * Ersetzt alle AST_VALUE_NAME-Knoten durch AST_VALUE_ID-Knoten
  *
  * Erste Analysephase
  *
+ * @param globals_nr Variable, in die die Anzahl der beobachteten globalen Variablen geschrieben wird
  * @param functions_nr Variable, in die die Anzahl der definierten Funktionen geschrieben wird (keine Methoden)
  * @param classes_nr Variable, in die die Anzahl der definierten Klassen geschrieben wird
  * @return Anzahl der beobachteten Fehler
  */
 int
-name_analysis(ast_node_t *, int *functions_nr, int *classes_nr);
+name_analysis(ast_node_t *, storage_record_t *storage, int *classes_nr);
 
 
 /**
@@ -61,17 +63,5 @@ name_analysis(ast_node_t *, int *functions_nr, int *classes_nr);
  */
 int
 type_analysis(ast_node_t **, ast_node_t **callables, ast_node_t **classes);
-
-
-/**
- * Berechnet den nötigen Speicherstellen fuer alle temporaeren Ergebnisse und globalen Variablen
- *
- * Dritte Analysephase
- *
- * @return Liefert die Anzahl der benötigten Variablenplätze zurück (entspricht dem
- * `storage'-Feld bei nicht-VALUE-Knoten).
- */
-int
-storage_size(ast_node_t *);
 
 #endif 

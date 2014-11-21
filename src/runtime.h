@@ -32,16 +32,17 @@
 
 #include "ast.h"
 #include "assembler-buffer.h"
+#include "symbol-table.h"
 
 typedef struct {
 	// Laufzeitinformationen
 
 	buffer_t code_buffer;
 	void *main_entry_point;	// Einsprungpunkt in das Text-Segment
-	int static_memory_size;	// Anzahl der Einträge im statischen Speicher
 	void **static_memory;	// Statischer Speicher
 
-	int functions_nr;
+	storage_record_t storage;	//e number of functions, variables, and temps (informs size of static_memory)
+	
 	int callables_nr;
 	ast_node_t **callables;	// Funktionen und Konstruktoren
 	int classes_nr;

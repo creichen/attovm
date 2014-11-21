@@ -25,10 +25,18 @@
 
 ***************************************************************************/
 
+
+#define DEBUG
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#ifdef DEBUG
+#  define __USE_GNU
+#  include <signal.h>
+#  include <ucontext.h>
+#endif
 
 #include "ast.h"
 #include "assembler.h"
@@ -46,8 +54,6 @@ extern FILE *builtin_print_redirection; // builtins.c
 
 static int failures = 0;
 static int runs = 0;
-
-//#define DEBUG
 
 void
 fail(char *msg)
@@ -90,11 +96,38 @@ signal_success()
 	 printf("\033[1;32mOK\033[0m\n");
 }
 
+#ifdef DEBUG
+static void
+segfault_handler(int nr, siginfo_t *info, void *_context)
+{
+	ucontext_t *context = (ucontext_t *) _context;
+	fprintf(stderr, "Segmentation fault: accessing %p at $pc = %p\n", info->si_addr, (void *) context->uc_mcontext.gregs[REG_RIP]);
+	exit(1);
+}
+#endif
+
+void (*post_builtins_init)(void) = NULL; // allocate selectors etc.
+
 void
 test_program(char *source, char *expected_result, int line)
 {
+#ifdef DEBUG
+	struct sigaction segfault_handler_struct = {
+		.sa_sigaction = &segfault_handler
+	};
+
+	if (sigaction(SIGSEGV, &segfault_handler_struct, NULL)) {
+		perror("sigaction(segfault_handler)");
+	}
+#endif
 	++runs;
 	builtins_init();
+	if (post_builtins_init) {
+		fprintf(stderr, "post-builtins-init\n");
+		post_builtins_init();
+	} else {
+		fprintf(stderr, "NO post-builtins-init\n");
+	}
 	printf("[L%d] Testing: \t", line);
 	runtime_image_t *image = compile(source, line);
 	if (!image) {
@@ -115,6 +148,10 @@ test_program(char *source, char *expected_result, int line)
 			SYMTAB_TY(sym) == SYMTAB_TY_CLASS ? "CONSTRUCTOR" : "FUNCTION",
 			sym->name);
 		buffer_disassemble(buffer_from_entrypoint(sym->r_mem));
+	}
+
+	for (int i = 1; i <= symtab_entries_nr; i++) {
+		symtab_entry_dump(stderr, symtab_lookup(i));
 	}
 
 	if (image->trampoline) {
@@ -172,22 +209,55 @@ int
 find_last_set(int number);
 
 
+// used by some tests
+symtab_entry_t *sym0 = NULL, *sym1 = NULL, *sym2 = NULL;
+
+static void
+init_selectors(void)
+{
+	const int two_element_class_hashtable_mask = class_selector_table_size(0, 2) - 1;
+	const int three_element_class_hashtable_mask = class_selector_table_size(0, 3) - 1;
+	//d Erzeuge drei Namen, die in einer zwei/drei-Elemente-Klasse konfliktierende Tabelleneintraege haben
+	//e generates three names that have conflicting entries in a two/three elemen class
+	char sym_buf[10] = "m_";
+	sym0 = symtab_selector(mk_unique_string(sym_buf));
+	for (int i = 'a'; !sym2; i++) {
+		assert(i <= 'z'); /*d Tabelle sollte nicht zu gross sein */ /*e table mustn't be too big */
+
+		symtab_entry_t **symp = &sym1;
+		if (sym1) {
+			symp = &sym2;
+		}
+		sym_buf[1] = i;
+
+		symtab_entry_t *proposed_sym = symtab_selector(mk_unique_string(sym_buf));
+		if (((proposed_sym->selector & two_element_class_hashtable_mask)
+		     == (sym0->selector & two_element_class_hashtable_mask))
+		    && ((proposed_sym->selector & two_element_class_hashtable_mask)
+			== (sym0->selector & three_element_class_hashtable_mask))) {
+			*symp = proposed_sym;
+		}
+	}
+}
 int
 main(int argc, char **argv)
 {
 #ifdef DEBUG
 	compiler_options.debug_dynamic_compilation = true;
 #endif
-
+	char conflict_str[1024];
+	/*
 	TEST("print(1);", "1\n");
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
 	TEST("print(4-1);", "3\n");
 	TEST("print(4*6);", "24\n");
 	TEST("print(7/2);", "3\n");
+	*/
+	TEST("print((2*3)+(1+1));", "8\n");
 	TEST("print(((2*3)+(1+1))*((3+2)-(2+1)));", "16\n");
-	TEST("{print(1);print(2);}", "1\n2\n");
-
+	//	TEST("{print(1);print(2);}", "1\n2\n");
+/*
 	TEST("{ int x = 17; print(x); }", "17\n");
 	TEST("{ int x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
 	TEST("{ obj x = 17; print(x); }", "17\n");
@@ -253,7 +323,7 @@ main(int argc, char **argv)
 	TEST("if (NULL == \"\") { print(\"null\"); }", "");
 	TEST("if (NULL == 1) { print(\"null\"); }", "");
 
-	// next: `is'
+	// `is'
 	TEST("if (1 is int) { print(\"1\"); }", "1\n");
 	TEST("if (\"x\" is int) { print(\"1\"); }", "");
 	TEST("if (\"x\" is string) { print(\"1\"); }", "1\n");
@@ -264,7 +334,7 @@ main(int argc, char **argv)
 	// skip
 	TEST("print(1);;;;;print(2);", "1\n2\n");
 
-	// functions
+	//e functions
 	TEST("int f(int x) { return x + 1; } print(f(1));", "2\n");
 	TEST("obj f(obj x) { return x + 1; } print(f(1));", "2\n");
 	TEST("obj f(obj x) { print(x); } f(1); ", "1\n");
@@ -275,59 +345,44 @@ main(int argc, char **argv)
 	TEST("int fact(int a) { if (a == 0) return 1; return a * fact(a - 1); } print(fact(5));", "120\n");
 	TEST("int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); ", "0\n3\n5\n");
 
-	// Hashtabellen fuer Klassen sind hinreichend gross:
+	TEST("int x = 9; { int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); } print(x);", "0\n3\n5\n9\n");
+
+	//d Hashtabellen fuer Klassen sind hinreichend gross:
 	for (int i = 0; i < 1000; i++) {
 		assert(class_selector_table_size(i, 0) >= i*2);
 		assert(class_selector_table_size(0, i) >= i*2);
 		assert(class_selector_table_size(i, i) >= i*3);
 	}
 
-	const int two_element_class_hashtable_mask = class_selector_table_size(0, 2) - 1;
-	const int three_element_class_hashtable_mask = class_selector_table_size(0, 3) - 1;
-	// Erzeuge drei Namen, die in einer zwei/drei-Elemente-Klasse konfliktierende Tabelleneintraege haben
-	symtab_entry_t *sym0 = NULL, *sym1 = NULL, *sym2 = NULL;
-	char sym_buf[10] = "m_";
-	sym0 = symtab_selector(mk_unique_string(sym_buf));
-	for (int i = 'a'; !sym2; i++) {
-		assert(i <= 'z'); // Tabelle sollte nicht zu gross sein
+	//e classes as structures
 
-		symtab_entry_t **symp = &sym1;
-		if (sym1) {
-			symp = &sym2;
-		}
-		sym_buf[1] = i;
-
-		symtab_entry_t *proposed_sym = symtab_selector(mk_unique_string(sym_buf));
-		if (((proposed_sym->selector & two_element_class_hashtable_mask)
-		     == (sym0->selector & two_element_class_hashtable_mask))
-		    && ((proposed_sym->selector & two_element_class_hashtable_mask)
-			== (sym0->selector & three_element_class_hashtable_mask))) {
-			*symp = proposed_sym;
-		}
-	}
-	// sym0, sym1, sym2 haben nun konfliktierende Symboltabelleneintraege
-
-	// classes as structures
 	TEST("class C(){}; obj a = C(); if (a != NULL) print(1);", "1\n");
 	TEST("class C(){}; obj a = C(); obj b = C(); if (a != b) print(1);", "1\n");
+
 	TEST("class C(){ int x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
 	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
 	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; a.x := a.x + 1; print(a.x);", "3\n");
 	TEST("class C(){ int x; }; obj a = C(); obj b = C(); a.x := 3; b.x := 2; print(a.x); print(b.x);", "3\n2\n");
 	TEST("class C(){ obj x; int y; }; obj a = C(); a.x := 2; a.y := 3; print(a.x); print(a.y); ", "2\n3\n");
 
-	// nontrivial constructor (field init)
+	//e nontrivial constructor (field init)
 	TEST("class C(){ int x = 17; }; obj a = C(); print(a.x); ", "17\n");
 	TEST("class C(int a){ int x = a; }; obj a = C(1); obj b = C(2); print(a.x); print(b.x);", "1\n2\n");
 	TEST("class C(int a){ int x = a; int y = a*3;}; obj a = C(1); print(a.x); print(a.y);", "1\n3\n");
 	TEST("class C(int a){ int x = a; print(a); int y = a*3;}; obj a = C(1); print(a.x + 1); print(a.y);", "1\n2\n3\n");
 	TEST("int z = 0; class C(int a) { z := z + 1; }; print(z); obj a = C(1);print(z); a := C(1); print(z);", "0\n1\n2\n");
 
-	char conflict_str[1024];
+	post_builtins_init = &init_selectors;
+	init_selectors(); // will be re-generated equivalently
+		
+	//d sym0, sym1, sym2 haben nun konfliktierende Symboltabelleneintraege
+
 	sprintf(conflict_str, "class C() { int %s; int %s; } obj a = C(); a.%s := 1; a.%s := 2; print(a.%s); print (a.%s); a.%s := 3; print(a.%s); print (a.%s);",
 		sym0->name, sym1->name, sym0->name, sym1->name, sym0->name, sym1->name, sym0->name, sym0->name, sym1->name);
 	TEST(conflict_str, "1\n2\n3\n2\n");
 
+	post_builtins_init = init_selectors;
+	init_selectors(); // will be re-generated equivalently
 	sprintf(conflict_str, "class C() { int %s; int %s; int %s; } obj a = C(); a.%s := 1; a.%s := 2; a.%s := 3; print(a.%s); print (a.%s); print(a.%s); a.%s := 4; print(a.%s); print (a.%s); print (a.%s);",
 		sym0->name, sym1->name, sym2->name,
 		sym0->name, sym1->name, sym2->name,
@@ -336,7 +391,9 @@ main(int argc, char **argv)
 		sym0->name, sym1->name, sym2->name);
 	TEST(conflict_str, "1\n2\n3\n4\n2\n3\n");
 
-	// next: method call (including nontrivial/conflicting method selector lookup)
+	post_builtins_init = NULL;
+
+	//e next: method call (including nontrivial/conflicting method selector lookup)
 	TEST("class C() { obj p() { print(\"foo\"); } } obj a = C(); a.p();", "foo\n");
 	TEST("class C() { obj p(obj x) { print(x); } } obj a = C(); a.p(1);", "1\n");
 	TEST("class C() { obj p(obj x) { print(x); } } obj a = C(); a.p(1);", "1\n");
@@ -347,11 +404,14 @@ main(int argc, char **argv)
 
 	TEST("class C() { obj p(obj x, obj y) { print(x); return y+1; } } obj a = C(); print(a.p(1, 2));", "1\n3\n");
 	TEST("class C() { obj p(obj a1, obj a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a6 * a6 + a1); return a7 + 1; } } obj a = C(); print(a.p(1, 2, 3, 4, 5, 6, 7));", "37\n8\n");
-
 	TEST("class C() { int z = 9; obj p(obj x) { z := z + 1; return x + z; } } obj a = C(); print(a.p(1)); print(a.p(1)); ", "11\n12\n");
+
 	TEST("class C(int k) { int z = k; obj p(obj x) { z := z + 1; return x + z; } } obj a = C(5); print(a.p(1)); print(a.p(1)); ", "7\n8\n");
 	TEST("class C(int k) { int z = k; obj inc() { z := z + 1; return z; } obj dec() {z := z - 1; return z; } } obj a = C(5); print(a.inc()); print(a.inc()); print(a.dec()); ", "6\n7\n6\n");
 
+
+	post_builtins_init = init_selectors;
+	init_selectors(); //e will be re-generated equivalently
 	sprintf(conflict_str, "class C() { int %s() {print(1);}; int %s() {print(2);}; int %s() {print(3);}; } obj a = C(); a.%s(); a.%s(); a.%s(); ",
 		sym0->name, sym1->name, sym2->name,
 		sym0->name, sym1->name, sym2->name);
@@ -367,12 +427,30 @@ main(int argc, char **argv)
 
 	TEST("class C() { obj p() { int x = 0; print(x); x := 1; print(x); int y = 2; print(y); } } obj c = C(); c.p(); print(3); ", "0\n1\n2\n3\n");
 	TEST("class C() { obj x = \"unused\"; { int x = 0; print(x); x := 1; print(x); int y = 2; print(y); } } obj c = C(); print(3); ", "0\n1\n2\n3\n");
-
-	// next: builtings
+	// builtings
 	TEST("assert(1); print(5); ", "5\n");
 	TEST("print([/5].size()); ", "5\n");
 	TEST("print(\"foo\".size()); ", "3\n");
 
+	TEST("class C() { obj x = \"unused\"; { int x = 0; print(x); x := 1; print(x); int y = 2; print(y); } } obj c = C(); ", "0\n1\n2\n");
+
+	// temp var clash
+	TEST("int f(int x) { int a0 = x; { int a1 = x + 1; int a2 = x+2; { int b = x*x + 3 - x*x; print(b); } int a3 = 7*7+(19-18); print(a1); print(a2); print(a3); } print(a0);} f(4); ", "3\n5\n6\n50\n4\n");
+	TEST("obj a = [/5]; a[3+1] := 1+1; print(a[4]); print(a[2]);", "2\n0\n");
+	TEST("int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x);", "16\n3\n");
+	TEST("int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x);", "16\n3\n");
+	TEST("int f() { int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x); } f();", "16\n3\n");
+	TEST("class C() { int f() { int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x); } } (C()).f();", "16\n3\n");
+*/
+
+	/*
+TODO
+- all uses of PUSH and POP and STACK_ALLOC and STACK_FREE
+- consistent use of temp storage
+- baseline_compile_static_callable
+- baseline_compile_method
+	 */
+	
 	if (!failures) {
 		printf("All %d tests succeeded\n", runs);
 	} else {

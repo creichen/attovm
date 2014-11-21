@@ -99,6 +99,9 @@ dump_recursively(FILE *file, int indent, ast_node_t *node, int flags)
 		if (flags & AST_NODE_DUMP_ADDRESS) {
 			fprintf(file, "@%p", node);
 		}
+		if ((flags & AST_NODE_DUMP_STORAGE) && (node->storage >= 0) ) {
+			fprintf(file, "$_%i", node->storage);
+		}
 		if (flags & AST_NODE_DUMP_FLAGS) {
 			ast_print_flags(file, node->type);
 		}
@@ -109,6 +112,9 @@ dump_recursively(FILE *file, int indent, ast_node_t *node, int flags)
 	print_tag_string(file, type);
 	if (flags & AST_NODE_DUMP_ADDRESS) {
 		fprintf(file, "@%p", node);
+	}
+	if ((flags & AST_NODE_DUMP_STORAGE) && (node->storage >= 0) ) {
+		fprintf(file, "$_%i", node->storage);
 	}
 	if (flags & AST_NODE_DUMP_FLAGS) {
 		ast_print_flags(file, node->type);

@@ -89,9 +89,11 @@ symtab_selector(char *name)
 			    name,
 			    NULL /* Selektoren werden nicht deklariert */);
 	lookup->selector = symtab_selectors_nr;
+	fprintf(stderr, "<allocated new selector at %d>\n", lookup->id);
 
 	hashtable_put(symtab_selectors_table, name, lookup, NULL);
 	++symtab_selectors_nr;
+	symtab_entry_dump(stderr, lookup);
 	return lookup;
 }
 
@@ -104,6 +106,7 @@ symtab_lookup(int id)
 		return NULL;
 	}
 	symtab_get(&id, &ids_nr, &alloc_size, &symtab);
+
 	if (id >= *ids_nr) {
 		fprintf(stderr, "Looking up invalid symtab ID %d (post-convesion)", id);
 		return NULL;
@@ -124,7 +127,7 @@ symtab_new(int ast_flags, int symtab_flags, char *name, ast_node_t *declaration)
 		symtab_entries_size += INCREMENT;
 		symtab_user = realloc(symtab_user, sizeof (symtab_entry_t *) * symtab_entries_size);
 	}
-
+fprintf(stderr, "(allocd symtab entry for %d)", nr);
 	symtab_entry_t *entry = calloc(sizeof(symtab_entry_t), 1);
 	symtab_user[nr] = entry;
 	entry->id = id;
@@ -180,6 +183,8 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 {
 	bool has_args = false;
 	bool is_class = false;
+	bool is_function = false;
+	bool is_var = false;
 
 	if (!entry) {
 		fprintf(stderr, "Entry is (null)");
@@ -208,10 +213,12 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 		break;
 	case SYMTAB_TY_VAR:
 		fputs(" VARIABLE", file);
+		is_var = true;
 		break;
 	case SYMTAB_TY_FUNCTION:
 		fputs(" FUNCTION", file);
 		has_args = true;
+		is_function = true;
 		break;
 	case SYMTAB_TY_CLASS:
 		fputs(" CLASS", file);
@@ -246,8 +253,13 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	}
 
 	if (is_class) {
-		fprintf(file, "\tMethNr:\t%d\n", entry->methods_nr);
-		fprintf(file, "\tFldsNr:\t%d\n", entry->vars_nr);
+		fprintf(file, "\tMethNr:\t%d\n", entry->storage.functions_nr);
+		fprintf(file, "\tFldsNr:\t%d\n", entry->storage.fields_nr);
+	}
+
+	if (is_function) {
+		fprintf(file, "\tVarsNr:\t%d\n", entry->storage.vars_nr);
+		fprintf(file, "\tTmpsNr:\t%d\n", entry->storage.temps_nr);
 	}
 
 	if (entry->selector) {
@@ -255,11 +267,32 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	}
 
 	fprintf(file, "\tOffset:\t%d\n", entry->offset);
+	
+	if (is_var) {
+		fprintf(file, "\tStorage:\t");
+		//e normally, precisely one of those should trigger: 
+		if (SYMTAB_IS_STATIC(entry)) {
+			fprintf(stderr, "static ");
+		}
+		if (entry->symtab_flags & SYMTAB_MEMBER) {
+			fprintf(file, "heap-dynamic ");
+		}
+		if (SYMTAB_IS_STACK_DYNAMIC(entry)) {
+			fprintf(file, "stack-dynamic ");
+		}
+		fprintf(stderr, "\n");
+	}
 }
 
 void
 symtab_init()
 {
+	symtab_selectors_nr = 1;
+	if (symtab_selectors_table) {
+		// will be auto-allocated
+		hashtable_free(symtab_selectors_table, NULL, NULL);
+		symtab_selectors_table = NULL;
+	}
 	symtab_user = calloc(sizeof(symtab_entry_t *), INITIAL_SIZE);
 	symtab_builtin = calloc(sizeof(symtab_entry_t *), INITIAL_SIZE);
 	symtab_entries_size = INITIAL_SIZE;

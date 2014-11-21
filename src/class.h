@@ -30,6 +30,8 @@
 #ifndef _ATTOL_CLASS_H
 #define _ATTOL_CLASS_H
 
+#include <stdio.h>
+
 #include "symbol-table.h"
 
 #define CLASS_ENCODE_SELECTOR_SHIFT 0
@@ -109,6 +111,12 @@ extern class_t class_array;	// len+1 Eintraege, mit member[0].int_v=len
 class_t*
 class_new(symtab_entry_t *entry);
 
+/*e
+ * Prints the structure of a given class
+ */
+void
+class_print(FILE *file, class_t *classref);
+
 /**
  * Berechnet die Groesse der Selektortabelle fuer eine Klasse
  *
@@ -133,12 +141,6 @@ class_initialise_and_link(class_t *classref, symtab_entry_t *entry);
 void
 class_add_selector(class_t *classref, symtab_entry_t *selector_impl);
 
-
-/**
- * Extrahiert die 
- */
-void **
-class_vtable(class_t *classref);
 
 /**
  * Initialisiert alle eingebauten Klassen und die Symboltabelle

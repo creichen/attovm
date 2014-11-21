@@ -253,6 +253,9 @@ builtin_op_print(object_t *arg)
 		output_stream = builtin_print_redirection;
 	}
 
+object_print(stderr, arg, 3, false);
+fprintf(stderr, "(<- builtin-print)\n");
+
 	object_print(output_stream, arg, 3, false);
 	fprintf(output_stream, "\n");
 	return NULL;

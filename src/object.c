@@ -41,7 +41,10 @@ heap_allocate_object(class_t* type, size_t fields_nr)
 object_t *
 new_object(class_t* type, unsigned long long fields_nr)
 {
-	return heap_allocate_object(type, fields_nr);
+	object_t *obj = heap_allocate_object(type, fields_nr);
+	fprintf(stderr, "ALLOC: %p\n", obj);
+	class_print(stderr, type);
+	return obj;
 }
 
 object_t *
@@ -49,6 +52,7 @@ new_int(long long int v)
 {
 	object_t *obj = heap_allocate_object(&class_boxed_int, 1);
 	obj->members[0].int_v = v;
+fprintf(stderr, "(new-int %lld; stack around %p)\n", v, &obj);
 	return obj;
 }
 
@@ -208,9 +212,9 @@ object_print(FILE *f, object_t *obj, int depth, bool debug)
 
 // Fehlerbehandlung fuer Selektorzugriff
 static void
-fail_selector_lookup(ast_node_t *node, int actual_type, int expected_type) __attribute__ ((noreturn));
+fail_selector_lookup(object_t *obj, ast_node_t *node, int actual_type, int expected_type) __attribute__ ((noreturn));
 static void
-fail_selector_lookup(ast_node_t *node, int actual_type, int expected_type)
+fail_selector_lookup(object_t *obj, ast_node_t *node, int actual_type, int expected_type)
 {
 	char message[1024];
 	if (!node) {
@@ -231,7 +235,9 @@ fail_selector_lookup(ast_node_t *node, int actual_type, int expected_type)
 			}
 		}
 	} else {
-		sprintf(message, "Object has no method or field `%s'", sym->name);
+		sprintf(message, "Object at %p has no method or field `%s'", obj, sym->name);
+fprintf(stderr, "Object at %p (class %p) has no method or field `%s'", obj, obj->classref, sym->name);
+class_print(stderr, obj->classref);
 	}
 
 	fail_at_node(node, message);
@@ -251,7 +257,7 @@ fail_selector_lookup(ast_node_t *node, int actual_type, int expected_type)
 	while (true) {							\
 		const unsigned long long coding = classref->members[index].selector_encoding; \
 		if (!coding) {						\
-			fail_selector_lookup(node, 0, 0);		\
+			fail_selector_lookup(obj, node, 0, 0);		\
 		}							\
 		if (CLASS_DECODE_SELECTOR_ID(coding) != selector) {	\
 			index = (index + 1) & mask;			\
@@ -269,7 +275,7 @@ object_get_member_method(object_t *obj, ast_node_t *node, int selector, int para
 	LOAD_SELECTOR;
 	// `type' und `offset' sind nun gesetzt
 	if (type != CLASS_MEMBER_METHOD(parameters_nr)) {
-		fail_selector_lookup(node, type, CLASS_MEMBER_METHOD(parameters_nr));
+		fail_selector_lookup(obj, node, type, CLASS_MEMBER_METHOD(parameters_nr));
 	}
 	return CLASS_VTABLE(classref)[offset];
 }
@@ -289,7 +295,7 @@ object_read_member_field_obj(object_t *obj, ast_node_t *node, int selector)
 	} else if (type == CLASS_MEMBER_VAR_INT) {
 		return new_int(obj->members[offset].int_v);
 	} else {
-		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_OBJ);
+		fail_selector_lookup(obj, node, type, CLASS_MEMBER_VAR_OBJ);
 	}
 }
 
@@ -308,7 +314,7 @@ object_read_member_field_int(object_t *obj, ast_node_t *node, int selector)
 	} else if (type == CLASS_MEMBER_VAR_INT) {
 		return obj->members[offset].int_v;
 	} else {
-		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_INT);
+		fail_selector_lookup(obj, node, type, CLASS_MEMBER_VAR_INT);
 	}
 }
 
@@ -316,14 +322,14 @@ void
 object_write_member_field_int(object_t *obj, ast_node_t *node, int selector, long long int value)
 {
 	LOAD_SELECTOR;
-	// `type' und `offset' sind nun gesetzt
-
+	//d `type' und `offset' sind nun gesetzt
+	//e `type' und `offset' are now set
 	if (type == CLASS_MEMBER_VAR_OBJ) {
 		obj->members[offset].object_v = new_int(value);
 	} else if (type == CLASS_MEMBER_VAR_INT) {
 		obj->members[offset].int_v = value;
 	} else {
-		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_INT);
+		fail_selector_lookup(obj, node, type, CLASS_MEMBER_VAR_INT);
 	}
 }
 
@@ -344,6 +350,6 @@ object_write_member_field_obj(object_t *obj, ast_node_t *node, int selector, obj
 		}
 		fail_at_node(node, "attempted to convert non-int object to int value");
 	} else {
-		fail_selector_lookup(node, type, CLASS_MEMBER_VAR_OBJ);
+		fail_selector_lookup(obj, node, type, CLASS_MEMBER_VAR_OBJ);
 	}
 }

@@ -32,17 +32,17 @@
 
 #include<stdlib.h>
 
-struct stack;
-typedef struct stack stack_t;
+struct cstack;
+typedef struct cstack cstack_t;
 
 
 /*e
- * Allocates a fresh stack_t
+ * Allocates a fresh cstack_t
  *
  * @param element_size Size of a single element
  * @param initial_capacity Initial stack capacity (tuning parameter)
  */
-stack_t *
+cstack_t *
 stack_alloc(size_t element_size, size_t initial_capacity);
 
 /*e
@@ -52,7 +52,7 @@ stack_alloc(size_t element_size, size_t initial_capacity);
  * @return The stack's size
  */
 size_t
-stack_size(stack_t *stack);
+stack_size(cstack_t *stack);
 
 /*e
  * Pushes one element onto the stack
@@ -61,7 +61,7 @@ stack_size(stack_t *stack);
  * @param element Pointer to the element to push/copy onto the stack
  */
 void
-stack_push(stack_t *stack, void *element);
+stack_push(cstack_t *stack, void *element);
 
 /*e
  * Pops an element from the stack
@@ -70,7 +70,7 @@ stack_push(stack_t *stack, void *element);
  * @param element Pointer to the removed element (valid until the next append operation), or NULL if the stack was empty
  */
 void *
-stack_pop(stack_t *stack);
+stack_pop(cstack_t *stack);
 
 /*e
  * Deallocates a stack
@@ -79,6 +79,6 @@ stack_pop(stack_t *stack);
  * @param element_free A function to deallocate stack elements, or NULL if not needed
  */
 void
-stack_free(stack_t *stack, void (*element_free)(void *));
+stack_free(cstack_t *stack, void (*element_free)(void *));
 
 #endif // !defined(_ATTOL_CSTACK_H)

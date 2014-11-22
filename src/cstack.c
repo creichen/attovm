@@ -31,17 +31,17 @@
 #define MAX_GROWTH_BYTES (1024 * 1024 * 8) // grow by at most 8 MB at a time
 #define DEFAULT_INITIAL_CAPACITY 16
 
-struct stack {
+struct cstack {
 	size_t element_size;
 	size_t capacity;
 	size_t tos;
 	unsigned char *data;
 };
 
-stack_t *
+cstack_t *
 stack_alloc(size_t element_size, size_t initial_capacity)
 {
-	stack_t *stack = malloc(sizeof(stack_t));
+	cstack_t *stack = malloc(sizeof(cstack_t));
 	if (!initial_capacity) {
 		initial_capacity = DEFAULT_INITIAL_CAPACITY;
 	}
@@ -53,13 +53,13 @@ stack_alloc(size_t element_size, size_t initial_capacity)
 }
 
 size_t
-stack_size(stack_t *stack)
+stack_size(cstack_t *stack)
 {
 	return stack->tos;
 }
 
 void *
-stack_pop(stack_t *stack)
+stack_pop(cstack_t *stack)
 {
 	if (stack->tos) {
 		--stack->tos;
@@ -71,7 +71,7 @@ stack_pop(stack_t *stack)
 }
 
 void
-stack_push(stack_t *stack, void *element)
+stack_push(cstack_t *stack, void *element)
 {
 	++stack->tos;
 	if (stack->tos == stack->capacity) {
@@ -94,7 +94,7 @@ stack_push(stack_t *stack, void *element)
 }
 
 void
-stack_free(stack_t *stack, void (*element_free)(void *))
+stack_free(cstack_t *stack, void (*element_free)(void *))
 {
 	if (element_free) {
 		void *d;

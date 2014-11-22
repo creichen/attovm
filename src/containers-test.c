@@ -59,7 +59,7 @@ signal_success()
 static void
 test_stack_basic(void)
 {
-	stack_t *stack = stack_alloc(sizeof(int), 2);
+	cstack_t *stack = stack_alloc(sizeof(int), 2);
 	ASSERT(stack_size(stack) == 0);
 	ASSERT(NULL == stack_pop(stack));
 	ASSERT(stack_size(stack) == 0);
@@ -84,7 +84,7 @@ static void
 test_stack_many(void)
 {
 	const int TEST_SIZE = 100;
-	stack_t *stack = stack_alloc(sizeof(long *), 10);
+	cstack_t *stack = stack_alloc(sizeof(long *), 10);
 	for (int i = 0; i < TEST_SIZE; i++) {
 		long *v = malloc(sizeof(long));
 		*v = i;
@@ -107,7 +107,7 @@ static void
 test_stack_big(void)
 {
 	const int TEST_SIZE = 100;
-	stack_t *stack = stack_alloc(64, 2);
+	cstack_t *stack = stack_alloc(64, 2);
 
 	for (int i = 0; i < TEST_SIZE; i++) {
 		unsigned char d[64];

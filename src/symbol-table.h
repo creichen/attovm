@@ -56,6 +56,7 @@
 #define SYMTAB_CONSTRUCTOR	0x0080	/*d Konstruktor */ /*e constructor */
 #define SYMTAB_COMPILED		0x0100	/*d Fertig uebersetzt */ /*e fully translated to machine code */
 #define SYMTAB_OPT		0x0200	/*d Mit Optimierungen übersetzt */ /*e fully translated with optimisations */
+#define SYMTAB_EXCESS_PARAM	0x0400	/*d PARAM, den wir auf dem Stapel uebergeben */ /*e PARAM passed on the stack */
 
 
 #define SYMTAB_TY(s)			(((s)->symtab_flags) & SYMTAB_TY_MASK)

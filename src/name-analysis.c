@@ -62,12 +62,19 @@ fixnames_recursive(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, i
 	}
 	int base_temporaries = counters->temps_nr;
 	int max_temporaries = base_temporaries;
-	for (int i = 0; i < node->children_nr; i++) {
+	const int children_max = node->children_nr - 1;
+	for (int i = 0; i <= children_max; ++i) {
+		if (i == children_max) {
+			//e we don't need storage for the very last call to a parameter list
+			child_flags &= ~NF_NEED_STORAGE;
+		}
+
 		counters->temps_nr = base_temporaries;
 		fixnames(node->children[i], env, parent, child_flags, counters, classes_nr);
-		if (counters->temps_nr > max_temporaries) {
+		if (counters->temps_nr >= max_temporaries) {
 			max_temporaries = counters->temps_nr;
 		}
+
 		if (child_flags & NF_NEED_STORAGE) {
 			base_temporaries += 1;
 		}
@@ -120,8 +127,10 @@ fix_with_parameters(ast_node_t *cnode, hashtable_t *env, int child_flags_params,
 	}
 
 	fixnames(cnode->children[2], env, syminfo, child_flags_body, &syminfo->storage, classes_nr);
+#if 0	
 	ast_node_dump(stderr, cnode, 6);
 	fprintf(stderr, "params = %d, vars = %d, temps = %d, fields = %d, functions = %d\n", syminfo->parameters_nr, syminfo->storage.vars_nr, syminfo->storage.temps_nr, syminfo->storage.fields_nr, syminfo->storage.functions_nr);
+#endif
 
 	hashtable_free(env, NULL, NULL);
 }
@@ -138,9 +147,6 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 
 	if (child_flags & NF_NEED_STORAGE) {
 		node->storage = counters->temps_nr;
-		fprintf(stderr, "alloc-temp[%d]: ", node->storage);
-		ast_node_dump(stderr, node, 0);
-		fprintf(stderr, "\n");
 	} else {
 		node->storage = -1;
 	}
@@ -230,14 +236,10 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		/* } */
 		//e allocate memory offset
 		if (child_flags & SYMTAB_MEMBER) {
-			fprintf(stderr, "-- found field --\n");
 			lookup->offset = counters->fields_nr++;
 		} else {
-			fprintf(stderr, "-- found non-field --\n");
 			lookup->offset = counters->vars_nr++;
 		}
-fprintf(stderr, "-- Found var (flags=%x):\n", child_flags);
- ast_node_dump(stderr, node, 6);
 		
 		char *name = AV_NAME(name_node);
 		resolve_node(node->children[0], lookup);
@@ -257,7 +259,25 @@ fprintf(stderr, "-- Found var (flags=%x):\n", child_flags);
 		return;
 		
 	case AST_NODE_FUNAPP:
-		fixnames_recursive(node, env, parent, child_flags, counters, classes_nr);
+		if (NODE_TY(node->children[0]) == AST_NODE_MEMBER) {
+			// METHODAPP (in type-analysis.c)
+			if (node->storage < 0) {
+				node->storage = counters->temps_nr++;
+			}
+
+			//e target
+			fixnames(node->children[0], env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr);
+			counters->temps_nr++;
+			//e arguments
+			fixnames_recursive(node->children[1], env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr);
+			//e this ensures that the method target gets an extra spill slot
+		} else {
+			if (parent && node->storage < 0) {
+				// Might be a method call; allocate spill space just in case
+				node->storage = counters->temps_nr++;
+			}
+			fixnames_recursive(node, env, parent, child_flags, counters, classes_nr);
+		}
 		return;
 		
 	case AST_NODE_WHILE:
@@ -281,11 +301,30 @@ fprintf(stderr, "-- Found var (flags=%x):\n", child_flags);
 		fixnames(node->children[1], env, parent, child_flags | NF_SELECTOR, counters, classes_nr);
 		break;
 
-	case AST_NODE_ASSIGN:
+	case AST_NODE_ASSIGN: {
 		//d Als lvalue markieren
-		fixnames(node->children[0], env, parent, child_flags, counters, classes_nr);
-		fixnames(node->children[1], env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr);
 		/*e we compute the rhs first, so we mark it as possibly requiring storage */
+		int base_temps = counters->temps_nr;
+		fixnames(node->children[1], env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr);
+		int max_temps = counters->temps_nr;
+		counters->temps_nr = base_temps;
+		fixnames(node->children[0], env, parent, child_flags, counters, classes_nr);
+		if (max_temps > counters->temps_nr) {
+			counters->temps_nr = max_temps;
+		}
+	}
+		return;
+
+	case AST_NODE_ARRAYSUB:
+		fixnames(node->children[1], env, parent, child_flags, counters, classes_nr);
+		fixnames(node->children[0], env, parent, child_flags, counters, classes_nr);
+		return;
+
+	case AST_NODE_ARRAYVAL:
+		if (node->storage < 0) {
+			node->storage = counters->temps_nr++;
+		}
+		fixnames(node->children[0], env, parent, child_flags, counters, classes_nr);
 		return;
 
 	case AST_NODE_BLOCK: {

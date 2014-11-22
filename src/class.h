@@ -142,10 +142,19 @@ void
 class_add_selector(class_t *classref, symtab_entry_t *selector_impl);
 
 
-/**
+/*d
  * Initialisiert alle eingebauten Klassen und die Symboltabelle
+ */
+/*e
+ * Initialises builtin classes and the symbol table
  */
 void
 builtins_init();
+
+/*e
+ * resets the symbol table; initialises built-in classes
+ */
+void
+builtins_reset();
 
 #endif // !defined(_ATTOL_CLASS_H)

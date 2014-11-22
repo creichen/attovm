@@ -1,7 +1,15 @@
 CFLAGS=-O0 -g -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200809 -std=c11
+#CFLAGS=-O0 -g -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200809 -std=gnu11
 #CFLAGS=-O3 -mcpu=native -Wall -Wno-unused-function -Wno-unused-label -D_POSIX_C_SOURCE=200809 -std=c11
 PYTHON=python
 FLEX=flex
+
+# --------------------
+# 2OPM stand-alone assembler
+ASM_OBJS = 2opm/asm-lexer.o 2opm/assembler.o 2opm/asm.o chash.o address-store.o \
+		registers.o assembler.o assembler-buffer.o lexer-support.o \
+		2opm/asm-builtins.o 2opm/asm-debug.o  2opm/asm-errors.o  2opm/asm-labels.o \
+		2opm/asm-memory.o  2opm/asm-parse.o
 
 # --------------------
 # ATL frontend
@@ -23,21 +31,13 @@ BACKEND_GENSRC = assembler.c assembler.h
 BACKEND_SRC = assembler-buffer.c baseline-backend.c object.c class.c registers.c \
 		builtins.c runtime.c address-store.c dynamic-compiler.c
 BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o \
-		 builtins.o runtime.o address-store.o dynamic-compiler.o
+		builtins.o runtime.o address-store.o dynamic-compiler.o
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 # --------------------
 # ATL main objects
 FINAL_SRC = atl.c containers-test.c backend-test.c assembler-buffer-test.c
 FINAL_OBJS = atl.o atl containers-test.o containers-test backend-test.o backend-test assembler-buffer-test
-
-
-# --------------------
-# 2OPM stand-alone assembler
-ASM_OBJS = 2opm/asm-lexer.o 2opm/assembler.o 2opm/asm.o chash.o address-store.o \
-		registers.o assembler.o assembler-buffer.o lexer-support.o \
-		2opm/asm-builtins.o 2opm/asm-debug.o  2opm/asm-errors.o  2opm/asm-labels.o \
-		2opm/asm-memory.o  2opm/asm-parse.o
 
 
 .PHONY: clean tidy all echo-distfiles

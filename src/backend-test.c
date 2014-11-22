@@ -26,7 +26,7 @@
 ***************************************************************************/
 
 
-#define DEBUG
+//#define DEBUG
 
 #include <stdio.h>
 #include <string.h>
@@ -121,14 +121,12 @@ test_program(char *source, char *expected_result, int line)
 	}
 #endif
 	++runs;
-	builtins_init();
+	builtins_reset();
 	if (post_builtins_init) {
-		fprintf(stderr, "post-builtins-init\n");
 		post_builtins_init();
-	} else {
-		fprintf(stderr, "NO post-builtins-init\n");
 	}
-	printf("[L%d] Testing: \t", line);
+	printf("[L%d] \033[4;1mTesting\033[0m: \t", line);
+	fflush(NULL);
 	runtime_image_t *image = compile(source, line);
 	if (!image) {
 		signal_failure();
@@ -149,7 +147,6 @@ test_program(char *source, char *expected_result, int line)
 			sym->name);
 		buffer_disassemble(buffer_from_entrypoint(sym->r_mem));
 	}
-
 	for (int i = 1; i <= symtab_entries_nr; i++) {
 		symtab_entry_dump(stderr, symtab_lookup(i));
 	}
@@ -215,6 +212,8 @@ symtab_entry_t *sym0 = NULL, *sym1 = NULL, *sym2 = NULL;
 static void
 init_selectors(void)
 {
+	sym1 = NULL;
+	sym2 = NULL;
 	const int two_element_class_hashtable_mask = class_selector_table_size(0, 2) - 1;
 	const int three_element_class_hashtable_mask = class_selector_table_size(0, 3) - 1;
 	//d Erzeuge drei Namen, die in einer zwei/drei-Elemente-Klasse konfliktierende Tabelleneintraege haben
@@ -242,22 +241,21 @@ init_selectors(void)
 int
 main(int argc, char **argv)
 {
+	builtins_init();
+	char conflict_str[1024];
 #ifdef DEBUG
 	compiler_options.debug_dynamic_compilation = true;
 #endif
-	char conflict_str[1024];
-	/*
 	TEST("print(1);", "1\n");
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
 	TEST("print(4-1);", "3\n");
 	TEST("print(4*6);", "24\n");
 	TEST("print(7/2);", "3\n");
-	*/
 	TEST("print((2*3)+(1+1));", "8\n");
 	TEST("print(((2*3)+(1+1))*((3+2)-(2+1)));", "16\n");
-	//	TEST("{print(1);print(2);}", "1\n2\n");
-/*
+	TEST("{print(1);print(2);}", "1\n2\n");
+
 	TEST("{ int x = 17; print(x); }", "17\n");
 	TEST("{ int x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
 	TEST("{ obj x = 17; print(x); }", "17\n");
@@ -311,10 +309,12 @@ main(int argc, char **argv)
 
 	TEST("{ int x = 0; int y; while(x < 5) { y := x; x := x + 1; while (y < 4) { y := y + 1; if (y == 2) continue; print(y); } if (x == 3) break; } } ", "1\n3\n4\n3\n4\n3\n4\n");
 	TEST("{ int x = 0; int y; while(x < 3) { y := x; x := x + 1; while (y < 5) { if (y == 3) break; print(y); y := y + 1; } if (x == 2) continue; print(\"+\");} } ", "0\n1\n2\n+\n1\n2\n2\n+\n");
-
 	TEST("{ obj a = [1]; print(a[0]); }", "1\n");
 	TEST("{ obj a = [1,7]; print(a[1]); print(a[0]);}", "7\n1\n");
+	TEST("{ obj a = [[3]]; print(a[0][0]);}", "3\n");
 	TEST("{ obj a = [1,[3,7]]; print(a[1][0]); print(a[0]);}", "3\n1\n");
+
+	TEST("obj a = [/1]; a[0] := 2; print(a[0]); ", "2\n");
 	TEST("{ obj a = [1,7]; print(a[1]); a[1] := 2; print(a[1]); print(a[0]); }", "7\n2\n1\n");
 	TEST("{ obj a = [1,\"foo\", /5]; print(a[1]); a[4] := 2; print(a[0]); print(a[4]); }", "foo\n1\n2\n");
 
@@ -322,7 +322,6 @@ main(int argc, char **argv)
 	TEST("if (NULL == NULL) { print(\"null\"); }", "null\n");
 	TEST("if (NULL == \"\") { print(\"null\"); }", "");
 	TEST("if (NULL == 1) { print(\"null\"); }", "");
-
 	// `is'
 	TEST("if (1 is int) { print(\"1\"); }", "1\n");
 	TEST("if (\"x\" is int) { print(\"1\"); }", "");
@@ -333,18 +332,17 @@ main(int argc, char **argv)
 
 	// skip
 	TEST("print(1);;;;;print(2);", "1\n2\n");
-
 	//e functions
 	TEST("int f(int x) { return x + 1; } print(f(1));", "2\n");
 	TEST("obj f(obj x) { return x + 1; } print(f(1));", "2\n");
 	TEST("obj f(obj x) { print(x); } f(1); ", "1\n");
 	TEST("int f(int a, int b) { return a + (2*b); } print(f(1, 2));", "5\n");
 	TEST("int f(int a, int b) { print(a); return a + (2*b); } print(f(1, 2));", "1\n5\n");
+
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 6, 7, 8);", "1\n2\n3\n4\n5\n6\n7\n8\n");
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 3+3, 3+4, 4+4);", "1\n2\n3\n4\n5\n6\n7\n8\n");
 	TEST("int fact(int a) { if (a == 0) return 1; return a * fact(a - 1); } print(fact(5));", "120\n");
 	TEST("int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); ", "0\n3\n5\n");
-
 	TEST("int x = 9; { int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); } print(x);", "0\n3\n5\n9\n");
 
 	//d Hashtabellen fuer Klassen sind hinreichend gross:
@@ -355,10 +353,8 @@ main(int argc, char **argv)
 	}
 
 	//e classes as structures
-
 	TEST("class C(){}; obj a = C(); if (a != NULL) print(1);", "1\n");
 	TEST("class C(){}; obj a = C(); obj b = C(); if (a != b) print(1);", "1\n");
-
 	TEST("class C(){ int x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
 	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
 	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; a.x := a.x + 1; print(a.x);", "3\n");
@@ -392,23 +388,20 @@ main(int argc, char **argv)
 	TEST(conflict_str, "1\n2\n3\n4\n2\n3\n");
 
 	post_builtins_init = NULL;
-
 	//e next: method call (including nontrivial/conflicting method selector lookup)
 	TEST("class C() { obj p() { print(\"foo\"); } } obj a = C(); a.p();", "foo\n");
-	TEST("class C() { obj p(obj x) { print(x); } } obj a = C(); a.p(1);", "1\n");
+	TEST("class C() { obj p(obj x) { print(x); } } obj a = C(); print(24); a.p(1);", "24\n1\n");
 	TEST("class C() { obj p(obj x) { print(x); } } obj a = C(); a.p(1);", "1\n");
 	TEST("class C() { obj p(obj x) { print(x+2); } } obj a = C(); a.p(1);", "3\n");
 	TEST("class C() { obj p(int x) { print(x+2); } } obj a = C(); a.p(1);", "3\n");
 
 	TEST("class C() { obj p(obj x, obj y) { print(x+y); } } obj a = C(); a.p(1, 2);", "3\n");
-
 	TEST("class C() { obj p(obj x, obj y) { print(x); return y+1; } } obj a = C(); print(a.p(1, 2));", "1\n3\n");
 	TEST("class C() { obj p(obj a1, obj a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a6 * a6 + a1); return a7 + 1; } } obj a = C(); print(a.p(1, 2, 3, 4, 5, 6, 7));", "37\n8\n");
 	TEST("class C() { int z = 9; obj p(obj x) { z := z + 1; return x + z; } } obj a = C(); print(a.p(1)); print(a.p(1)); ", "11\n12\n");
 
 	TEST("class C(int k) { int z = k; obj p(obj x) { z := z + 1; return x + z; } } obj a = C(5); print(a.p(1)); print(a.p(1)); ", "7\n8\n");
 	TEST("class C(int k) { int z = k; obj inc() { z := z + 1; return z; } obj dec() {z := z - 1; return z; } } obj a = C(5); print(a.inc()); print(a.inc()); print(a.dec()); ", "6\n7\n6\n");
-
 
 	post_builtins_init = init_selectors;
 	init_selectors(); //e will be re-generated equivalently
@@ -423,6 +416,7 @@ main(int argc, char **argv)
 	TEST("class C() { int p() { print(1); return 2; } obj q() { return 1 + p(); }} obj a = C(); print(a.q());", "1\n3\n");
 	TEST("class C() { int p() { print(1); return 2; } int q() { return 1 + p(); }} obj a = C(); print(a.q());", "1\n3\n");
 	TEST("class C() { obj p(obj x, int y) { print(x+y); } obj q() { p(1, 2); } } obj a = C(); a.q();", "3\n");
+	// the bug is in C.p's reading of variable k
 	TEST("class C(int z) { int k = z; int p(int l) { return k + l; } obj q() { print(p(2)); } } obj a = C(3); a.q();", "5\n");
 
 	TEST("class C() { obj p() { int x = 0; print(x); x := 1; print(x); int y = 2; print(y); } } obj c = C(); c.p(); print(3); ", "0\n1\n2\n3\n");
@@ -436,21 +430,13 @@ main(int argc, char **argv)
 
 	// temp var clash
 	TEST("int f(int x) { int a0 = x; { int a1 = x + 1; int a2 = x+2; { int b = x*x + 3 - x*x; print(b); } int a3 = 7*7+(19-18); print(a1); print(a2); print(a3); } print(a0);} f(4); ", "3\n5\n6\n50\n4\n");
-	TEST("obj a = [/5]; a[3+1] := 1+1; print(a[4]); print(a[2]);", "2\n0\n");
+	TEST("obj a = [/5]; a[3+1] := 1+1; print(a[4]); print(a[2]);", "2\nNULL\n");
 	TEST("int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x);", "16\n3\n");
 	TEST("int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x);", "16\n3\n");
 	TEST("int f() { int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x); } f();", "16\n3\n");
 	TEST("class C() { int f() { int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x); } } (C()).f();", "16\n3\n");
-*/
-
-	/*
-TODO
-- all uses of PUSH and POP and STACK_ALLOC and STACK_FREE
-- consistent use of temp storage
-- baseline_compile_static_callable
-- baseline_compile_method
-	 */
-	
+	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7, int a8) { int z; print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7); print(a8); z := a0 + a8; print(z + 0 * 0); } f(1, 2, 3, 4, 5, 6, 7, 8, 9);", "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
+	TEST("class C() { obj p(obj a1, obj a2, obj a3, obj a4, obj a5, obj a6, obj a7, int a8) { print(a6 * a6 + a1); return a7 + (2 * a8); } } obj a = C(); print(a.p(1, 2, 3, 4, 5, 6, 7, 2));", "37\n11\n");	
 	if (!failures) {
 		printf("All %d tests succeeded\n", runs);
 	} else {

@@ -287,9 +287,12 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 				error(node, "method receiver must be an object");
 			}
 
+			short storage = node->children[0]->storage;
 			ast_node_free(node, 0);
+			receiver = require_type(receiver, TYPE_OBJ);
+			receiver->storage = storage;
 			node = CONS(METHODAPP,
-				    require_type(receiver, TYPE_OBJ),
+				    receiver,
 				    selector_node,
 				    actuals);
 			set_type(node, compiler_options.method_call_return_type);
@@ -430,7 +433,6 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		ast_node_t *new_class_body_node =
 			ast_node_alloc_generic_without_init(AST_NODE_BLOCK,
 							    classref->storage.fields_nr + classref->storage.functions_nr);
-		fprintf(stderr, "vars = %d, methods = %d\n", classref->storage.fields_nr, classref->storage.functions_nr);
 
 		ast_node_t **new_class_body = new_class_body_node->children;
 		int field_ref = 0;
@@ -456,9 +458,6 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		//e insert new class body
 		ast_node_free(node->children[2], 0);
 		node->children[2] = new_class_body_node;
-		fprintf(stderr, "Class body:\n");
-		ast_node_dump(stderr, new_class_body_node, 6);
-		/* exit(1); */
 	}
 		break;
 

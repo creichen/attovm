@@ -169,7 +169,6 @@ class_initialise_and_link(class_t *classref, symtab_entry_t *entry)
 {
 	classref->id = entry;
 	entry->r_mem = classref;
-ast_node_dump(stderr, entry->astref, 6);
 	addrstore_put(classref, ADDRSTORE_KIND_TYPE, entry->name);
 
 	int definitions = 0;

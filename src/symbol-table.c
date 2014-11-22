@@ -89,11 +89,9 @@ symtab_selector(char *name)
 			    name,
 			    NULL /* Selektoren werden nicht deklariert */);
 	lookup->selector = symtab_selectors_nr;
-	fprintf(stderr, "<allocated new selector at %d>\n", lookup->id);
 
 	hashtable_put(symtab_selectors_table, name, lookup, NULL);
 	++symtab_selectors_nr;
-	symtab_entry_dump(stderr, lookup);
 	return lookup;
 }
 
@@ -127,7 +125,7 @@ symtab_new(int ast_flags, int symtab_flags, char *name, ast_node_t *declaration)
 		symtab_entries_size += INCREMENT;
 		symtab_user = realloc(symtab_user, sizeof (symtab_entry_t *) * symtab_entries_size);
 	}
-fprintf(stderr, "(allocd symtab entry for %d)", nr);
+
 	symtab_entry_t *entry = calloc(sizeof(symtab_entry_t), 1);
 	symtab_user[nr] = entry;
 	entry->id = id;
@@ -272,7 +270,7 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 		fprintf(file, "\tStorage:\t");
 		//e normally, precisely one of those should trigger: 
 		if (SYMTAB_IS_STATIC(entry)) {
-			fprintf(stderr, "static ");
+			fprintf(file, "static ");
 		}
 		if (entry->symtab_flags & SYMTAB_MEMBER) {
 			fprintf(file, "heap-dynamic ");
@@ -280,23 +278,8 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 		if (SYMTAB_IS_STACK_DYNAMIC(entry)) {
 			fprintf(file, "stack-dynamic ");
 		}
-		fprintf(stderr, "\n");
+		fprintf(file, "\n");
 	}
-}
-
-void
-symtab_init()
-{
-	symtab_selectors_nr = 1;
-	if (symtab_selectors_table) {
-		// will be auto-allocated
-		hashtable_free(symtab_selectors_table, NULL, NULL);
-		symtab_selectors_table = NULL;
-	}
-	symtab_user = calloc(sizeof(symtab_entry_t *), INITIAL_SIZE);
-	symtab_builtin = calloc(sizeof(symtab_entry_t *), INITIAL_SIZE);
-	symtab_entries_size = INITIAL_SIZE;
-	symtab_entries_builtin_size = INITIAL_SIZE;
 }
 
 static void
@@ -306,4 +289,52 @@ symtab_entry_free(symtab_entry_t *e)
 		free(e->parameter_types);
 	}
 	free(e);
+}
+
+void
+symtab_free()
+{
+	if (symtab_selectors_table) {
+		hashtable_free(symtab_selectors_table, NULL, NULL);
+		symtab_selectors_table = NULL;
+		symtab_selectors_nr = 1;
+	}
+	
+	if (symtab_user) {
+		for (int i = 0; i < symtab_entries_nr; i++) {
+			symtab_entry_free(symtab_user[i]);
+			symtab_user[i] = NULL;
+		}
+		free(symtab_user);
+	
+		symtab_entries_nr = 0;
+		symtab_entries_size = 0;
+	}
+
+#if 0
+	if (symtab_builtin) {
+		for (int i = 0; i < symtab_entries_builtin_nr; i++) {
+			symtab_entry_free(symtab_builtin[i]);
+			symtab_builtin[i] = NULL;
+		}
+
+		free(symtab_builtin);
+		symtab_entries_builtin_nr = 0;
+		symtab_entries_builtin_size = 0;
+	}
+#endif
+}
+
+void
+symtab_init()
+{
+	symtab_user = calloc(sizeof(symtab_entry_t *), INITIAL_SIZE);
+	symtab_entries_size = INITIAL_SIZE;
+
+	static bool initialised_builtin = false;
+	if (!initialised_builtin) {
+		symtab_builtin = calloc(sizeof(symtab_entry_t *), INITIAL_SIZE);
+		symtab_entries_builtin_size = INITIAL_SIZE;
+		initialised_builtin = true;
+	}
 }

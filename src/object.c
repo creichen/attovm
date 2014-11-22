@@ -42,8 +42,10 @@ object_t *
 new_object(class_t* type, unsigned long long fields_nr)
 {
 	object_t *obj = heap_allocate_object(type, fields_nr);
+#if 0
 	fprintf(stderr, "ALLOC: %p\n", obj);
 	class_print(stderr, type);
+#endif
 	return obj;
 }
 
@@ -52,7 +54,6 @@ new_int(long long int v)
 {
 	object_t *obj = heap_allocate_object(&class_boxed_int, 1);
 	obj->members[0].int_v = v;
-fprintf(stderr, "(new-int %lld; stack around %p)\n", v, &obj);
 	return obj;
 }
 
@@ -86,7 +87,6 @@ new_array(size_t len)
 long long int
 builtin_op_obj_test_eq(object_t *a0, object_t *a1)
 {
-	//	fprintf(stderr, "obj-compare(%p, %p)\n", a0, a1);
 	if (a0 == a1) {
 		return 1;
 	}
@@ -110,8 +110,13 @@ builtin_op_obj_test_eq(object_t *a0, object_t *a1)
 }
 
 static void
-object_print_internal(FILE *f, object_t *obj, bool depth, int debug, char *sep)
+object_print_internal(FILE *f, object_t *obj, int depth, bool debug, char *sep)
 {
+	if (depth < 0) {
+		fprintf(f, "...");
+		return;
+	}
+	
 	if (!obj) {
 		fprintf(f, "NULL");
 		return;
@@ -148,7 +153,7 @@ object_print_internal(FILE *f, object_t *obj, bool depth, int debug, char *sep)
 	int printed = 0;
 	symtab_entry_t *sym = classref->id;
 	fprintf(f, "%s@%p {%s", sym->name, loc, sep);
-	if (depth == 0) {
+	if (depth <= 0) {
 		fprintf(f, "... }");
 		return;
 	}
@@ -324,6 +329,7 @@ object_write_member_field_int(object_t *obj, ast_node_t *node, int selector, lon
 	LOAD_SELECTOR;
 	//d `type' und `offset' sind nun gesetzt
 	//e `type' und `offset' are now set
+
 	if (type == CLASS_MEMBER_VAR_OBJ) {
 		obj->members[offset].object_v = new_int(value);
 	} else if (type == CLASS_MEMBER_VAR_INT) {

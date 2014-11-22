@@ -45,7 +45,6 @@
 #include "assembler-buffer.h"
 #include "errors.h"
 
-#define BIN_PAGES_START 0xb000000000 // Startadresse des Binaercodes im Speicher
 #define PAGE_SIZE 0x1000
 #define INITIAL_SIZE (PAGE_SIZE * 64)
 #define MIN_INCREMENT (PAGE_SIZE * 64)
@@ -90,7 +89,7 @@ code_alloc(size_t buf_size) // size does not include the header
 		}
 
 		// alloc executable memory
-		code_segment = mmap((void *) BIN_PAGES_START,
+		code_segment = mmap((void *) ASSEMBLER_BIN_PAGES_START,
 				    alloc_size,
 				    PROT_READ | PROT_WRITE | PROT_EXEC,
 				    MAP_PRIVATE | MAP_ANONYMOUS,

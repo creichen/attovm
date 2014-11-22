@@ -30,6 +30,8 @@
 
 #include <stddef.h>
 
+#define ASSEMBLER_BIN_PAGES_START 0xb000000000 // Startadresse des Binaercodes im Speicher
+
 typedef struct {
 	size_t a, b;
 	unsigned char *dest;

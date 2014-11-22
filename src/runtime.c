@@ -83,7 +83,6 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	}
 
 	image->ast = ast;
-	fprintf(stderr, "storage[%d] ", image->storage.vars_nr);
 	if (image->storage.vars_nr) {
 		image->static_memory = malloc(sizeof(void*) * image->storage.vars_nr);
 	} else {
@@ -111,8 +110,13 @@ runtime_execute(runtime_image_t *img)
 {
 	memset(img->static_memory, 0, sizeof(void*) * img->storage.vars_nr);
 	void (*f)(void) = (void (*)(void)) img->main_entry_point;
+	//	fprintf(stderr, "calling(%p)\n", f);
 	start_dynamic();
+#ifdef DEBUG
+	debug(NULL, f);
+#else
 	(*f)();
+#endif
 }
 
 void

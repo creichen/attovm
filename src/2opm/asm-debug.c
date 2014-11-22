@@ -571,8 +571,13 @@ debug_command()
 void
 debug(buffer_t *buffer, void (*entry_point)())
 {
-	status.debug_region_start = (byte *) buffer_entrypoint(*buffer);
-	status.debug_region_end = (byte *) status.debug_region_start + buffer_size(*buffer);
+	if (buffer) {
+		status.debug_region_start = (byte *) buffer_entrypoint(*buffer);
+		status.debug_region_end = (byte *) status.debug_region_start + buffer_size(*buffer);
+	} else {
+		status.debug_region_start = ASSEMBLER_BIN_PAGES_START;
+		status.debug_region_end = ASSEMBLER_BIN_PAGES_START + 0x1000000; // let's assume we won't have more code than that
+	}
 
 	static int wait_for_me = 0; // used to sync up child process
 	

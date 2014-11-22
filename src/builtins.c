@@ -63,11 +63,14 @@ class_t class_array = {
 		     { 0, NULL }} // Zusaetzlicher Platz fuer virtuelle Funktionstabelle
 };
 
-/**
+/*d
  * Initialisiert die Symboltabelle und installiert die eingebauten Operationen
  */
 extern void
-symtab_init();
+symtab_init(void);
+
+extern void
+symtab_free(void);
 
 static void
 classes_init();
@@ -199,25 +202,33 @@ symtab_add_builtins(struct builtin_ops *builtins, int nr)
 
 
 void
-builtins_init()
+builtins_reset()
 {
-	static bool builtins_initialised = false;
+	// Symbol table
+	symtab_free();
+	symtab_init();
 
+	
+	static bool builtins_initialised = false;
 	if (builtins_initialised) {
 		return;
 	}
-
-	// Symbol table
-	symtab_init();
 
 	// Builtin operations
 	symtab_add_builtins(builtin_ops, sizeof(builtin_ops) / sizeof(struct builtin_ops));
 	symtab_add_builtins(builtin_selectors, sizeof(builtin_selectors) / sizeof(struct builtin_ops));
 	symtab_add_builtins(builtin_classes, sizeof(builtin_classes) / sizeof(struct builtin_ops));
 
+	builtins_initialised = true;
+}
+
+
+void
+builtins_init()
+{
+	builtins_reset();
 	// Classes
 	classes_init();
-	builtins_initialised = true;
 }
 
 
@@ -252,9 +263,11 @@ builtin_op_print(object_t *arg)
 	if (builtin_print_redirection) {
 		output_stream = builtin_print_redirection;
 	}
-
-object_print(stderr, arg, 3, false);
-fprintf(stderr, "(<- builtin-print)\n");
+	
+#if 0
+	object_print(stderr, arg, 3, true);
+	fprintf(stderr, "(<- builtin-print)\n");
+#endif
 
 	object_print(output_stream, arg, 3, false);
 	fprintf(output_stream, "\n");

@@ -81,7 +81,7 @@ typedef struct symtab_entry {
 	ast_node_t *astref;			/* CLASSDEF, FUNDEF, VARDECL */
 	void *r_trampoline;			/*d Zeiger auf Trampolin-Code, falls vorhanden */ /*e pointer to trampoline code, if present */
 	void *r_mem;				/*d Zeiger auf Funktion / Klassenobjekt */ /*e pointer to function or class object */
-	unsigned short *parameter_types;
+	unsigned short *parameter_types;	/*e for constructors, parameter_types and parameters_nr are 0.  Refer to the class to access them. */
 	unsigned short parameters_nr;
 	unsigned short selector;		/*d Globale ID für Felder und Methoden */ /* Global ID for fields and methods */
 	signed short offset;			/*d MEMBER | VAR: Offset in Speicher der Struktur

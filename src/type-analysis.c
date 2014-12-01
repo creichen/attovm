@@ -426,6 +426,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 							     classref->name, constructor);
 		constructor_sym->parent = classref;
 		constructor->children[0]->sym = constructor_sym;
+		constructor_sym->storage = classref->storage;
 		context->callables[context->functions_nr++] = constructor;
 
 		//d Neuen Klassenkoerper erzeugen: Felder nach vorne, Methoden nach hinten

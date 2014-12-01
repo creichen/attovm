@@ -1103,22 +1103,28 @@ setup_mcontext(context_t *context, storage_record_t *storage, int parameters_nr,
 		words = 1;
 		context->self_stack_location = -WORD_SIZE;
 	}
-	/*	
-	fprintf(stderr, "[mcontext: params=%d, vars=%d, temps=%d, extra=%d, cons=%d]\n", parameters_nr, storage->vars_nr, storage->temps_nr, additional_words, has_self);
-	*/
-	
-	words += (parameters_nr > 6) ? 6 : parameters_nr;
-	context->stack_offset_args = -WORD_SIZE * (1 + words);
+
+	words += (parameters_nr > REGISTERS_ARGUMENT_NR) ? REGISTERS_ARGUMENT_NR : parameters_nr;
+	context->stack_offset_args = -WORD_SIZE * (words);
 	words += storage->vars_nr;
-	context->stack_offset_locals = -WORD_SIZE * (1 + words);
+	context->stack_offset_locals = -WORD_SIZE * (words);
 	words += storage->temps_nr;
-	context->stack_offset_temps = -WORD_SIZE * (1 + words);
+	context->stack_offset_temps = -WORD_SIZE * (words);
 
 	words += additional_words;
 	if (words & 1) { /*e align stack if needed */ /*d Aufrufstapel ausrichten, sofern nötig */ 
 		++words;
 	}
 	context->stack_offset_base = -WORD_SIZE * (1 + words);
+
+	/* fprintf(stderr, "[mcontext: params=%d, vars=%d, temps=%d, extra=%d, cons=%d]\n", parameters_nr, storage->vars_nr, storage->temps_nr, additional_words, has_self); */
+	/* fprintf(stderr, "           params@%d, vars@%d, temps@%d,     self@%d  (total words = %d)\n", */
+	/* 	context->stack_offset_args, */
+	/* 	context->stack_offset_locals, */
+	/* 	context->stack_offset_temps, */
+	/* 	context->self_stack_location, */
+	/* 	words); */
+
 	return words;
 }
 
@@ -1202,8 +1208,12 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 	context_t mcontext;
 	mcontext.continue_labels = NULL;
 	mcontext.break_labels = NULL;
+	int parameters_nr = sym->parameters_nr;
 	bool is_constructor = sym->symtab_flags & SYMTAB_CONSTRUCTOR;
-	int stack_entries_nr = setup_mcontext(&mcontext, &sym->storage, sym->parameters_nr, is_constructor, 0);
+	if (is_constructor) {
+		parameters_nr = sym->parent->parameters_nr;
+	}
+	int stack_entries_nr = setup_mcontext(&mcontext, &sym->storage, parameters_nr, is_constructor, 0);
 	context_t *context = &mcontext;
 
 	buffer_t mbuf = buffer_new(1024);
@@ -1226,7 +1236,7 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 		baseline_store(buf, registers_argument[i], args[i]->sym, context);
 	}
 	for (int i = spilled_args; i < args_nr; i++) {
-		args[i]->sym->offset = i + 3 + (is_constructor? 1 : 0); // post $fp and return address
+		args[i]->sym->offset = i + 2 + (is_constructor? 1 : 0); // post $fp and return address
 		args[i]->sym->symtab_flags |= SYMTAB_EXCESS_PARAM;
 	}
 
@@ -1273,7 +1283,7 @@ baseline_compile_method(symtab_entry_t *sym)
 		baseline_store(buf, registers_argument[i], args[i - 1]->sym, context);
 	}
 	for (int i = spilled_args; i < args_nr; i++) {
-		args[i - 1]->sym->offset = i + 4; // post $fp and return address
+		args[i - 1]->sym->offset = i + 3; // post $fp and return address
 		args[i - 1]->sym->symtab_flags |= SYMTAB_EXCESS_PARAM;
 	}
 

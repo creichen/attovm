@@ -322,7 +322,6 @@ object_write_member_field_int(object_t *obj, ast_node_t *node, int selector, lon
 	LOAD_SELECTOR;
 	//d `type' und `offset' sind nun gesetzt
 	//e `type' und `offset' are now set
-
 	if (type == CLASS_MEMBER_VAR_OBJ) {
 		obj->members[offset].object_v = new_int(value);
 	} else if (type == CLASS_MEMBER_VAR_INT) {

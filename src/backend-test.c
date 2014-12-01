@@ -27,6 +27,7 @@
 
 
 //#define DEBUG
+//#define AUX
 
 #include <stdio.h>
 #include <string.h>
@@ -246,6 +247,7 @@ main(int argc, char **argv)
 #ifdef DEBUG
 	compiler_options.debug_dynamic_compilation = true;
 #endif
+#ifndef AUX
 	TEST("print(1);", "1\n");
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
@@ -339,7 +341,9 @@ main(int argc, char **argv)
 	TEST("int f(int a, int b) { return a + (2*b); } print(f(1, 2));", "5\n");
 	TEST("int f(int a, int b) { print(a); return a + (2*b); } print(f(1, 2));", "1\n5\n");
 
+#endif
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 6, 7, 8);", "1\n2\n3\n4\n5\n6\n7\n8\n");
+#ifndef AUX
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 3+3, 3+4, 4+4);", "1\n2\n3\n4\n5\n6\n7\n8\n");
 	TEST("int fact(int a) { if (a == 0) return 1; return a * fact(a - 1); } print(fact(5));", "120\n");
 	TEST("int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); ", "0\n3\n5\n");
@@ -436,7 +440,11 @@ main(int argc, char **argv)
 	TEST("int f() { int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x); } f();", "16\n3\n");
 	TEST("class C() { int f() { int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x); } } (C()).f();", "16\n3\n");
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7, int a8) { int z; print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7); print(a8); z := a0 + a8; print(z + 0 * 0); } f(1, 2, 3, 4, 5, 6, 7, 8, 9);", "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
-	TEST("class C() { obj p(obj a1, obj a2, obj a3, obj a4, obj a5, obj a6, obj a7, int a8) { print(a6 * a6 + a1); return a7 + (2 * a8); } } obj a = C(); print(a.p(1, 2, 3, 4, 5, 6, 7, 2));", "37\n11\n");	
+	TEST("class C() { obj p(obj a1, obj a2, obj a3, obj a4, obj a5, obj a6, obj a7, int a8) { print(a6 * a6 + a1); return a7 + (2 * a8); } } obj a = C(); print(a.p(1, 2, 3, 4, 5, 6, 7, 2));", "37\n11\n");
+	TEST("class C(int height, int width) { int area = height * width; } obj c = C(2, 3); print(c.area);", "6\n");
+	TEST("class C(obj height, int width) { obj area = [/ height * width]; } obj c = C(2, 3); print(c.area.size());", "6\n");
+	TEST("class C(obj height, int width) { obj area = [/ ((height*width)+(1+1))*((3+2)-(2+1))]; } obj c = C(2, 3); print(c.area.size());", "16\n");
+#endif
 	if (!failures) {
 		printf("All %d tests succeeded\n", runs);
 	} else {

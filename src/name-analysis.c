@@ -154,7 +154,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 	child_flags &= ~(NF_PART_OF_CLASSDECL | NF_NEED_STORAGE);
 
 	/* fprintf(stderr, ">> "); */
-	/* ast_node_dump(stderr, node, 0); */
+	/* ast_node_dump(stderr, node, 8); */
 	/* fprintf(stderr, "\n"); */
 
 	switch (NODE_TY(node)) {
@@ -325,6 +325,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 			node->storage = counters->temps_nr++;
 		}
 		fixnames(node->children[0], env, parent, child_flags, counters, classes_nr);
+		fixnames(node->children[1], env, parent, child_flags, counters, classes_nr);
 		return;
 
 	case AST_NODE_BLOCK: {
@@ -396,6 +397,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 				   child_flags,
 				   counters, classes_nr);
 		hashtable_free(env, NULL, NULL);
+		node->storage = counters->temps_nr;
 		return;
 	}
 

@@ -31,6 +31,7 @@
 #include "../registers.h"
 #include "../assembler.h"
 #include "../version.h"
+#include "../debugger.h"
 
 #include "asm.h"
 
@@ -92,6 +93,21 @@ print_version()
 	printf("2opm assembler version " VERSION ".\n");
 }
 
+void
+asm_debug(buffer_t *buf, void (*f)())
+{
+	debugger_config_t conf = {
+		.debug_region_start = (byte *) buffer_entrypoint(*buf),
+		.debug_region_end = ((byte *) buffer_entrypoint(*buf)) + buffer_size(*buf),
+		.static_section = data_section,
+		.static_section_size = end_of_data() - data_section,
+		.name_lookup = relocation_get_resolved_text_label,
+		.error = error,
+		.is_instruction = text_instruction_location
+	};
+	debug(&conf, f);
+}
+
 int
 execute(char *filename)
 {
@@ -121,7 +137,7 @@ execute(char *filename)
 	}
 	fflush(NULL);
 	if (flag_debug) {
-		debug(&text_buffer, entry_point);
+		asm_debug(&text_buffer, entry_point);
 	} else {
 		entry_point();
 	}

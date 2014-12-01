@@ -953,7 +953,6 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 						   PREPARE_ARGUMENTS_MUSTALIGN
 						   | PREPARE_ARGUMENTS_SKIP_A0);
 
-		MARK_LINE();
 		if (IS_SELF_REF(ast->children[0])) {
 			emit_ld(buf, REGISTER_A0, context->self_stack_location, REGISTER_FP);
 		} else {

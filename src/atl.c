@@ -56,6 +56,7 @@
 #define COMPOPT_NO_BOUNDS_CHECKS	1
 #define COMPOPT_INT_ARRAYS		2
 #define COMPOPT_DEBUG_DYNAMIC_COMPILER	3
+#define COMPOPT_DEBUG_ASSEMBLY		4
 
 typedef struct {
 	char *name;
@@ -80,6 +81,7 @@ static const option_rec_t options_compiler[] = {
 	{ "no-bounds-checks",		COMPOPT_NO_BOUNDS_CHECKS,	"Do not generate bounds-checking code for array accesses" },
 	{ "int-arrays",			COMPOPT_INT_ARRAYS,		"Change the type of array elements to 'int'" },
 	{ "debug-dynamic-compiler",	COMPOPT_DEBUG_DYNAMIC_COMPILER,	"Print out informative messages and disassembly during runtime compilation" },
+	{ "debug-asm",			COMPOPT_DEBUG_ASSEMBLY,		"Use interactive assembly debugger to run" },
 	{ NULL, 0, NULL }
 };
 
@@ -206,9 +208,12 @@ main(int argc, char **argv)
 			case COMPOPT_DEBUG_DYNAMIC_COMPILER:
 				compiler_options.debug_dynamic_compilation = true;
 				break;
+				
+			case COMPOPT_DEBUG_ASSEMBLY:
+				compiler_options.debug_assembly = true;
+				break;
 			}
 			break;
-
 		default:;
 		}
 	}

@@ -120,20 +120,22 @@ heap_allocate_object(class_t* type, size_t fields_nr)
 	object_t *obj = (object_t *) heap_free_pointer;
 	size_t requested_bytes = sizeof(object_t) + (fields_nr * sizeof(object_member_t));
 	heap_free_pointer += requested_bytes;
+
+	//	fprintf(stderr, "alloc(%s, %zu * %zu) : ", type->id->name, fields_nr, sizeof(object_member_t));
 	
 	if (heap_free_pointer >= heap_end) {
 		heap_free_pointer -= requested_bytes;
 		//e __builtin_frame_address(0) reads the $fp
 		handle_out_of_memory(__builtin_frame_address(0));
 		if (heap_available() < requested_bytes) {
-			fprintf(stderr, "Out of memory: insufficient space for %zu bytes (allocated: %zu of %zu bytes)\n", requested_bytes, heap_available(), heap_size());
+			fprintf(stderr, "Out of memory: insufficient space for %zu bytes (%zu fields) (allocated: %zu of %zu bytes)\n", requested_bytes, fields_nr, heap_available(), heap_size());
 			exit(1);
 		}
 		//e handled successfully; recurse to minimise risk of accidental bug
 		return heap_allocate_object(type, fields_nr);
 	}
 	obj->classref = type;
-//	fprintf(stderr, "alloc(%s, %zu * %d) -> %p\n", type->id->name, fields_nr, sizeof(object_member_t), obj);
+	/* fprintf(stderr, "alloc(%s, %zu * %zu) -> %p\n", type->id->name, fields_nr, sizeof(object_member_t), obj); */
 	return obj;
 }
 

@@ -27,10 +27,12 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include "analysis.h"
 #include "baseline-backend.h"
 #include "compiler-options.h"
+#include "debugger.h"
 #include "dynamic-compiler.h"
 #include "heap.h"
 #include "runtime.h"
@@ -39,10 +41,11 @@
 struct compiler_options compiler_options = {
 	.no_bounds_checks		= false,
 	.debug_dynamic_compilation	= false,
+	.debug_assembly			= false,
 	.array_storage_type		= TYPE_OBJ,
 	.method_call_param_type		= TYPE_OBJ,
 	.method_call_return_type	= TYPE_OBJ,
-	.heap_size			= 0x10000
+	.heap_size			= 0x100000
 };
 
 runtime_image_t *last = NULL;
@@ -108,6 +111,23 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 void
 start_dynamic() {};
 
+static void
+error(const char *fmt, ...)
+{
+	va_list args;
+	fprintf(stderr, "Error: ");
+	va_start(args, fmt);
+	vfprintf(stderr, fmt, args);
+	va_end(args);
+	fprintf(stderr, "\n");
+}
+
+static bool
+text_instruction_location(unsigned char *_)
+{
+	return true;
+}
+
 //e loader
 void
 runtime_execute(runtime_image_t *img)
@@ -115,14 +135,23 @@ runtime_execute(runtime_image_t *img)
 	memset(img->static_memory, 0, sizeof(void*) * img->storage.vars_nr);
 	void (*f)(void) = (void (*)(void)) img->main_entry_point;
 	//	fprintf(stderr, "calling(%p)\n", f);
-	start_dynamic();
 	//e remember where we called from to help automatic memory management
 	heap_root_frame_pointer = __builtin_frame_address(0);
-#ifdef DEBUG
-	debug(NULL, f);
-#else
-	(*f)();
-#endif
+	if (compiler_options.debug_assembly) {
+		debugger_config_t conf = {
+			.debug_region_start = (unsigned char *) ASSEMBLER_BIN_PAGES_START,
+			.debug_region_end = ((unsigned char *) ASSEMBLER_BIN_PAGES_START) + 0x1000000000 /*e wild guess */,
+			.static_section = img->static_memory,
+			.static_section_size = sizeof(void*) * img->storage.vars_nr,
+			.name_lookup = NULL,
+			.error = error,
+			.is_instruction = text_instruction_location
+		};
+		debug(&conf, f);
+	} else {
+		start_dynamic();
+		(*f)();
+	}
 	heap_root_frame_pointer = NULL;
 }
 

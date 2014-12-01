@@ -191,6 +191,6 @@ init_builtins(buffer_t *dest_buffer);
  * @param f The function to execute interactively.
  */
 void
-debug(buffer_t *buf, void (*f)());
+asm_debug(buffer_t *buf, void (*f)());
 
 #endif // !defined(_ATTOL_2OPM_ASM_H)

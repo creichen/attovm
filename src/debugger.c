@@ -31,7 +31,7 @@
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
-
+#include <stdbool.h>
 #include <signal.h>
 
 #ifdef __MACH__
@@ -41,7 +41,14 @@
 #  include <mach/mach.h>
 #  include <mach/machine/thread_state.h>
 #  include <mach/machine/thread_status.h>
-#endif
+void
+debug(unsigned char *asm_start, unsigned char *asm_end,
+	      void (*entry_point)())
+{
+	fprintf(stderr, "<Debugging not supported on OS X>\n");
+	entry_point();
+}
+#else
 
 #include <sys/types.h>
 #include <sys/user.h>
@@ -49,12 +56,13 @@
 #include <sys/ptrace.h>
 #include <unistd.h>
 
-#include "../address-store.h"
-#include "../registers.h"
-#include "../assembler.h"
+#include "address-store.h"
+#include "registers.h"
+#include "assembler.h"
+#include "error.h"
+#include "debugger.h"
 
-#include "asm.h"
-
+typedef unsigned char byte;
 
 #ifdef __MACH__
 #  define PTRACE_ATTACH		PT_ATTACH
@@ -68,7 +76,7 @@ static struct machine_state {
 	bool running;
 	bool failure;
 	int pid;
-	byte *debug_region_end, *debug_region_start;
+	debugger_config_t *config;
 	signed long long registers[REGISTERS_NR];
 	byte *pc;
 	byte *initial_stack;
@@ -139,8 +147,8 @@ getdata(pid_t child, unsigned long long addr, byte *str, int len)
         }
 
         if (read_bytes != len) {
-                error("vm_read_overwrite() read %d instead of %d bytes",
-                      len, read_bytes);
+                status.config->error("vm_read_overwrite() read %d instead of %d bytes",
+				     len, read_bytes);
         }
 }
 
@@ -314,7 +322,11 @@ cmd_break(char *s)
 		message("Must specify breakpoint name or address");
 		return 0;
 	}
-	breakpoint = relocation_get_resolved_text_label(s);
+	if (status.config->name_lookup) {
+		breakpoint = status.config->name_lookup(s);
+	} else {
+		breakpoint = NULL;
+	}
 	if (!breakpoint) {
 		char *end;
 		if (s[0] == '0' && s[1] == 'x') {
@@ -360,8 +372,8 @@ cmd_static(char *s) {
 	int registersets_observed = 0;
 	char registerset_observations[MAX_REGISTER_OBSERVATIONS][256];
 
-	byte *data = data_section;
-	size_t data_section_size = end_of_data() - data;
+	byte *data = status.config->static_section;
+	size_t data_section_size = status.config->static_section_size;
 
 	char pre_buffer[1024], post_buffer[1024];
 	char *pre = NULL, *post = NULL;
@@ -504,7 +516,7 @@ debug_command()
 	while (true) {
 		// update instruction in local memory for disassembly
 		int max_insn_size = MAX_INSN_SIZE;
-		long long int bytes_until_pc_end = status.debug_region_end - status.pc;
+		long long int bytes_until_pc_end = status.config->debug_region_end - status.pc;
 		if (bytes_until_pc_end < max_insn_size) {
 			max_insn_size = bytes_until_pc_end;
 		}
@@ -569,16 +581,9 @@ debug_command()
 }
 
 void
-debug(buffer_t *buffer, void (*entry_point)())
+debug(debugger_config_t *config, void (*entry_point)())
 {
-	if (buffer) {
-		status.debug_region_start = (byte *) buffer_entrypoint(*buffer);
-		status.debug_region_end = (byte *) status.debug_region_start + buffer_size(*buffer);
-	} else {
-		status.debug_region_start = ASSEMBLER_BIN_PAGES_START;
-		status.debug_region_end = ASSEMBLER_BIN_PAGES_START + 0x1000000; // let's assume we won't have more code than that
-	}
-
+	status.config = config;
 	static int wait_for_me = 0; // used to sync up child process
 	
 	int child;
@@ -610,7 +615,7 @@ debug(buffer_t *buffer, void (*entry_point)())
 			// FIXME: no internal consistency check on Mach kernels
 #else
 			if (child_status >> 8 == (SIGTRAP | (PTRACE_EVENT_EXIT<<8))) {
-				error("Unexpected early exit (internal error?)");
+				status.config->error("Unexpected early exit (internal error?)");
 				return;
 			}
 #endif
@@ -643,7 +648,7 @@ debug(buffer_t *buffer, void (*entry_point)())
 
 			if (status.failure) {
 				// Restore to some PC that the programmer understands
-				if (status.pc < status.debug_region_start || status.pc > status.debug_region_end) {
+				if (status.pc < status.config->debug_region_start || status.pc > status.config->debug_region_end) {
 					message("$pc=%p at time of error (outside of your code)", status.pc);
 					message("Setting $pc=%p (last instruction in your code)", last_safe_pc);
 					message("NOTE: registers/memory may have changed since this instruction was executed!", last_safe_pc);
@@ -652,9 +657,9 @@ debug(buffer_t *buffer, void (*entry_point)())
 			}
 
 			if (status.failure
-			    || (status.pc >= status.debug_region_start
-				&& status.pc <= status.debug_region_end
-				&& text_instruction_location(status.pc))) {
+			    || (status.pc >= status.config->debug_region_start
+				&& status.pc <= status.config->debug_region_end
+				&& status.config->is_instruction(status.pc))) {
 				last_safe_pc = status.pc;
 				if (status.failure || !multistep_count) {
 					int command = debug_command();
@@ -680,3 +685,4 @@ debug(buffer_t *buffer, void (*entry_point)())
 		entry_point();
 	}
 }
+#endif

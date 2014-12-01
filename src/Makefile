@@ -7,8 +7,8 @@ FLEX=flex
 # --------------------
 # 2OPM stand-alone assembler
 ASM_OBJS = 2opm/asm-lexer.o 2opm/assembler.o 2opm/asm.o chash.o address-store.o \
-		registers.o assembler.o assembler-buffer.o lexer-support.o \
-		2opm/asm-builtins.o 2opm/asm-debug.o  2opm/asm-errors.o  2opm/asm-labels.o \
+		registers.o assembler.o assembler-buffer.o lexer-support.o debugger.o \
+		2opm/asm-builtins.o 2opm/asm-errors.o  2opm/asm-labels.o \
 		2opm/asm-memory.o  2opm/asm-parse.o
 
 # --------------------
@@ -26,12 +26,12 @@ FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS)
 # --------------------
 # ATL backend
 BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registers.h runtime.h address-store.h \
-		dynamic-compiler.h heap.h
+		dynamic-compiler.h heap.h debugger.o
 BACKEND_GENSRC = assembler.c assembler.h
 BACKEND_SRC = assembler-buffer.c baseline-backend.c object.c class.c registers.c \
-		builtins.c runtime.c address-store.c dynamic-compiler.c heap.c
+		builtins.c runtime.c address-store.c dynamic-compiler.c heap.c debugger.c
 BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o \
-		builtins.o runtime.o address-store.o dynamic-compiler.o heap.o
+		builtins.o runtime.o address-store.o dynamic-compiler.o heap.o debugger.o
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 # --------------------

@@ -34,6 +34,7 @@
 struct compiler_options {
 	bool no_bounds_checks; /*d Keine Arrayschrankenpruefung */ /*e no array-out-of-bounds checks */
 	bool debug_dynamic_compilation; /*d Drucke Ausgaben aus, waehrend dynamische Uebersetzung aktiv ist */
+	bool debug_assembly;
 
 	int array_storage_type;
 	int method_call_param_type;

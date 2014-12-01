@@ -168,7 +168,10 @@ runtime_free(runtime_image_t *img)
 	}
 	if (img->callables) {
 		for (int i = 0; i < img->callables_nr; i++) {
-			buffer_free(buffer_from_entrypoint(img->callables[i]->children[0]->sym->r_mem));
+			symtab_entry_t *sym = img->callables[i]->children[0]->sym;
+			if (sym->r_mem != sym->r_trampoline) {
+				buffer_free(buffer_from_entrypoint(sym->r_mem));
+			}
 		}
 		free(img->callables);
 	}

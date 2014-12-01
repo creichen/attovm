@@ -28,19 +28,21 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "symbol-table.h"
-#include "runtime.h"
 #include "analysis.h"
 #include "baseline-backend.h"
 #include "compiler-options.h"
 #include "dynamic-compiler.h"
+#include "heap.h"
+#include "runtime.h"
+#include "symbol-table.h"
 
 struct compiler_options compiler_options = {
 	.no_bounds_checks		= false,
 	.debug_dynamic_compilation	= false,
 	.array_storage_type		= TYPE_OBJ,
 	.method_call_param_type		= TYPE_OBJ,
-	.method_call_return_type	= TYPE_OBJ
+	.method_call_return_type	= TYPE_OBJ,
+	.heap_size			= 0x10000
 };
 
 runtime_image_t *last = NULL;
@@ -93,6 +95,7 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	image->trampoline = dyncomp_build_trampoline(buffer_entrypoint(image->dyncomp),
 						     image->callables, image->storage.functions_nr + image->classes_nr);
 
+	heap_init(compiler_options.heap_size);
 	image->code_buffer = baseline_compile_entrypoint(ast, &image->storage, image->static_memory);
 	image->main_entry_point = buffer_entrypoint(image->code_buffer);
 
@@ -105,6 +108,7 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 void
 start_dynamic() {};
 
+//e loader
 void
 runtime_execute(runtime_image_t *img)
 {
@@ -112,16 +116,20 @@ runtime_execute(runtime_image_t *img)
 	void (*f)(void) = (void (*)(void)) img->main_entry_point;
 	//	fprintf(stderr, "calling(%p)\n", f);
 	start_dynamic();
+	//e remember where we called from to help automatic memory management
+	heap_root_frame_pointer = __builtin_frame_address(0);
 #ifdef DEBUG
 	debug(NULL, f);
 #else
 	(*f)();
 #endif
+	heap_root_frame_pointer = NULL;
 }
 
 void
 runtime_free(runtime_image_t *img)
 {
+	heap_free();
 	if (img->storage.vars_nr) {
 		free(img->static_memory);
 		img->static_memory = NULL;

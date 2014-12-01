@@ -73,6 +73,16 @@ void *
 stack_pop(cstack_t *stack);
 
 /*e
+ * Directly accesses an element on the stack
+ *
+ * @param stack The stack to access
+ * @param index Index of the element to read
+ * @return Pointer to the element, or NULL if `index' was invalid
+ */
+void *
+stack_get(cstack_t *stack, size_t index);
+
+/*e
  * Deallocates a stack
  *
  * @param stack The stack to deallocate

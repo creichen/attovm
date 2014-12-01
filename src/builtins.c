@@ -286,7 +286,7 @@ builtin_op_assert(long long int arg)
 static object_t *
 builtin_op_string_size(object_t *arg)
 {
-	return new_int(strlen((char *) &arg->members[0]));
+	return new_int(arg->members[0].int_v);
 }
 
 static object_t *

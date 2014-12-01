@@ -18,20 +18,20 @@ FRONTEND_HEADERS = chash.h symbol-table.h analysis.h lexer-support.h errors.h co
 FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c ast.h parser.h
 FRONTEND_SRC = parser.template.c parser.template.h ast.template.h lexer.template.l unparser.template.c \
 		mk-codegen.py mk-parser.py lexer-support.c ast.c chash.c cstack.c symbol-table.c \
-		name-analysis.c type-analysis.c storage-allocation.c atl.c backend-test.c
+		name-analysis.c type-analysis.c atl.c backend-test.c
 FRONTEND_OBJS = parser.o lexer.o lexer-support.o ast.o unparser.o chash.o cstack.o symbol-table.o \
-		name-analysis.o type-analysis.o storage-allocation.o
+		name-analysis.o type-analysis.o 
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
 # --------------------
 # ATL backend
 BACKEND_HEADERS = assembler-buffer.h baseline-backend.h object.h class.h registers.h runtime.h address-store.h \
-		dynamic-compiler.h
+		dynamic-compiler.h heap.h
 BACKEND_GENSRC = assembler.c assembler.h
 BACKEND_SRC = assembler-buffer.c baseline-backend.c object.c class.c registers.c \
-		builtins.c runtime.c address-store.c dynamic-compiler.c
+		builtins.c runtime.c address-store.c dynamic-compiler.c heap.c
 BACKEND_OBJS = assembler.o assembler-buffer.o baseline-backend.o object.o class.o registers.o \
-		builtins.o runtime.o address-store.o dynamic-compiler.o
+		builtins.o runtime.o address-store.o dynamic-compiler.o heap.o
 BACKEND = $(BACKEND_HEADERS) $(BACKEND_OBJS)
 
 # --------------------

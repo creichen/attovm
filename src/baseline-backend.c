@@ -160,11 +160,13 @@ dump_ast(char *msg, ast_node_t *ast)
 	fprintf(stderr, "\n");
 }
 
-// Kann dieser Knoten ohne temporaere Register berechnet werden?
+//d Kann dieser Knoten ohne temporaere Register berechnet werden?
+//e Can we compute this node without using temporary registers?
 static int
 is_simple(ast_node_t *n)
 {
-	return IS_VALUE_NODE(n) || NODE_TY(n) == AST_NODE_NULL;
+	//e Strings are presently allocated every time we encounter them
+	return (IS_VALUE_NODE(n) && NODE_TY(n) != AST_VALUE_STRING)|| NODE_TY(n) == AST_NODE_NULL;
 }
 
 static void
@@ -286,7 +288,8 @@ baseline_load(buffer_t *buf, int reg, symtab_entry_t *sym, context_t *context)
 static void
 baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int from_ty, int dest_register, context_t *context)
 {
-	// Annahme: zu konvertierendes Objekt ist in a0
+	//d Annahme: zu konvertierendes Objekt ist in a0
+	//e Assumption: object to convert is in $a0
 
 #ifdef VAR_IS_OBJ
 	if (to_ty == TYPE_VAR) {
@@ -683,9 +686,16 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		break;
 
 	case AST_VALUE_STRING: {
-		void *addr = new_string(AV_STRING(ast), strlen(AV_STRING(ast)));
-		emit_la(buf, dest_register, addr);
-		addrstore_put(addr, ADDRSTORE_KIND_STRING_LITERAL, AV_STRING(ast));
+		/* object_t *addr = new_string(AV_STRING(ast), strlen(AV_STRING(ast))); */
+		/* emit_la(buf, dest_register, (void *) addr); */
+		/* addrstore_put(addr, ADDRSTORE_KIND_STRING_LITERAL, AV_STRING(ast)); */
+		char *string = AV_STRING(ast);
+		addrstore_put(string, ADDRSTORE_KIND_STRING_LITERAL, string);
+		emit_la(buf, REGISTER_A0, string);
+		emit_li(buf, REGISTER_A1, strlen(string));
+		emit_la(buf, REGISTER_V0, &new_string);
+		emit_jalr(buf, REGISTER_V0);
+		emit_optmove(buf, dest_register, REGISTER_V0);
 	}
 		break;
 
@@ -765,10 +775,12 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 
 	case AST_NODE_ARRAYVAL: {
 		if (ast->children[1]) {
-			// Laden mit expliziter Groessenangabe
+			//d Laden mit expliziter Groessenangabe
+			//e load with explicit size specification
 			baseline_compile_expr(buf, ast->children[1], REGISTER_A0, context);
 			if (!compiler_options.no_bounds_checks) {
-				// Arraygrenzenpruefung
+				//d Arraygrenzenpruefung
+				//e array out-of-bounds check
 				emit_li(buf, REGISTER_T0, ast->children[0]->children_nr);
 				label_t jl;
 				emit_ble(buf, REGISTER_T0, REGISTER_A0, &jl);
@@ -776,12 +788,13 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 				buffer_setlabel2(&jl, buf);
 			}
 		} else {
-			// Laden mit impliziter Groesse
+			//d Laden mit impliziter Groesse
+			//e load with implicit size
 			emit_li(buf, REGISTER_A0, ast->children[0]->children_nr);
 		}
 		emit_la(buf, REGISTER_V0, &new_array);
 		emit_jalr(buf, REGISTER_V0);
-		// We now have the allocated array in REGISTER_V0
+		//e We now have the allocated array in REGISTER_V0
 		baseline_store_temp(buf, REGISTER_V0, ast, context);
 		for (int i = 0; i < ast->children[0]->children_nr; i++) {
 			ast_node_t *child = ast->children[0]->children[i];
@@ -790,7 +803,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 				baseline_load_temp(buf, REGISTER_V0, ast, context);
 			}
 			emit_sd(buf, REGISTER_T0,
-				(2 * WORD_SIZE) /* header + groesse */ + WORD_SIZE * i,
+				(2 * WORD_SIZE) /*e header + size */ /*d header + groesse */ + WORD_SIZE * i,
 				REGISTER_V0);
 		}
 		emit_optmove(buf, dest_register, REGISTER_V0);

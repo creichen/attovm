@@ -29,14 +29,7 @@
 
 #include "errors.h"
 #include "object.h"
-
-static object_t *
-heap_allocate_object(class_t* type, size_t fields_nr)
-{
-	object_t *obj = calloc(1, sizeof(object_t) + fields_nr * sizeof(object_t *));
-	obj->classref = type;
-	return obj;
-}
+#include "heap.h"
 
 object_t *
 new_object(class_t* type, unsigned long long fields_nr)
@@ -69,8 +62,9 @@ object_t *
 new_string(char *string, size_t len)
 {
 	size_t fields_nr_space = (len + sizeof(void*)) & ~(sizeof (void*) - 1);
-	object_t *obj = heap_allocate_object(&class_string, fields_nr_space >> 3);
-	memcpy(&obj->members[0], string, len + 1);
+	object_t *obj = heap_allocate_object(&class_string, 1 + (fields_nr_space >> 3));
+	obj->members[0].int_v = len;
+	memcpy(OBJECT_STRING(obj), string, len + 1);
 	return obj;
 }
 
@@ -82,7 +76,6 @@ new_array(size_t len)
 	obj->members[0].int_v = len;
 	return obj;
 }
-
 
 long long int
 builtin_op_obj_test_eq(object_t *a0, object_t *a1)
@@ -103,7 +96,7 @@ builtin_op_obj_test_eq(object_t *a0, object_t *a1)
 		return a0->members[0].real_v == a1->members[0].real_v;
 	}
 	if (a0->classref == &class_string) {
-		return !strcmp(&a0->members[0].string, &a1->members[0].string);
+		return !strcmp(OBJECT_STRING(a0), OBJECT_STRING(a1));
 	}
 	// Ansonsten immer ungleich
 	return 0;
@@ -135,7 +128,7 @@ object_print_internal(FILE *f, object_t *obj, int depth, bool debug, char *sep)
 		fprintf(f, "%f%s", obj->members[0].real_v, loc);
 		return;
 	} else if (classref == &class_string) {
-		fprintf(f, "%s%s", (char *)&obj->members[0], loc);
+		fprintf(f, "%s%s", OBJECT_STRING(obj), loc);
 		return;
 	} else if (classref == &class_array) {
 		fprintf(f, "[");

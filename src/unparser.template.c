@@ -150,7 +150,6 @@ dump_recursively(FILE *file, int indent, ast_node_t *node, int flags)
 void
 ast_node_dump(FILE *file, ast_node_t *node, int flags)
 {
-	*((int *)NULL) = 0;
 	dump_recursively(file, 0, node, flags);
 }
 

@@ -32,12 +32,13 @@
 #include "ast.h"
 
 struct compiler_options {
-	bool no_bounds_checks; // Keine Arrayschrankenpruefung
-	bool debug_dynamic_compilation; // Drucke Ausgaben aus, waehrend dynamische Uebersetzung aktiv ist
+	bool no_bounds_checks; /*d Keine Arrayschrankenpruefung */ /*e no array-out-of-bounds checks */
+	bool debug_dynamic_compilation; /*d Drucke Ausgaben aus, waehrend dynamische Uebersetzung aktiv ist */
 
 	int array_storage_type;
 	int method_call_param_type;
 	int method_call_return_type;
+	size_t heap_size; /*e available heap memory size */
 };
 
 extern struct compiler_options compiler_options;

@@ -70,6 +70,15 @@ stack_pop(cstack_t *stack)
 	}
 }
 
+void *
+stack_get(cstack_t *stack, size_t index)
+{
+	if (index >= stack->tos) {
+		return NULL;
+	}
+	return stack->data + (index * stack->element_size);
+}
+
 void
 stack_push(cstack_t *stack, void *element)
 {

@@ -341,9 +341,7 @@ main(int argc, char **argv)
 	TEST("int f(int a, int b) { return a + (2*b); } print(f(1, 2));", "5\n");
 	TEST("int f(int a, int b) { print(a); return a + (2*b); } print(f(1, 2));", "1\n5\n");
 
-#endif
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 6, 7, 8);", "1\n2\n3\n4\n5\n6\n7\n8\n");
-#ifndef AUX
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7) { print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7);  } f(1, 2, 3, 4, 5, 3+3, 3+4, 4+4);", "1\n2\n3\n4\n5\n6\n7\n8\n");
 	TEST("int fact(int a) { if (a == 0) return 1; return a * fact(a - 1); } print(fact(5));", "120\n");
 	TEST("int x = 0; int f(int a) { x := x + a; } print(x); f(3); print(x); f(2); print(x); ", "0\n3\n5\n");
@@ -444,6 +442,9 @@ main(int argc, char **argv)
 	TEST("class C(int height, int width) { int area = height * width; } obj c = C(2, 3); print(c.area);", "6\n");
 	TEST("class C(obj height, int width) { obj area = [/ height * width]; } obj c = C(2, 3); print(c.area.size());", "6\n");
 	TEST("class C(obj height, int width) { obj area = [/ ((height*width)+(1+1))*((3+2)-(2+1))]; } obj c = C(2, 3); print(c.area.size());", "16\n");
+#endif
+	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } obj clear(int x, int y) { a[i(x, y)] := 0; } } obj c = C(); c.clear(1, 1); print(c.a);", "[1,2,0,4,5]\n");
+#ifndef AUX
 #endif
 	if (!failures) {
 		printf("All %d tests succeeded\n", runs);

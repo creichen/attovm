@@ -127,10 +127,14 @@ fix_with_parameters(ast_node_t *cnode, hashtable_t *env, int child_flags_params,
 	}
 
 	fixnames(cnode->children[2], env, syminfo, child_flags_body, &syminfo->storage, classes_nr);
-#if 0	
-	ast_node_dump(stderr, cnode, 6);
+#if 0
+	fprintf(stderr, " ========================================A DEFINITION \n");
+	AST_DUMP(cnode);
 	fprintf(stderr, "params = %d, vars = %d, temps = %d, fields = %d, functions = %d\n", syminfo->parameters_nr, syminfo->storage.vars_nr, syminfo->storage.temps_nr, syminfo->storage.fields_nr, syminfo->storage.functions_nr);
 #endif
+	/* if (cnode->children[2]->storage >= 0) { */
+	/* 	assert(cnode->children[2]->storage < syminfo->storage.temps_nr); */
+	/* } */
 
 	hashtable_free(env, NULL, NULL);
 }
@@ -306,18 +310,20 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		/*e we compute the rhs first, so we mark it as possibly requiring storage */
 		int base_temps = counters->temps_nr;
 		fixnames(node->children[1], env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr);
-		int max_temps = counters->temps_nr;
-		counters->temps_nr = base_temps;
-		fixnames(node->children[0], env, parent, child_flags, counters, classes_nr);
-		if (max_temps > counters->temps_nr) {
+		int max_temps = counters->temps_nr + 1;
+		counters->temps_nr = base_temps + 1;
+		fixnames(node->children[0], env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr);
+		if (max_temps > ++counters->temps_nr) {
 			counters->temps_nr = max_temps;
 		}
+		/* fixnames_recursive(node, env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr); */
+		/* fixnames(node->children[1], env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr); */
+		/* fixnames(node->children[0], env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr); */
 	}
 		return;
 
 	case AST_NODE_ARRAYSUB:
-		fixnames(node->children[1], env, parent, child_flags, counters, classes_nr);
-		fixnames(node->children[0], env, parent, child_flags, counters, classes_nr);
+		fixnames_recursive(node, env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr);
 		return;
 
 	case AST_NODE_ARRAYVAL:

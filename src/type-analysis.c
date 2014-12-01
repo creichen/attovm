@@ -232,12 +232,14 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 				for (int i = 0; i < actuals->children_nr; i++) {
 					actuals->children[i] = require_type(actuals->children[i], compiler_options.method_call_param_type);
 				}
+				int old_storage = node->storage;
 
 				ast_node_free(node, 0);
 				node = CONS(METHODAPP,
 					    BUILTIN(SELF),
 					    selector_node,
 					    actuals);
+				node->storage = old_storage;
 				set_type(node, compiler_options.method_call_return_type);
 				return node;
 			}

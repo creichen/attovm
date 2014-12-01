@@ -130,12 +130,14 @@ dyncomp_compile_function(int symtab_entry, void **update_address_on_call_stack)
 	}
 
 	if (compiler_options.debug_dynamic_compilation) {
+		fflush(NULL);
 		fprintf(stderr, "dyn-compiling `");
 		symtab_entry_name_dump(stderr, sym);
 		fprintf(stderr, "'\n");
 		symtab_entry_dump(stderr, sym);
 		fprintf(stderr, "Trampoline address at %p\n", sym->r_trampoline);
-		ast_node_dump(stderr, sym->astref, 6 | 8);
+		AST_DUMP(sym->astref);
+		fflush(NULL);
 	}
 
 	buffer_t body_buf;

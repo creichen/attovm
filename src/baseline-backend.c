@@ -191,6 +191,11 @@ emit_fail_at_node(buffer_t *buf, ast_node_t *node, char *msg)
 static int
 baseline_temp_get_fp_offset(ast_node_t *node, context_t *context)
 {
+	if (node->storage < 0) {
+		fprintf(stderr, "FATAL CODEGEN ERROR: Trying to request temp for code fragment without temp storage\n");
+		AST_DUMP(node);
+		assert(node->storage >= 0);
+	}
 	int off = node->storage * WORD_SIZE;
 	off += context->stack_offset_temps;
 	if ((off >= context->stack_offset_locals)
@@ -621,7 +626,8 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 
 	STACK_ALLOCATE(stack_args_nr);
 
-	// Nichttriviale Werte und Werte, die ohnehin auf den Stapel muessen, rekursiv ausrechnen
+	//e recursively compute nontrivial values and values that go on the stack
+	//d Nichttriviale Werte und Werte, die ohnehin auf den Stapel muessen, rekursiv ausrechnen
 	for (int i = 0; i < children_nr; i++) {
 		int arg_nr = i + first_arg;
 		int reg = REGISTER_V0;
@@ -1124,7 +1130,7 @@ setup_mcontext(context_t *context, storage_record_t *storage, int parameters_nr,
 	/* 	context->self_stack_location, */
 	/* 	words); */
 
-	return words;
+	return words + 2;
 }
 
 buffer_t

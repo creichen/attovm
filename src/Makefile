@@ -40,7 +40,7 @@ FINAL_SRC = atl.c containers-test.c backend-test.c assembler-buffer-test.c
 FINAL_OBJS = atl.o atl containers-test.o containers-test backend-test.o backend-test assembler-buffer-test
 
 
-.PHONY: clean tidy all echo-distfiles
+.PHONY: clean tidy all echo-distfiles test-backend-valgrind test-backend test test-containers
 
 # ========================================
 
@@ -77,7 +77,7 @@ test-backend: backend-test
 	./backend-test
 
 test-backend-valgrind: backend-test
-	valgrind --smc-test=all ./backend-test
+	valgrind --smc-check=all ./backend-test
 
 test-assembler-buffer: assembler-buffer-test
 	./assembler-buffer-test

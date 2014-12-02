@@ -1173,7 +1173,6 @@ baseline_compile_entrypoint(ast_node_t *root,
 
 	buffer_t mbuf = buffer_new(1024);
 	buffer_t *buf = &mbuf;
-	fprintf(stderr, "ENTRYPOINT BUF created at %p\n", buffer_target(buf));
 	
 	emit_push(buf, REGISTER_FP);
 	emit_move(buf, REGISTER_FP, REGISTER_SP);

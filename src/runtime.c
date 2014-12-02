@@ -137,15 +137,13 @@ text_instruction_location(unsigned char *_)
 
 runtime_image_t *current_image = NULL;
 
-static int global_counter;
-
 //e loader
 void
 runtime_execute(runtime_image_t *img)
 {
 	memset(img->static_memory, 0, sizeof(void*) * img->globals_nr);
 	void (*f)(void) = (void (*)(void)) img->main_entry_point;
-	fprintf(stderr, "calling(%p)\n", f);
+	//fprintf(stderr, "calling(%p)\n", f);
 	//e remember where we called from to help automatic memory management
 	current_image = img;
 	heap_root_frame_pointer = __builtin_frame_address(0);

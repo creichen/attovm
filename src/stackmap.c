@@ -28,41 +28,47 @@
 #include "chash.h"
 #include "stackmap.h"
 
-static hashtable_t *registry = NULL;
+static hashtable_t *bitvector_registry = NULL;
+static hashtable_t *symtab_registry = NULL;
 
 void
 stackmap_init(void)
 {
-	if (registry) {
+	if (bitvector_registry) {
 		stackmap_clear();
 	}
-	registry = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 10);
+	bitvector_registry = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 10);
+	symtab_registry = hashtable_alloc(hashtable_pointer_hash, hashtable_pointer_compare, 10);
 }
 
 void
 stackmap_clear(void)
 {
-	if (registry) {
-		hashtable_free(registry, NULL, (void (*)(void *)) bitvector_free);
-		registry = NULL;
+	if (bitvector_registry) {
+		hashtable_free(bitvector_registry, NULL, (void (*)(void *)) bitvector_free);
+		hashtable_free(symtab_registry, NULL, NULL);
+		bitvector_registry = NULL;
+		symtab_registry = NULL;
 	}
 }
 
 void
-stackmap_put(void *address, bitvector_t bitvector)
+stackmap_put(void *address, bitvector_t bitvector, symtab_entry_t *entry)
 {
 	void *value = (void *) bitvector.large;
-	hashtable_put(registry, address, value, (void (*)(void *)) bitvector_free);
+	hashtable_put(bitvector_registry, address, value, (void (*)(void *)) bitvector_free);
+	hashtable_put(symtab_registry, address, (void *) entry, NULL);
 }
 
 bool
-stackmap_get(void *address, bitvector_t *bitvector)
+stackmap_get(void *address, bitvector_t *bitvector, symtab_entry_t **entry)
 {
-	void **ref = hashtable_access(registry, address, NULL);
+	void **ref = hashtable_access(bitvector_registry, address, NULL);
 	if (!ref) {
 		return false;
 	}
 	*bitvector = (bitvector_t) (unsigned long long *) (*ref);
+	*entry = hashtable_get(symtab_registry, address);
 	return true;
 }
 

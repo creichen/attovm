@@ -37,6 +37,7 @@
 #include "assembler.h"
 #include "ast.h"
 #include "baseline-backend.h"
+#include "bitvector.h"
 #include "class.h"
 #include "compiler-options.h"
 #include "dynamic-compiler.h"
@@ -59,6 +60,8 @@ typedef struct relative_jump_label_list {
 //d Uebersetzungskontext
 //e translation context
 typedef struct {
+	int stackmap_offset;	/*e position relative to $fp that the stackmap points to */
+	bitvector_t stackmap;
 	int self_stack_location; /*e memory offset of the `SELF' reference, relative to $fp */ /*d Speicherstelle der `SELF'-Referenz relativ zu $fp */
 
 	//e the following values are normally NEGATIVE:
@@ -1103,7 +1106,8 @@ init_address_store()
 }
 
 int
-setup_mcontext(context_t *context, storage_record_t *storage, int parameters_nr, bool has_self, int additional_words)
+setup_mcontext(context_t *context, symtab_entry_t *sym,
+	       storage_record_t *storage, int parameters_nr, bool has_self, int additional_words)
 {
 	int words = 0;
 	if (has_self) {
@@ -1111,6 +1115,7 @@ setup_mcontext(context_t *context, storage_record_t *storage, int parameters_nr,
 		context->self_stack_location = -WORD_SIZE;
 	}
 
+	const int excess_parameters = (parameters_nr > REGISTERS_ARGUMENT_NR) ? parameters_nr - REGISTERS_ARGUMENT_NR : 0;
 	words += (parameters_nr > REGISTERS_ARGUMENT_NR) ? REGISTERS_ARGUMENT_NR : parameters_nr;
 	context->stack_offset_args = -WORD_SIZE * (words);
 	words += storage->vars_nr;
@@ -1124,6 +1129,14 @@ setup_mcontext(context_t *context, storage_record_t *storage, int parameters_nr,
 	}
 	context->stack_offset_base = -WORD_SIZE * (1 + words);
 
+	int stackmap_extra_bits = 2 /* $fp, jreturn addr. */ + excess_parameters;
+	context->stackmap_offset = -1 - excess_parameters;
+	if (sym) {
+		sym->stackframe_start = context->stackmap_offset;
+	}
+
+	context->stackmap = bitvector_alloc(words + stackmap_extra_bits);
+
 	/* fprintf(stderr, "[mcontext: params=%d, vars=%d, temps=%d, extra=%d, cons=%d]\n", parameters_nr, storage->vars_nr, storage->temps_nr, additional_words, has_self); */
 	/* fprintf(stderr, "           params@%d, vars@%d, temps@%d,     self@%d  (total words = %d)\n", */
 	/* 	context->stack_offset_args, */
@@ -1132,7 +1145,13 @@ setup_mcontext(context_t *context, storage_record_t *storage, int parameters_nr,
 	/* 	context->self_stack_location, */
 	/* 	words); */
 
-	return words + 2;
+	return words;
+}
+
+void
+free_mcontext(context_t *context)
+{
+	bitvector_free(context->stackmap);
 }
 
 buffer_t
@@ -1149,11 +1168,12 @@ baseline_compile_entrypoint(ast_node_t *root,
 	mcontext.continue_labels = NULL;
 	mcontext.break_labels = NULL;
 	context_t *context = &mcontext;
-	int stack_entries_nr = setup_mcontext(&mcontext, storage, 0, false, 1);
+	int stack_entries_nr = setup_mcontext(&mcontext, NULL, storage, 0, false, 1);
 	int gp_offset = -WORD_SIZE * stack_entries_nr;
 
 	buffer_t mbuf = buffer_new(1024);
 	buffer_t *buf = &mbuf;
+	fprintf(stderr, "ENTRYPOINT BUF created at %p\n", buffer_target(buf));
 	
 	emit_push(buf, REGISTER_FP);
 	emit_move(buf, REGISTER_FP, REGISTER_SP);
@@ -1170,6 +1190,7 @@ baseline_compile_entrypoint(ast_node_t *root,
 	emit_pop(buf, REGISTER_FP);
 	emit_jreturn(buf);
 	buffer_terminate(mbuf);
+	free_mcontext(&mcontext);
 	return mbuf;
 }
 
@@ -1220,7 +1241,7 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 	if (is_constructor) {
 		parameters_nr = sym->parent->parameters_nr;
 	}
-	int stack_entries_nr = setup_mcontext(&mcontext, &sym->storage, parameters_nr, is_constructor, 0);
+	int stack_entries_nr = setup_mcontext(&mcontext, sym, &sym->storage, parameters_nr, is_constructor, 0);
 	context_t *context = &mcontext;
 
 	buffer_t mbuf = buffer_new(1024);
@@ -1253,6 +1274,7 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 	emit_pop(buf, REGISTER_FP);
 	emit_jreturn(buf);
 	buffer_terminate(mbuf);
+	free_mcontext(&mcontext);
 	return mbuf;
 }
 
@@ -1264,7 +1286,7 @@ baseline_compile_method(symtab_entry_t *sym)
 	context_t mcontext;
 	mcontext.continue_labels = NULL;
 	mcontext.break_labels = NULL;
-	int stack_entries_nr = setup_mcontext(&mcontext, &sym->storage, sym->parameters_nr, true, 0);
+	int stack_entries_nr = setup_mcontext(&mcontext, sym, &sym->storage, sym->parameters_nr + 1, true, 0);
 	context_t *context = &mcontext;
 
 	buffer_t mbuf = buffer_new(1024);
@@ -1300,5 +1322,6 @@ baseline_compile_method(symtab_entry_t *sym)
 	emit_pop(buf, REGISTER_FP);
 	emit_jreturn(buf);
 	buffer_terminate(mbuf);
+	free_mcontext(&mcontext);
 	return mbuf;
 }

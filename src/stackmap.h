@@ -29,7 +29,9 @@
 #define _ATTOL_STACKMAP_H
 
 #include <stdbool.h>
+
 #include "bitvector.h"
+#include "symbol-table.h"
 
 /*e
  * Initialises the stack map registry
@@ -44,20 +46,29 @@ void
 stackmap_clear(void);
 
 /*e
- * Adds a binding of a memory address (stack return address) to a stack map to the registry
+ * Adds a binding of a memory address (stack return address) to a stack map to the registry.
+ * See stackmap_get() for the expected format.
  */
 void
-stackmap_put(void *address, bitvector_t bitvector);
+stackmap_put(void *address, bitvector_t bitvector, symtab_entry_t *symtab_entry);
 
 /*e
  * Requests a stack map from the registry
  *
+ * Bitvector entry 0 describes the stack entry at a position relative to $fp, indicated
+ * by symtab_entry->stackframe_start.
+ *
+ * May load NULL to (*symtab_entry) and still return `true'.  This happens for
+ * code without a symbol table entry.  In that case, `bitvector' entry 0
+ * describes the entry immediately above the frame pointer (the return address).
+ *
  * @param address The address to look for
  * @param bitvector Pointer to a bitvector variable to write to
+ * @param symtab_entry_t * Pointer to a symbol table entry pointer to write to
  * @return true iff the address was recognised
  */
 bool
-stackmap_get(void *address, bitvector_t *bitvector);
+stackmap_get(void *address, bitvector_t *bitvector, symtab_entry_t **symtab_entry);
 
 
 #endif // !defined(_ATTOL_STACKMAP_H)

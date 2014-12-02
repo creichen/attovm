@@ -521,7 +521,7 @@ debug_command()
 			max_insn_size = bytes_until_pc_end;
 		}
 		// update local (in-process) copy of instruction memory from child
-		getdata(status.pid, (unsigned long long) status.pc, status.pc, max_insn_size);
+/* getdata(status.pid, (unsigned long long) status.pc, status.pc, max_insn_size); */
 
 		start_disasm();
 		if (addrstore_get_prefix(status.pc)) {
@@ -606,6 +606,7 @@ debug(debugger_config_t *config, void (*entry_point)())
 		wait_for_me = 1;
 		putdata(child, (unsigned long long) &wait_for_me, (byte *) &wait_for_me, sizeof(wait_for_me));
 		do {
+break;
 			get_registers_for_process(child, &status);
 			if ((void *) status.pc != entry_point) {
 				break;

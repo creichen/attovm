@@ -26,7 +26,7 @@
 ***************************************************************************/
 
 
-//#define DEBUG
+#define DEBUG
 //#define AUX
 
 #include <stdio.h>
@@ -319,9 +319,11 @@ main(int argc, char **argv)
 	TEST("obj a = [/1]; a[0] := 2; print(a[0]); ", "2\n");
 	TEST("{ obj a = [1,7]; print(a[1]); a[1] := 2; print(a[1]); print(a[0]); }", "7\n2\n1\n");
 	TEST("{ obj a = [1,\"foo\", /5]; print(a[1]); a[4] := 2; print(a[0]); print(a[4]); }", "foo\n1\n2\n");
+#endif
 
 	// next: NULL literal
 	TEST("if (NULL == NULL) { print(\"null\"); }", "null\n");
+#ifndef AUX
 	TEST("if (NULL == \"\") { print(\"null\"); }", "");
 	TEST("if (NULL == 1) { print(\"null\"); }", "");
 	// `is'
@@ -444,9 +446,7 @@ main(int argc, char **argv)
 	TEST("class C(obj height, int width) { obj area = [/ ((height*width)+(1+1))*((3+2)-(2+1))]; } obj c = C(2, 3); print(c.area.size());", "16\n");
 	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } obj clear(int x, int y) { a[i(x, y)] := 0; } } obj c = C(); c.clear(1, 1); print(c.a);", "[1,2,0,4,5]\n");
 	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } int get(int x, int y) { return a[i(x, y)]; } } obj c = C(); print(c.get(1, 1)); ", "3\n");
-#endif
 	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } int get(int x, int y) { return a[i(x, y)]; } int z() { obj v = 2; v := get(1, 1) + v; return v;} } obj c = C(); print(c.z()); ", "5\n");
-#ifndef AUX
 #endif
 	if (!failures) {
 		printf("All %d tests succeeded\n", runs);

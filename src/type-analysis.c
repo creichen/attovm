@@ -47,6 +47,7 @@ static int error_count = 0;
 typedef struct {
 	ast_node_t **callables;
 	ast_node_t **classes;
+	int *globals;
 	int functions_nr; int classes_nr;
 } context_t;
 
@@ -514,7 +515,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 			if (!(SYMTAB_TY(classref) == SYMTAB_TY_CLASS)) {
 				error(node, "`isinstance' on non-class (%s)", classref->name);
 			}
-		} // ansonsten hat die Namensanalyse bereits einen Fehler gemeldet
+		} /*d ansonsten hat die Namensanalyse bereits einen Fehler gemeldet */
 
 		node->children[0] = require_type(node->children[0],
 						 TYPE_OBJ);
@@ -523,6 +524,10 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		break;
 
 	case AST_NODE_VARDECL:
+		if (!classref && !function) {
+			//e global variable
+			context->globals[node->sym->offset] = node->sym->id;
+		}
 	case AST_NODE_ASSIGN:
 		node->children[1] = require_type(node->children[1], NODE_FLAGS(node->children[0]) & TYPE_FLAGS);
 		node->children[0] = require_lvalue(node->children[0],
@@ -568,13 +573,14 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 }
 
 int
-type_analysis(ast_node_t **node, ast_node_t **callables, ast_node_t **classes)
+type_analysis(ast_node_t **node, ast_node_t **callables, ast_node_t **classes, int *globals)
 {
 	context_t context;
 	context.callables = callables;
 	context.classes = classes;
 	context.functions_nr = 0;
 	context.classes_nr = 0;
+	context.globals = globals;
 
 	error_count = 0;
 	*node = analyse(*node, NULL, NULL, &context);

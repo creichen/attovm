@@ -94,6 +94,7 @@ typedef struct symtab_entry {
 						 * PARAM: parameter number
 						 * VAR: variable number, either on stack or in static memory
 						 */
+	signed short stackframe_start;		/*e stack frame start, relative to $fp (filled in by code generator) */
 	storage_record_t storage;
 } symtab_entry_t;
 

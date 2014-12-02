@@ -35,26 +35,32 @@
 #include "symbol-table.h"
 
 typedef struct {
-	// Laufzeitinformationen
+	//d Laufzeitinformationen
+	//e run-time information
 
 	buffer_t code_buffer;
-	void *main_entry_point;	// Einsprungpunkt in das Text-Segment
-	void **static_memory;	// Statischer Speicher
+	void *main_entry_point;	/*d Einsprungpunkt in das Text-Segment *//*e entry point into the text segment */
 
-	storage_record_t storage;	//e number of functions, variables, and temps (informs size of static_memory)
-	
+	int globals_nr;		/*e Number of global variables */
+	int *globals;		/*e table of symbol IDs of global variables */
+	void **static_memory;	/*d Statischer Speicher */ /*e static memory (containing global variables */
+
 	int callables_nr;
-	ast_node_t **callables;	// Funktionen und Konstruktoren
+	ast_node_t **callables;	/*d Funktionen und Konstruktoren *//*e functions and constructors */
 	int classes_nr;
 	ast_node_t **classes;
 
-	buffer_t dyncomp;	// Generischer Einsprungpunkt fuer den dynamischen Uebersetzer
-	buffer_t trampoline;	// Trampolin-Puffer: Hierher springen wir fuer eine nicht uebersetzte Funktion
-	                        // In diesem Puffer findet sich nur ein kurzer Befehl, der die Funktionsnummer laed (nach $v0) und `dyncomp' aufruft.
+	storage_record_t storage;	/*e number of functions, variables, and temps (informs size of static_memory) */
 
-	ast_node_t *ast;	// Fertig analysierter abstrakter Syntaxbaum
+	buffer_t dyncomp;	/*d Generischer Einsprungpunkt fuer den dynamischen Uebersetzer *//*e generic entrypoint for the dynamic compiler */
+	buffer_t trampoline;	/*d Trampolin-Puffer: Hierher springen wir fuer eine nicht uebersetzte Funktion
+	                         * In diesem Puffer findet sich nur ein kurzer Befehl, der die Funktionsnummer laed (nach $v0) und `dyncomp' aufruft. */
+
+	ast_node_t *ast;	/*d Fertig analysierter abstrakter Syntaxbaum */
 } runtime_image_t;
 
+//e current run-time image; active during program execution.  Current clients: GC
+extern runtime_image_t *current_image;
 
 #define RUNTIME_ACTION_NONE			0 // only allocate the image and put in the AST
 #define RUNTIME_ACTION_NAME_ANALYSIS		1

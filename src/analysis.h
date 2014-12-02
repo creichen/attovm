@@ -59,9 +59,10 @@ name_analysis(ast_node_t *, storage_record_t *storage, int *classes_nr);
  *
  * @param callables Tabelle, in die alle Funktionen und Konstruktoren eingetragen werden
  * @param classes Tabelle, in die alle Klassen eingetragen werden
+ * @param globals Tabelle, die die Symboltabelleneinträge der globalen Variablen beinhaltet (je nach Position im globalen Variablenblock)
  * @return Anzahl der beobachteten Fehler
  */
 int
-type_analysis(ast_node_t **, ast_node_t **callables, ast_node_t **classes);
+type_analysis(ast_node_t **, ast_node_t **callables, ast_node_t **classes, int *globals);
 
 #endif 

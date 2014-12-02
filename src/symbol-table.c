@@ -258,6 +258,7 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	if (is_function) {
 		fprintf(file, "\tVarsNr:\t%d\n", entry->storage.vars_nr);
 		fprintf(file, "\tTmpsNr:\t%d\n", entry->storage.temps_nr);
+		fprintf(file, "\tStckFr:\t%d\n", entry->stackframe_start);
 	}
 
 	if (entry->selector) {

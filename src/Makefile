@@ -76,6 +76,9 @@ assembler-buffer-test: $(FRONTEND_GENSRC) $(BACKEND_GENSRC) $(BACKEND) $(FRONTEN
 test-backend: backend-test
 	./backend-test
 
+test-backend-valgrind: backend-test
+	valgrind --smc-test=all ./backend-test
+
 test-assembler-buffer: assembler-buffer-test
 	./assembler-buffer-test
 

@@ -65,6 +65,7 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	}
 
 	image->callables_nr = image->storage.functions_nr + image->classes_nr;
+	image->globals_nr = image->storage.vars_nr;
 
 	if (action == RUNTIME_ACTION_NAME_ANALYSIS) {
 		return image;
@@ -78,7 +79,13 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		image->classes = malloc(sizeof(ast_node_t *) * image->classes_nr);
 	}
 
-	if (type_analysis(&image->ast, image->callables, image->classes)) {
+	if (image->globals_nr) {
+		image->globals = calloc(sizeof(int), image->globals_nr);
+	} else {
+		image->globals = NULL;
+	}
+
+	if (type_analysis(&image->ast, image->callables, image->classes, image->globals)) {
 		free(image);
 		return NULL;
 	}
@@ -88,8 +95,8 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	}
 
 	image->ast = ast;
-	if (image->storage.vars_nr) {
-		image->static_memory = malloc(sizeof(void*) * image->storage.vars_nr);
+	if (image->globals_nr) {
+		image->static_memory = malloc(sizeof(void*) * image->globals_nr);
 	} else {
 		image->static_memory = NULL;
 	}
@@ -128,21 +135,29 @@ text_instruction_location(unsigned char *_)
 	return true;
 }
 
+runtime_image_t *current_image = NULL;
+
+static int global_counter;
+
 //e loader
 void
 runtime_execute(runtime_image_t *img)
 {
-	memset(img->static_memory, 0, sizeof(void*) * img->storage.vars_nr);
+	memset(img->static_memory, 0, sizeof(void*) * img->globals_nr);
 	void (*f)(void) = (void (*)(void)) img->main_entry_point;
-	//	fprintf(stderr, "calling(%p)\n", f);
+	fprintf(stderr, "calling(%p)\n", f);
 	//e remember where we called from to help automatic memory management
+	current_image = img;
 	heap_root_frame_pointer = __builtin_frame_address(0);
+
 	if (compiler_options.debug_assembly) {
 		debugger_config_t conf = {
-			.debug_region_start = (unsigned char *) ASSEMBLER_BIN_PAGES_START,
-			.debug_region_end = ((unsigned char *) ASSEMBLER_BIN_PAGES_START) + 0x1000000000 /*e wild guess */,
+			.debug_region_start = (unsigned char *) 100,
+			.debug_region_end = ((unsigned char *) ASSEMBLER_BIN_PAGES_START) + 0x10000000000000 /*e wild guess */,
+			/* .debug_region_start = (unsigned char *) ASSEMBLER_BIN_PAGES_START, */
+			/* .debug_region_end = ((unsigned char *) ASSEMBLER_BIN_PAGES_START) + 0x1000000000 /\*e wild guess *\/, */
 			.static_section = img->static_memory,
-			.static_section_size = sizeof(void*) * img->storage.vars_nr,
+			.static_section_size = sizeof(void*) * img->globals_nr,
 			.name_lookup = NULL,
 			.error = error,
 			.is_instruction = text_instruction_location
@@ -153,13 +168,14 @@ runtime_execute(runtime_image_t *img)
 		(*f)();
 	}
 	heap_root_frame_pointer = NULL;
+	current_image = NULL;
 }
 
 void
 runtime_free(runtime_image_t *img)
 {
 	heap_free();
-	if (img->storage.vars_nr) {
+	if (img->globals_nr) {
 		free(img->static_memory);
 		img->static_memory = NULL;
 	}

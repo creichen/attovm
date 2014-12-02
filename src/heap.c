@@ -108,10 +108,11 @@ handle_out_of_memory(void *frame_pointer)
 		exit(1);
 	}
 	while (seeker != heap_root_frame_pointer) {
-		fprintf(stderr, "stack : %p\n", seeker);
 		seeker = (void **) *seeker;
+		fprintf(stderr, "stack : %p\n", seeker);
 	}
 	fprintf(stderr, "Help!  I don't know how to handle out-of-memory situations yet!\n");
+	exit(1);
 }
 
 object_t *

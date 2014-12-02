@@ -221,11 +221,13 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 
 	case AST_NODE_FUNAPP:
 		if (NODE_TY(node->children[0]) == AST_VALUE_ID) {
-			// Funktionsaufruf
+			//d Funktionsaufruf
+			//e function call
 			function = node->children[0]->sym;
 
 			if (function->parent) {
-				// SELF-Methodenaufruf
+				//d SELF-Methodenaufruf
+				//e call to method relative to SELF
 				ast_node_t *selector_node = node->children[0];
 				ast_node_t *actuals = node->children[1];
 
@@ -240,6 +242,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 					    selector_node,
 					    actuals);
 				node->storage = old_storage;
+				node->children[0]->storage = old_storage + 1; //e name analysis reserved extra space
 				set_type(node, compiler_options.method_call_return_type);
 				return node;
 			}

@@ -160,13 +160,17 @@ dump_ast(char *msg, ast_node_t *ast)
 	fprintf(stderr, "\n");
 }
 
+#define IS_SELF_REF(node) ((NODE_TY(node) == AST_VALUE_ID) && ((node)->sym->id == BUILTIN_OP_SELF))
+
 //d Kann dieser Knoten ohne temporaere Register berechnet werden?
 //e Can we compute this node without using temporary registers?
 static int
 is_simple(ast_node_t *n)
 {
 	//e Strings are presently allocated every time we encounter them
-	return (IS_VALUE_NODE(n) && NODE_TY(n) != AST_VALUE_STRING)|| NODE_TY(n) == AST_NODE_NULL;
+	return (IS_VALUE_NODE(n) && NODE_TY(n) != AST_VALUE_STRING)
+		|| NODE_TY(n) == AST_NODE_NULL
+		|| IS_SELF_REF(n);
 }
 
 static void
@@ -220,8 +224,6 @@ baseline_load_temp(buffer_t *buf, int reg, ast_node_t *node, context_t *context)
 {
 	emit_ld(buf, reg, baseline_temp_get_fp_offset(node, context), REGISTER_FP);
 }
-
-#define IS_SELF_REF(node) ((NODE_TY(node) == AST_VALUE_ID) && ((node)->sym->id == BUILTIN_OP_SELF))
 
 //e may utilise register T0 when encountering fields
 static void
@@ -827,11 +829,11 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		buffer_setlabel2(&jl, buf);
 
 		if (!is_simple(ast->children[1])) {
-			baseline_store_temp(buf, REGISTER_V0, ast, context);
+			baseline_store_temp(buf, REGISTER_V0, ast->children[0], context);
 		}
 		baseline_compile_expr(buf, ast->children[1], REGISTER_T0, context);
 		if (!is_simple(ast->children[1])) {
-			baseline_load_temp(buf, REGISTER_V0, ast, context);
+			baseline_load_temp(buf, REGISTER_V0, ast->children[0], context);
 		}
 
 		if (!compiler_options.no_bounds_checks) {

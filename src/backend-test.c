@@ -442,8 +442,10 @@ main(int argc, char **argv)
 	TEST("class C(int height, int width) { int area = height * width; } obj c = C(2, 3); print(c.area);", "6\n");
 	TEST("class C(obj height, int width) { obj area = [/ height * width]; } obj c = C(2, 3); print(c.area.size());", "6\n");
 	TEST("class C(obj height, int width) { obj area = [/ ((height*width)+(1+1))*((3+2)-(2+1))]; } obj c = C(2, 3); print(c.area.size());", "16\n");
-#endif
 	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } obj clear(int x, int y) { a[i(x, y)] := 0; } } obj c = C(); c.clear(1, 1); print(c.a);", "[1,2,0,4,5]\n");
+	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } int get(int x, int y) { return a[i(x, y)]; } } obj c = C(); print(c.get(1, 1)); ", "3\n");
+#endif
+	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } int get(int x, int y) { return a[i(x, y)]; } int z() { obj v = 2; v := get(1, 1) + v; return v;} } obj c = C(); print(c.z()); ", "5\n");
 #ifndef AUX
 #endif
 	if (!failures) {

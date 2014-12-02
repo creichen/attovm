@@ -32,6 +32,7 @@
 
 #include "chash.h"
 #include "cstack.h"
+#include "bitvector.h"
 
 jmp_buf fail_buf;
 static int failures = 0;
@@ -307,6 +308,89 @@ test_lhash_iterate(void)
 	ASSERT(count = 11050);
 }
 
+static void
+test_bitvec_basic(void)
+{
+	bitvector_t b3 = bitvector_alloc(3);
+	bitvector_t b0 = bitvector_alloc(0);
+	ASSERT(0 == bitvector_size(b0));
+	ASSERT(3 == bitvector_size(b3));
+
+	bitvector_free(b0);
+
+	for (int i = 0; i < 3; i++) {
+		ASSERT(!BITVECTOR_IS_SET(b3, i));
+		b3 = BITVECTOR_SET(b3, i);
+		ASSERT(BITVECTOR_IS_SET(b3, i));
+	}
+
+	for (int i = 0; i < 3; i++) {
+		ASSERT(BITVECTOR_IS_SET(b3, i));
+		b3 = BITVECTOR_CLEAR(b3, i);
+		ASSERT(!BITVECTOR_IS_SET(b3, i));
+	}
+
+	b3 = BITVECTOR_SET(b3, 1);
+	ASSERT(!BITVECTOR_IS_SET(b3, 0));
+	ASSERT(BITVECTOR_IS_SET(b3, 1));
+	ASSERT(!BITVECTOR_IS_SET(b3, 2));
+
+	bitvector_free(b3);
+}
+
+static void
+test_bitvec_scale(void)
+{
+	unsigned int z = 17;
+	for (int size = 0; size < 1024; size++) {
+		z = (z * 3) + 1 + (size * size);
+		unsigned int off = 0;
+		if (size > 0) {
+			off = z % size;
+		}
+		
+		bitvector_t b = bitvector_alloc(size);
+
+		for (int i = size - 1; i >= 0; i--) {
+			ASSERT(!BITVECTOR_IS_SET(b, i));
+			b = BITVECTOR_SET(b, i);
+			ASSERT(BITVECTOR_IS_SET(b, i));
+		}
+
+		bitvector_t b2 = bitvector_clone(b);
+
+		ASSERT(bitvector_size(b2) == size);
+
+		for (int i = size - 1; i >= 0; i--) {
+			ASSERT(BITVECTOR_IS_SET(b, i));
+			b = BITVECTOR_CLEAR(b, i);
+			ASSERT(!BITVECTOR_IS_SET(b, i));
+		}
+
+		for (int i = size - 1; i >= 0; i--) {
+			ASSERT(BITVECTOR_IS_SET(b2, i));
+			b2 = BITVECTOR_CLEAR(b2, i);
+			ASSERT(!BITVECTOR_IS_SET(b2, i));
+		}
+
+		if (size > 0) {
+			b = BITVECTOR_SET(b, off);
+			for (int i = 0; i < size; i++) {
+				ASSERT(!BITVECTOR_IS_SET(b2, i));
+				if (i == off) {
+					ASSERT(BITVECTOR_IS_SET(b, i));
+				} else {
+					ASSERT(!BITVECTOR_IS_SET(b, i));
+				}
+			}
+		}
+
+		ASSERT(bitvector_size(b) == size);
+
+		bitvector_free(b);
+		bitvector_free(b2);
+	}
+}
 
 int
 main(int argc, char **args)
@@ -319,6 +403,9 @@ main(int argc, char **args)
 	TEST(test_lhash_many);
 	TEST(test_lhash_interset);
 	TEST(test_lhash_iterate);
+
+	TEST(test_bitvec_basic);
+	TEST(test_bitvec_scale);
 	
 	return failures != 0;
 }

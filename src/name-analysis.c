@@ -266,8 +266,9 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		if (NODE_TY(node->children[0]) == AST_NODE_MEMBER) {
 			// METHODAPP (in type-analysis.c)
 			if (node->storage < 0) {
-				node->storage = counters->temps_nr++;
+				node->storage = counters->temps_nr;
 			}
+			++counters->temps_nr;
 
 			//e target
 			fixnames(node->children[0], env, parent, child_flags | NF_NEED_STORAGE, counters, classes_nr);
@@ -278,8 +279,9 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		} else {
 			if (parent && node->storage < 0) {
 				// Might be a method call; allocate spill space just in case
-				node->storage = counters->temps_nr++;
+				node->storage = counters->temps_nr;
 			}
+			++counters->temps_nr;
 			fixnames_recursive(node, env, parent, child_flags, counters, classes_nr);
 		}
 		return;

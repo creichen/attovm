@@ -163,7 +163,7 @@ do_print(runtime_image_t *img, int mode)
 		break;
 
 	default:
-		ast_node_dump(stdout, img->ast, AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_FLAGS);
+		ast_node_dump(stdout, img->ast, AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_FLAGS | AST_NODE_DUMP_STORAGE);
 		puts("");
 	}
 }

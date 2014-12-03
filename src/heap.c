@@ -29,6 +29,7 @@
 #define _DARWIN_C_SOURCE /*e activates MAP_ANON */
 
 //#define DEBUG
+#define INFO
 
 #include <assert.h>
 #include <errno.h>
@@ -382,5 +383,8 @@ handle_out_of_memory(void *frame_pointer)
 	memset(heap_free_pointer, 0, active_semispace.end - heap_free_pointer);
 
 	size_t after = heap_available();
-	debug("[GC: Reclaimed %zu bytes]\n", after - before);
+#if defined(INFO) || defined(DEBUG)
+	fflush(NULL);
+	fprintf(stderr, "[GC: Reclaimed %zu bytes]\n", after - before);
+#endif
 }

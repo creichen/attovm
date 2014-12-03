@@ -181,14 +181,15 @@ symtab_add_builtins(struct builtin_ops *builtins, int nr)
 			id_p = &RESOLVE_BUILTIN_PRELINKED_ID(b->index);
 			b->index = 0;
 		}
-		// Die Namen für builtins, die hier verwendet werden, müssen auf die gleiche Speicherstelle zeigen
-		// wie die im AST verwendeten Namen.  Dazu wird diese Normalisierungsfunktion mk_unique_string() verwendet:
+		//d Die Namen für builtins, die hier verwendet werden, müssen auf die gleiche Speicherstelle zeigen
+		//d wie die im AST verwendeten Namen.  Dazu wird diese Normalisierungsfunktion mk_unique_string() verwendet:
 		symtab_entry_t *e = symtab_builtin_new(b->index, b->ast_flags, b->symtab_flags,
 						       mk_unique_string(b->name));
 		b->index = e->id;
 		if (id_p) {
 			*id_p = e->id;
 		}
+		e->storage.fields_nr = 1; /*e hack: currently, all our builtins are either special or have one field. */
 
 		if (e->symtab_flags & SYMTAB_SELECTOR) {
 			e->selector = b->index = symtab_selectors_nr++;
@@ -273,9 +274,8 @@ builtin_op_print(object_t *arg)
 	fprintf(stderr, "(<- builtin-print)\n");
 #endif
 
-	object_print(output_stream, arg, 7, false);
+	object_print(output_stream, arg, 3, false);
 	fprintf(output_stream, "\n");
-	fflush(output_stream);
 	return NULL;
 }
 

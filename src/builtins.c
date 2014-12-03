@@ -273,8 +273,9 @@ builtin_op_print(object_t *arg)
 	fprintf(stderr, "(<- builtin-print)\n");
 #endif
 
-	object_print(output_stream, arg, 3, false);
+	object_print(output_stream, arg, 7, false);
 	fprintf(output_stream, "\n");
+	fflush(output_stream);
 	return NULL;
 }
 

@@ -182,7 +182,7 @@ object_print_internal(FILE *f, object_t *obj, int depth, bool debug, char *sep)
 			fprintf(f, ", %s", sep);
 		}
 	}
-	// Methoden
+	//d Methoden
 	if (debug) {
 		for (int i = 0; i <= classref->table_mask; i++) {
 			unsigned long long coding = classref->members[i].selector_encoding;

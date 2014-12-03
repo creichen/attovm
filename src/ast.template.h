@@ -140,7 +140,7 @@ ast_node_print(FILE *file, ast_node_t *node, int recursive);
 #define AST_NODE_DUMP_ADDRESS		0x08 /*d Speicheradresse mit ausgeben */
 #define AST_NODE_DUMP_STORAGE		0x10 /*e print temp storage information */
 
-#define AST_DUMP(ast) ast_node_dump(stderr, ast, AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_FLAGS | AST_NODE_DUMP_STORAGE)
+#define AST_DUMP(ast) ast_node_dump(stderr, ast, AST_NODE_DUMP_ADDRESS | AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_FLAGS | AST_NODE_DUMP_STORAGE)
 
 /*e
  * Dumps AST nodes (no pretty-printing, raw AST).

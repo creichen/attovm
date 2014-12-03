@@ -137,7 +137,8 @@ require_type(ast_node_t *node, int ty)
 	const int current_ty = node->type & TYPE_FLAGS;
 
 	if (!current_ty) {
-		// MEMBER-Zugriff: Passenden Typ beantragen
+		//d MEMBER-Zugriff: Passenden Typ beantragen
+		//e MEMBER access: request matching type
 		if (!ty) {
 			ty = DEFAULT_TYPE;
 		}
@@ -218,6 +219,19 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 
 	case AST_NODE_NULL:
 		set_type(node, TYPE_OBJ);
+		break;
+
+	case AST_NODE_MEMBER:
+/* #if 0 */
+/* 		fprintf(stderr, "\n\n"); */
+/* 		AST_DUMP(node); */
+/* 		fprintf(stderr, "sym: %p", node->children[0]->sym); */
+/* 		if (node->children[0]->sym && classref == node->children[0]->sym->parent) { */
+/* 			set_type(node, node->children[0]->sym->ast_flags & TYPE_FLAGS); */
+/* 		} else { */
+/* 			set_type(node, TYPE_OBJ); */
+/* 		} */
+/* #endif */
 		break;
 
 	case AST_NODE_FUNAPP:

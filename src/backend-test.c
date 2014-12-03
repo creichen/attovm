@@ -167,7 +167,7 @@ test_run(char *source, char *expected_result, int line)
 	for (int i = 0; i < image->callables_nr; i++) {
 		symtab_entry_t *sym = image->callables[i]->children[0]->sym;
 		fprintf(stderr, "%s %s:\n",
-			SYMTAB_TY(sym) == SYMTAB_TY_CLASS ? "CONSTRUCTOR" : "FUNCTION",
+			SYMTAB_KIND(sym) == SYMTAB_KIND_CLASS ? "CONSTRUCTOR" : "FUNCTION",
 			sym->name);
 		buffer_disassemble(buffer_from_entrypoint(sym->r_mem));
 	}
@@ -501,8 +501,10 @@ main(int argc, char **argv)
 	//e classes as structures
 	TEST("class C(){}; obj a = C(); if (a != NULL) print(1);", "1\n");
 	TEST("class C(){}; obj a = C(); obj b = C(); if (a != b) print(1);", "1\n");
-	TEST("class C(){ int x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
 	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
+#endif
+	TEST("class C(){ int x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
+#ifndef AUX
 	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; a.x := a.x + 1; print(a.x);", "3\n");
 	TEST("class C(){ int x; }; obj a = C(); obj b = C(); a.x := 3; b.x := 2; print(a.x); print(b.x);", "3\n2\n");
 	TEST("class C(){ obj x; int y; }; obj a = C(); a.x := 2; a.y := 3; print(a.x); print(a.y); ", "2\n3\n");
@@ -582,15 +584,19 @@ main(int argc, char **argv)
 	TEST("int f() { int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x); } f();", "16\n3\n");
 	TEST("class C() { int f() { int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x); } } (C()).f();", "16\n3\n");
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7, int a8) { int z; print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7); print(a8); z := a0 + a8; print(z + 0 * 0); } f(1, 2, 3, 4, 5, 6, 7, 8, 9);", "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
-#endif
 	TEST("class C() { obj p(obj a1, obj a2, obj a3, obj a4, obj a5, obj a6, obj a7, int a8) { print(a6 * a6 + a1); return a7 + (2 * a8); } } obj a = C(); print(a.p(1, 2, 3, 4, 5, 6, 7, 2));", "37\n11\n");
-#ifndef AUX
 	TEST("class C(int height, int width) { int area = height * width; } obj c = C(2, 3); print(c.area);", "6\n");
 	TEST("class C(obj height, int width) { obj area = [/ height * width]; } obj c = C(2, 3); print(c.area.size());", "6\n");
 	TEST("class C(obj height, int width) { obj area = [/ ((height*width)+(1+1))*((3+2)-(2+1))]; } obj c = C(2, 3); print(c.area.size());", "16\n");
 	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } obj clear(int x, int y) { a[i(x, y)] := 0; } } obj c = C(); c.clear(1, 1); print(c.a);", "[1,2,0,4,5]\n");
 	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } int get(int x, int y) { return a[i(x, y)]; } } obj c = C(); print(c.get(1, 1)); ", "3\n");
 	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } int get(int x, int y) { return a[i(x, y)]; } int z() { obj v = 2; v := get(1, 1) + v; return v;} } obj c = C(); print(c.z()); ", "5\n");
+#endif
+	TEST("class C(obj parent) { obj p = parent; obj v = 0; } obj c = C(C(C(NULL))); print(c.p.p.v); ", "0\n");
+	TEST("class C(obj parent, int i) { obj p = parent; obj v = i; } obj c = C(C(C(NULL, 3), 2), 1); obj d = C(C(NULL, 10), 9); print(c.v); print(c.p.v); print(d.p.v);", "1\n2\n10\n");
+	TEST("class C(obj parent, int i) { obj p = parent; obj v = i; } obj c = C(C(C(NULL, 3), 2), 1); obj d = C(C(NULL, 10), 9); c.v := d.v; print(c.v);", "9\n");
+	TEST("class C(obj parent, int i) { obj p = parent; obj v = i; } obj c = C(C(C(NULL, 3), 2), 1); obj d = C(C(NULL, 10), 9); c.p.v := d.p.v; print(c.p.v);", "10\n");
+#ifndef AUX
 #endif
 	if (!failures) {
 		printf("All %d tests succeeded\n", runs);

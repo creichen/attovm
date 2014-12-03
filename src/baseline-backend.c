@@ -211,6 +211,7 @@ baseline_temp_get_fp_offset(ast_node_t *node, context_t *context)
 	if (node->storage < 0) {
 		fprintf(stderr, "FATAL CODEGEN ERROR: Trying to request temp for code fragment without temp storage\n");
 		AST_DUMP(node);
+		*((void **)0) = NULL;
 		assert(node->storage >= 0);
 	}
 	int off = node->storage * WORD_SIZE;
@@ -830,15 +831,19 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			ast_node_t *selector_node = member->children[1];
 			const int selector = selector_node->sym->selector;
 
-			baseline_compile_expr(buf, ast->children[1], REGISTER_A3, context);
+			if (!is_simple(member->children[1])) {
+				baseline_compile_expr(buf, ast->children[1], REGISTER_A3, context);
 
-			if (!is_simple(member->children[0])) {
-				baseline_store_temp(buf, REGISTER_A3, member->children[1], context);
+				if (!is_simple(member->children[0])) {
+					baseline_store_temp(buf, REGISTER_A3, member->children[1], context);
+				}
 			}
 
 			baseline_compile_expr(buf, member->children[0], REGISTER_A0, context);
 
-			if (!is_simple(member->children[0])) {
+			if (is_simple(member->children[1])) {
+				baseline_compile_expr(buf, ast->children[1], REGISTER_A3, context);				
+			} else if (!is_simple(member->children[0])) {
 				baseline_load_temp(buf, REGISTER_A3, member->children[1], context);
 			}
 			
@@ -846,13 +851,17 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			emit_li(buf, REGISTER_A2, selector);
 
 			const int ty = ast->children[1]->type;
-			if (ty & TYPE_OBJ) {
-				emit_la(buf, REGISTER_V0, object_write_member_field_obj);
-			} else if (ty & TYPE_INT) {
+			if (ty & TYPE_INT) {
 				emit_la(buf, REGISTER_V0, object_write_member_field_int);
-			} else {
-				fail("baseline-backend.AST_NODE_ASSIGN(AST_NODE_MEMBER): unsupported type in AST_NODE_MEMBER value");
+			} else { //if (ty & TYPE_OBJ) {
+				emit_la(buf, REGISTER_V0, object_write_member_field_obj);
 			}
+			/* } else */
+			/* } else { */
+			/* 	AST_DUMP(ast); */
+			/* 	fprintf(stderr, "Offending type: %x\n", ty); */
+			/* 	fail("baseline-backend.AST_NODE_ASSIGN(AST_NODE_MEMBER): unsupported type in AST_NODE_MEMBER value"); */
+			/* } */
 
 			assert(0 == baseline_prepare_arguments(buf, 0, NULL, context,
 							       PREPARE_ARGUMENTS_MUSTALIGN));
@@ -1083,13 +1092,16 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_la(buf, REGISTER_A1, selector_node);
 		emit_li(buf, REGISTER_A2, selector);
 
-		if (ast->type & TYPE_OBJ) {
-			emit_la(buf, REGISTER_V0, object_read_member_field_obj);
-		} else if (ast->type & TYPE_INT) {
+		if (ast->type & TYPE_INT) {
 			emit_la(buf, REGISTER_V0, object_read_member_field_int);
-		} else {
-			fail("baseline-backend.AST_NODE_MEMBER: unsupported type in AST_NODE_MEMBER value");
+		} else { //if (ast->type & TYPE_OBJ) {
+			emit_la(buf, REGISTER_V0, object_read_member_field_obj);
 		}
+		/* } else { */
+		/* 	AST_DUMP(ast); */
+		/* 	fprintf(stderr, "Offending type: %x\n", ast->type); */
+		/* 	fail("baseline-backend.AST_NODE_MEMBER: unsupported type in AST_NODE_MEMBER value"); */
+		/* } */
 		assert(0 == baseline_prepare_arguments(buf, 0, NULL, context,
 						       PREPARE_ARGUMENTS_MUSTALIGN));
 		emit_jalr(buf, REGISTER_V0);

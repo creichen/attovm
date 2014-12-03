@@ -254,9 +254,9 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 				return node;
 			}
 
-			if (SYMTAB_TY(function) == SYMTAB_TY_CLASS) {
+			if (SYMTAB_KIND(function) == SYMTAB_KIND_CLASS) {
 				mutate_node(node, AST_NODE_NEWINSTANCE | TYPE_OBJ);
-			} else if (!(SYMTAB_TY(function) == SYMTAB_TY_FUNCTION)) {
+			} else if (!(SYMTAB_KIND(function) == SYMTAB_KIND_FUNCTION)) {
 				error(node, "Attempt to call non-function/non-class `%s'", function->name);
 				return node;
 			}
@@ -428,7 +428,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 					       ast_node_clone(node->children[1]), // Parameter
 					       cons_body_node);
 		node->children[3] = constructor;
-		symtab_entry_t *constructor_sym = symtab_new(TYPE_OBJ, SYMTAB_TY_FUNCTION | SYMTAB_CONSTRUCTOR,
+		symtab_entry_t *constructor_sym = symtab_new(TYPE_OBJ, SYMTAB_KIND_FUNCTION | SYMTAB_CONSTRUCTOR,
 							     classref->name, constructor);
 		constructor_sym->parent = classref;
 		constructor->children[0]->sym = constructor_sym;
@@ -512,7 +512,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 	case AST_NODE_ISINSTANCE: {
 		symtab_entry_t *classref = node->children[1]->sym;
 		if (classref) {
-			if (!(SYMTAB_TY(classref) == SYMTAB_TY_CLASS)) {
+			if (!(SYMTAB_KIND(classref) == SYMTAB_KIND_CLASS)) {
 				error(node, "`isinstance' on non-class (%s)", classref->name);
 			}
 		} /*d ansonsten hat die Namensanalyse bereits einen Fehler gemeldet */

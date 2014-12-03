@@ -205,26 +205,26 @@ symtab_entry_dump(FILE *file, symtab_entry_t *entry)
 	PRINT_SYMVAR(PARAM);
 	PRINT_SYMVAR(CONSTRUCTOR);
 
-	switch (SYMTAB_TY(entry)) {
+	switch (SYMTAB_KIND(entry)) {
 	case 0: // should only happen for selectors
 		fputs(" UNKNOWN", file);
 		break;
-	case SYMTAB_TY_VAR:
+	case SYMTAB_KIND_VAR:
 		fputs(" VARIABLE", file);
 		is_var = true;
 		break;
-	case SYMTAB_TY_FUNCTION:
+	case SYMTAB_KIND_FUNCTION:
 		fputs(" FUNCTION", file);
 		has_args = true;
 		is_function = true;
 		break;
-	case SYMTAB_TY_CLASS:
+	case SYMTAB_KIND_CLASS:
 		fputs(" CLASS", file);
 		has_args = true;
 		is_class = true;
 		break;
 	default:
-		fprintf(file, " ?ty=%d", SYMTAB_TY(entry));
+		fprintf(file, " ?ty=%d", SYMTAB_KIND(entry));
 		has_args = true;
 		is_class = true;
 		break;

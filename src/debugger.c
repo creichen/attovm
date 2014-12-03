@@ -521,7 +521,7 @@ debug_command()
 			max_insn_size = bytes_until_pc_end;
 		}
 		// update local (in-process) copy of instruction memory from child
-/* getdata(status.pid, (unsigned long long) status.pc, status.pc, max_insn_size); */
+		getdata(status.pid, (unsigned long long) status.pc, status.pc, max_insn_size);
 
 		start_disasm();
 		if (addrstore_get_prefix(status.pc)) {

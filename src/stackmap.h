@@ -32,6 +32,16 @@
 
 #include "bitvector.h"
 #include "symbol-table.h"
+#include "cstack.h"
+
+/*e
+ * Enables or disables stackmap registry debugging
+ *
+ * @param cstack if NULL, disable debugging.  Otherwise, install a cstack to which we push
+ * the address passed to every stackmap_put.
+ */
+void
+stackmap_debug(cstack_t *cstack);
 
 /*e
  * Initialises the stack map registry
@@ -50,7 +60,7 @@ stackmap_clear(void);
  * See stackmap_get() for the expected format.
  */
 void
-stackmap_put(void *address, bitvector_t bitvector, symtab_entry_t *symtab_entry);
+stackmap_put(void *address, bitvector_t stackmap, symtab_entry_t *symtab_entry);
 
 /*e
  * Requests a stack map from the registry
@@ -59,16 +69,15 @@ stackmap_put(void *address, bitvector_t bitvector, symtab_entry_t *symtab_entry)
  * by symtab_entry->stackframe_start.
  *
  * May load NULL to (*symtab_entry) and still return `true'.  This happens for
- * code without a symbol table entry.  In that case, `bitvector' entry 0
- * describes the entry immediately above the frame pointer (the return address).
+ * code without a symbol table entry.  In that case, the last `bitvector' entry
+ * describes the entry immediately below the frame pointer.
  *
  * @param address The address to look for
- * @param bitvector Pointer to a bitvector variable to write to
+ * @param stackmap Pointer to a bitvector variable to write the stackmap to
  * @param symtab_entry_t * Pointer to a symbol table entry pointer to write to
  * @return true iff the address was recognised
  */
 bool
-stackmap_get(void *address, bitvector_t *bitvector, symtab_entry_t **symtab_entry);
-
+stackmap_get(void *address, bitvector_t *stackmap, symtab_entry_t **symtab_entry);
 
 #endif // !defined(_ATTOL_STACKMAP_H)

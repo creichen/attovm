@@ -51,6 +51,22 @@ bitvector_alloc(size_t size)
 	return v;
 }
 
+bitvector_t
+bitvector(size_t size, unsigned long long v)
+{
+	if (size < BITVECTOR_SMALL_MAX) {
+		return (bitvector_t){ .small = (v << BITVECTOR_BODY_SHIFT) | (size << BITVECTOR_SIZE_SHIFT) | 1 };
+	}
+	
+	bitvector_t bv = bitvector_alloc(size);
+	for (int i = 0; i < size; i++) {
+		if ((v >> i) & 1) {
+			bv = BITVECTOR_SET(bv, i);
+		}
+	}
+	return bv;
+}
+
 size_t
 bitvector_size(bitvector_t bitvector)
 {
@@ -117,5 +133,13 @@ bitvector_is_set_slow(bitvector_t bitvector, size_t pos)
 		return (bitvector.small >> (BITVECTOR_BODY_SHIFT + pos)) & 1ull;
 	} else {
 		return (bitvector.large[1 + (pos >> 6)] >> (pos & 63)) & 1ull;
+	}
+}
+
+void
+bitvector_print(FILE *f, bitvector_t bitvector)
+{
+	for (int i = 0; i < bitvector_size(bitvector); i++) {
+		fprintf(f, "%llu", BITVECTOR_IS_SET(bitvector, i));
 	}
 }

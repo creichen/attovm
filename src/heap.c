@@ -28,12 +28,21 @@
 #define _BSD_SOURCE /*e activates MAP_ANONYMOUS */
 #define _DARWIN_C_SOURCE /*e activates MAP_ANON */
 
+//#define DEBUG
+
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+
+#include "bitvector.h"
+#include "cstack.h"
+#include "heap.h"
+#include "runtime.h"
+#include "stackmap.h"
+#include "symbol-table.h"
 
 #ifndef MAP_ANONYMOUS
 #  ifndef MAP_ANON
@@ -42,78 +51,82 @@
 #  define MAP_ANONYMOUS MAP_ANON
 #endif
 
-#include "heap.h"
-#include "cstack.h"
+#ifdef DEBUG
+#  define debug printf
+#else
+#  define debug if (0) printf
+#endif
 
-#define HEAP_START 0x10000000000 /*e Default heap memory start address */
-#define PAGE_SIZE 0x1000
+#define HEAP_START 0x10000000000 /*e default heap memory start address */
+#define PAGE_SIZE 0x1000 /*e normal page size (FIXME: validate against system header) */
+
+typedef struct {
+	unsigned char *start;
+	unsigned char *end;
+} heap_t;
 
 void *heap_root_frame_pointer = NULL; /*e initialised by runtime_execute() */
 
-static unsigned char *heap_start = NULL;
-static unsigned char *heap_end = NULL;
+static unsigned char *heap_base = NULL;
+static size_t heap_size_total;
 static unsigned char *heap_free_pointer = NULL;
 
+static heap_t active_semispace = { NULL, NULL };
+static heap_t passive_semispace = { NULL, NULL };
+
 void
-heap_init(size_t heap_size)
+heap_init(size_t requested_heap_size)
 {
 	//e we allocate the heap only once:
-	assert(!heap_start);
+	assert(!heap_base);
+	heap_size_total = requested_heap_size;
 
-	//e Make sure that heap_size is a multiple of PAGE_SIZE, as most systems require that
-	if (heap_size & (PAGE_SIZE - 1)) {
-		heap_size = (heap_size + PAGE_SIZE) & ~(PAGE_SIZE -1);
+	//e Make sure that heap_size is a multiple of PAGE_SIZE, as most systems require that property
+	if (heap_size_total & (PAGE_SIZE - 1)) {
+		heap_size_total = (heap_size_total + PAGE_SIZE) & ~(PAGE_SIZE -1);
 	}
 
-	heap_start = mmap((void *) HEAP_START,
-			    heap_size,
-			    PROT_READ | PROT_WRITE,
-			    MAP_PRIVATE | MAP_ANONYMOUS,
-			    -1,
-			    0);
-	if (heap_start == MAP_FAILED) {
+	heap_base = mmap((void *) HEAP_START,
+			 heap_size_total,
+			 PROT_READ | PROT_WRITE,
+			 MAP_PRIVATE | MAP_ANONYMOUS,
+			 -1,
+			 0);
+	if (heap_base == MAP_FAILED) {
 		perror("heap segment mmap");
 		exit(1);
 	}
 
-	if (!heap_start) {
+	if (!heap_base) {
 		// Out of memory
 		fprintf(stderr, "Cannot allocate heap; out of memory\n");
 		exit(1);
 	}
 
-	heap_end = heap_start + heap_size;
 	//e clear heap memory (set all bytes to zero)
-	memset(heap_start, 0, heap_size);
-	heap_free_pointer = heap_start;
+	memset(heap_base, 0, heap_size_total);
+
+	//e Copying GC: split heap into two semispaces
+	active_semispace.start = heap_base;
+	active_semispace.end = heap_base + (heap_size_total >> 1);
+	passive_semispace.start = active_semispace.end;
+	passive_semispace.end = heap_base + heap_size_total;
+
+	heap_free_pointer = active_semispace.start;
 }
 
 void
 heap_free()
 {
-	if (heap_start) {
-		munmap(heap_start, heap_size());
-		heap_start = heap_end = heap_free_pointer = NULL;
+	if (heap_base) {
+		munmap(heap_base, heap_size_total);
+		heap_base = heap_free_pointer = NULL;
 	}
 }
 
-//e handle out-of-memory situations; frame_pointer
+//e handle out-of-memory situations
 static void
-handle_out_of_memory(void *frame_pointer)
-{
-	void **seeker = (void **) frame_pointer;
-	fprintf(stderr, "Out of memory! Seeking from %p to %p\n", seeker, heap_root_frame_pointer);
-	if (!heap_root_frame_pointer) {
-		fprintf(stderr, "Error: ran out of memory before starting program.");
-		exit(1);
-	}
-	while (seeker != heap_root_frame_pointer) {
-		seeker = (void **) *seeker;
-		fprintf(stderr, "stack : %p\n", seeker);
-	}
-	fprintf(stderr, "Help!  I don't know how to handle out-of-memory situations yet!\n");
-	exit(1);
-}
+handle_out_of_memory(void *frame_pointer);
 
 object_t *
 heap_allocate_object(class_t* type, size_t fields_nr)
@@ -124,7 +137,7 @@ heap_allocate_object(class_t* type, size_t fields_nr)
 
 	//	fprintf(stderr, "alloc(%s, %zu * %zu) : ", type->id->name, fields_nr, sizeof(object_member_t));
 	
-	if (heap_free_pointer >= heap_end) {
+	if (heap_free_pointer >= active_semispace.end) {
 		heap_free_pointer -= requested_bytes;
 		//e __builtin_frame_address(0) reads the $fp
 		handle_out_of_memory(__builtin_frame_address(0));
@@ -143,11 +156,231 @@ heap_allocate_object(class_t* type, size_t fields_nr)
 size_t
 heap_available(void)
 {
-	return heap_end - heap_free_pointer;
+	return active_semispace.end - heap_free_pointer;
 }
 
 size_t
 heap_size(void)
 {
-	return heap_end - heap_start;
+	return active_semispace.end - active_semispace.start;
+}
+
+// ================================================================================
+// garbage collector implementation
+
+// Swaps contents of active_semispace and passive_semispace.
+static void
+swap_semispaces(void)
+{
+	heap_t buf = active_semispace;
+	active_semispace = passive_semispace;
+	passive_semispace = buf;
+}
+
+static bool
+is_passive(void *addr)
+{
+	return (((unsigned char *)addr) >= passive_semispace.start
+		&& ((unsigned char *)addr) < passive_semispace.end);
+}
+
+static bool
+is_active(void *addr)
+{
+	return (((unsigned char *)addr) >= active_semispace.start
+		&& ((unsigned char *)addr) < active_semispace.end);
+}
+
+static void *
+get_forwarding_pointer(void *addr)
+{
+	return *((void **)addr);
+}
+
+static void
+set_forwarding_pointer(void *addr, void *reloc_addr)
+{
+	*((void **)addr) = reloc_addr;
+}
+
+#if 0
+/*e
+ * handle out-of-memory situations
+ *
+ * @param frame_pointer Frame pointer of the failed invocation to heap_allocate_object;
+ * can be used to trace the parent frame pointers up to heap_root_frame_pointer
+ */
+static void
+handle_out_of_memory(void *frame_pointer);
+{
+	void **seeker = (void **) frame_pointer;
+	fprintf(stderr, "Out of memory! Seeking from %p to %p\n", seeker, heap_root_frame_pointer);
+	if (!heap_root_frame_pointer) {
+		fprintf(stderr, "Error: ran out of memory before starting program.");
+		exit(1);
+	}
+	while (seeker != heap_root_frame_pointer) {
+		seeker = (void **) *seeker;
+		fprintf(stderr, "stack : %p\n", seeker);
+	}
+	fprintf(stderr, "Help!  I don't know how to handle out-of-memory situations yet!\n");
+	exit(1);
+}
+#endif
+
+static size_t
+object_size(object_t *obj)
+{
+	const int BLOCKSIZE = sizeof(object_member_t);
+	
+	if (obj->classref == &class_string) {
+		size_t strlen = obj->fields[0].int_v;
+		size_t blocklen = (strlen + (BLOCKSIZE - 1)) & ~(BLOCKSIZE - 1);
+		return BLOCKSIZE + blocklen + sizeof(object_t);
+	} else if (obj->classref == &class_array) {
+		return ((obj->fields[0].int_v + 1) * BLOCKSIZE) + sizeof(object_t);
+	} else {
+		return (obj->classref->id->storage.fields_nr * BLOCKSIZE) + sizeof(object_t);
+	}
+}
+
+static void
+gc_move(object_t **memref)
+{
+	if (!*memref) {
+		return;
+	}
+	if (is_passive(*memref)) {
+		void *reloc = get_forwarding_pointer(*memref);
+		if (is_active(reloc)) {
+			// already relocated
+			*memref = reloc;
+			return;
+		}
+
+		reloc = heap_free_pointer;
+		size_t obj_size = object_size(*memref);
+		heap_free_pointer += obj_size;
+		assert(heap_free_pointer < active_semispace.end);
+		memcpy(reloc, *memref, obj_size);
+		debug(" - [%p -> %p (%s, %zu bytes)]\n", *memref, reloc, (*memref)->classref->id->name, obj_size);
+		set_forwarding_pointer(*memref, reloc);
+	        *memref = reloc;
+	} else {
+		printf("Trying to relocate weird addr %p\n", *memref);
+	}
+}
+
+static void
+gc_init()
+{
+	swap_semispaces();
+	heap_free_pointer = active_semispace.start;
+}
+
+static void
+gc_rootset_static()
+{
+	runtime_image_t *img = runtime_current();
+	debug(" <static memory: %d>\n", img->globals_nr);
+	for (int i = 0; i < img->globals_nr; i++) {
+		if (SYMTAB_TYPE(symtab_lookup(img->globals[i])) == TYPE_OBJ) {
+			gc_move((object_t **) &(img->static_memory[i]));
+		}
+	}
+}
+
+static void
+gc_rootset_stack(void *frame_pointer)
+{
+	void **seeker = (void **) frame_pointer;
+	while (seeker != heap_root_frame_pointer) {
+		void *return_addr = (void *)(seeker[1]);
+		seeker = (void **) *seeker;
+		debug(" <stack: %p @%p>: ", seeker, return_addr);
+		symtab_entry_t *symtab_entry;
+		bitvector_t stackmap;
+		if (stackmap_get(return_addr, &stackmap, &symtab_entry)) {
+			object_t **obj = (object_t **) seeker;
+			size_t stackmap_size = bitvector_size(stackmap);
+			int offset;
+
+			if (symtab_entry) {
+				offset = symtab_entry->stackframe_start / 8;
+			} else {
+				offset = -stackmap_size;
+			}
+#ifdef DEBUG
+			if (symtab_entry) {
+				symtab_entry_name_dump(stdout, symtab_entry);
+			} else {
+				debug("<main entry point>");
+			}
+			debug(": ");
+			bitvector_print(stdout, stackmap);
+			debug(" at offset %d\n", offset);
+#endif
+
+			obj += offset;
+			for (int i = 0; i < stackmap_size; i++) {
+				if (BITVECTOR_IS_SET(stackmap, i)) {
+					gc_move(obj + i);
+				}
+			}
+		} else {
+			debug(" (unknown)\n");
+		}
+	}
+}
+
+static void
+gc_do_scan()
+{
+	debug(" <scan>\n");
+	unsigned char *scan = active_semispace.start;
+	while ((unsigned char *) scan < heap_free_pointer) {
+		object_t *obj = (object_t *) scan;
+		size_t obj_size = object_size(obj);
+		if (obj->classref == &class_array) {
+			for (int i = 0; i < obj->fields[0].int_v; i++) {
+				gc_move(&obj->fields[1 + i].object_v);
+			}
+		} else if (obj->classref != &class_string) {
+			bitvector_t classmap = obj->classref->object_map;
+			for (int i = 0; i < bitvector_size(classmap); i++) {
+				if (BITVECTOR_IS_SET(classmap, i)) {
+					gc_move(&obj->fields[i].object_v);
+				}
+			}
+		}
+
+		scan += obj_size;
+	}
+}
+
+/*e
+ * handle out-of-memory situations
+ *
+ * @param frame_pointer Frame pointer of the failed invocation to heap_allocate_object;
+ * can be used to trace the parent frame pointers up to heap_root_frame_pointer
+ */
+static void
+handle_out_of_memory(void *frame_pointer)
+{
+	//fprintf(stderr, "Out of memory! Seeking from %p to %p\n", frame_pointer, heap_root_frame_pointer);
+	if (!heap_root_frame_pointer) {
+		fprintf(stderr, "Error: ran out of memory before starting program.");
+		exit(1);
+	}
+
+	size_t before = heap_available();
+	gc_init();
+	gc_rootset_static();
+	gc_rootset_stack(frame_pointer);
+	gc_do_scan();
+	//e clear memory at end of stack frame
+	memset(heap_free_pointer, 0, active_semispace.end - heap_free_pointer);
+
+	size_t after = heap_available();
+	debug("[GC: Reclaimed %zu bytes]\n", after - before);
 }

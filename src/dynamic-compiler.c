@@ -105,7 +105,7 @@ void
 dyncomp_compile_function(int symtab_entry, void **update_address_on_call_stack)
 {
 	symtab_entry_t *sym = symtab_lookup(symtab_entry);
-	if (!sym || SYMTAB_TY(sym) != SYMTAB_TY_FUNCTION) {
+	if (!sym || SYMTAB_KIND(sym) != SYMTAB_KIND_FUNCTION) {
 		fprintf(stderr, "dyncomp_compile_funtion(%d, %p):", symtab_entry, update_address_on_call_stack);
 		symtab_entry_dump(stderr, sym);
 		fail("dynamic function compilation");

@@ -38,23 +38,26 @@
 #  include <signal.h>
 #  include <ucontext.h>
 #endif
+#include <stdarg.h>
 
-#include "ast.h"
+#include "analysis.h"
 #include "assembler.h"
+#include "ast.h"
 #include "baseline-backend.h"
 #include "class.h"
-#include "analysis.h"
+#include "compiler-options.h"
 #include "object.h"
 #include "parser.h"
 #include "registers.h"
 #include "runtime.h"
+#include "stackmap.h"
 #include "symbol-table.h"
-#include "compiler-options.h"
 
 extern FILE *builtin_print_redirection; // builtins.c
 
 static int failures = 0;
 static int runs = 0;
+
 
 void
 fail(char *msg)
@@ -109,8 +112,25 @@ segfault_handler(int nr, siginfo_t *info, void *_context)
 
 void (*post_builtins_init)(void) = NULL; // allocate selectors etc.
 
+// state used across test_run and test_cleanup
+static cstack_t *stackmap_debug_stack = NULL;
+static runtime_image_t *runtime_image = NULL;
+
 void
-test_program(char *source, char *expected_result, int line)
+test_cleanup()
+{
+	if (stackmap_debug_stack) {
+		stack_free(stackmap_debug_stack, NULL);
+		stackmap_debug_stack = NULL;
+	}
+	if (runtime_image) {
+		runtime_free(runtime_image);
+		runtime_image = NULL;
+	}
+}
+
+void
+test_run(char *source, char *expected_result, int line)
 {
 #ifdef DEBUG
 	struct sigaction segfault_handler_struct = {
@@ -121,6 +141,9 @@ test_program(char *source, char *expected_result, int line)
 		perror("sigaction(segfault_handler)");
 	}
 #endif
+	test_cleanup();
+	stackmap_debug_stack = stack_alloc(sizeof(void *), 10);
+	stackmap_debug(stackmap_debug_stack);
 	++runs;
 	builtins_reset();
 	if (post_builtins_init) {
@@ -194,12 +217,113 @@ test_program(char *source, char *expected_result, int line)
 	} else {
 		signal_success();
 	}
-
-	runtime_free(image);
+	runtime_image = image;
 	fclose(writefile);
 }
 
-#define TEST(program, expected) test_program(program, expected, __LINE__);
+static void
+dump_bitvector(bitvector_t bitvector)
+{
+	bitvector_print(stderr, bitvector);
+}
+
+static void
+dump_bitmask(int size, unsigned long long mask)
+{
+	for (int i = 0; i < size; i++) {
+		fprintf(stderr, "%llu", (mask >> i) & 1);
+	}
+}
+
+static bool
+masks_equal(bitvector_t bitvector, int size, unsigned long long expected)
+{
+	bool result = true;
+	int compare_size = size;
+	int bv_size = bitvector_size(bitvector);
+	if (bv_size != size) {
+		if (bv_size < size) {
+			compare_size = bv_size;
+		}
+		fprintf(stderr, "Unequal sizes: expected %d, actual %zu\n", size, bitvector_size(bitvector));
+		result = false;
+	}
+	for (int i = 0; i < compare_size; i++) {
+		if (BITVECTOR_IS_SET(bitvector, i) != ((expected >> i) & 1)) {
+			result = false;
+		}
+	}
+	if (!result) {
+		fprintf(stderr, "Mismatch!");
+		fprintf(stderr, "\n\texpect:\t");
+		dump_bitmask(size, expected);
+		fprintf(stderr, "\n\tactual:\t");
+		dump_bitvector(bitvector);
+		fprintf(stderr, "\n");
+	}
+	return result;
+}
+
+static void
+check_memory_maps(int line,
+		  int static_map_size, unsigned long long static_map_mask,
+		  int entries_nr, ...)
+{
+	bool success = true;
+	++runs;
+	printf("[L%d] \033[4;1mM-Testing\033[0m: \t", line);
+	bitvector_t static_map = bitvector_alloc(runtime_image->globals_nr);
+	for (int i = 0; i < runtime_image->globals_nr; i++) {
+		if ((symtab_lookup(runtime_image->globals[i])->ast_flags & TYPE_FLAGS) == AST_FLAG_OBJ) {
+			static_map = BITVECTOR_SET(static_map, i);
+		}
+	}
+	if (!masks_equal(static_map, static_map_size, static_map_mask)) {
+		fprintf(stderr, "\tin static map comparison\n");
+		success = false;
+	}
+
+	if (entries_nr != stack_size(stackmap_debug_stack)) {
+		success = false;
+		fprintf(stderr, "Expected %d stack maps but found %zu\n", entries_nr, stack_size(stackmap_debug_stack));
+		fprintf(stderr, "(cowardly refusing to check the maps)\n");
+	} else {
+		va_list va;
+		va_start(va, entries_nr);
+		for (int i = 0; i < entries_nr; i++) {
+			int size = va_arg(va, int);
+			unsigned long long mask = va_arg(va, unsigned long long);
+			void *addr = *((void **)(stack_get(stackmap_debug_stack, i)));
+			symtab_entry_t *ste;
+			bitvector_t bv;
+			if (!stackmap_get(addr, &bv, &ste)) {
+				fprintf(stderr, "Address %p was supposed to be in stackmap but isn't!\n", addr);
+				success = false;
+			} else {
+				if (!masks_equal(bv, size, mask)) {
+					fprintf(stderr, "\tin stack map comparison for %p (", addr);
+					if (ste) {
+						symtab_entry_name_dump(stderr, ste);
+					} else {
+						fprintf(stderr, "<main entry point>");
+					}
+					fprintf(stderr, ")\n");
+					success = false;
+				}
+			}
+		}
+		va_end(va);
+	}
+			
+	if (success) {
+		signal_success();
+	} else {
+		signal_failure();
+	}
+}
+
+
+#define TEST(program, expected) test_run(program, expected, __LINE__);
 
 char* mk_unique_string(char *id); // lexer
 
@@ -249,6 +373,9 @@ main(int argc, char **argv)
 #endif
 #ifndef AUX
 	TEST("print(1);", "1\n");
+	check_memory_maps(__LINE__, 0, 0, 2,
+			  2, 0ull,
+			  2, 0ull);
 	TEST("print(3+4);", "7\n");
 	TEST("print(3+4+1);", "8\n");
 	TEST("print(4-1);", "3\n");
@@ -259,8 +386,14 @@ main(int argc, char **argv)
 	TEST("{print(1);print(2);}", "1\n2\n");
 
 	TEST("{ int x = 17; print(x); }", "17\n");
+	check_memory_maps(__LINE__, 1, 0, 2,
+			  4, 0ull,
+			  4, 0ull);
 	TEST("{ int x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
 	TEST("{ obj x = 17; print(x); }", "17\n");
+	check_memory_maps(__LINE__, 1, 1, 2,
+			  4, 0ull,
+			  4, 0ull);
 	TEST("{ obj x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
 	TEST("{ var x = 17; print(x); }", "17\n");
 	TEST("{ var x = 17; print(x); x := 3; print(x*x+1); }", "17\n10\n");
@@ -319,11 +452,9 @@ main(int argc, char **argv)
 	TEST("obj a = [/1]; a[0] := 2; print(a[0]); ", "2\n");
 	TEST("{ obj a = [1,7]; print(a[1]); a[1] := 2; print(a[1]); print(a[0]); }", "7\n2\n1\n");
 	TEST("{ obj a = [1,\"foo\", /5]; print(a[1]); a[4] := 2; print(a[0]); print(a[4]); }", "foo\n1\n2\n");
-#endif
 
 	// next: NULL literal
 	TEST("if (NULL == NULL) { print(\"null\"); }", "null\n");
-#ifndef AUX
 	TEST("if (NULL == \"\") { print(\"null\"); }", "");
 	TEST("if (NULL == 1) { print(\"null\"); }", "");
 	// `is'
@@ -340,6 +471,17 @@ main(int argc, char **argv)
 	TEST("int f(int x) { return x + 1; } print(f(1));", "2\n");
 	TEST("obj f(obj x) { return x + 1; } print(f(1));", "2\n");
 	TEST("obj f(obj x) { print(x); } f(1); ", "1\n");
+	check_memory_maps(__LINE__, 0, 0, 3,
+			  2, 0ull, // main: convert
+			  2, 0ull, // main: f			  
+			  2, 0x2ull); // f: print ($a0 on stack)
+
+	TEST("obj f(obj a0, int a1, obj a2, int a3, obj x) { int z = a3; obj y = a0; print(a0); } f(1, 2, NULL, 3, NULL); ", "1\n");
+	check_memory_maps(__LINE__, 0, 0, 3,
+			  6, 0ull, // main: convert
+			  6, 0ull, // main: f			  
+			  8, 0xacull); // f: print ($a0 on stack)  (explanation:  [padding:0][z:0][y:1][a0:1][a1:0][a2:1][a3:0][x:1])
+	
 	TEST("int f(int a, int b) { return a + (2*b); } print(f(1, 2));", "5\n");
 	TEST("int f(int a, int b) { print(a); return a + (2*b); } print(f(1, 2));", "1\n5\n");
 
@@ -440,7 +582,9 @@ main(int argc, char **argv)
 	TEST("int f() { int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x); } f();", "16\n3\n");
 	TEST("class C() { int f() { int x = 3; print(((2*3)+(1+1))*((3+2)-(2+1))); print(x); } } (C()).f();", "16\n3\n");
 	TEST("int f(int a0, int a1, int a2, obj a3, obj a4, obj a5, obj a6, obj a7, int a8) { int z; print(a0); print(a1); print(a2); print(a3); print(a4); print(a5); print(a6); print (a7); print(a8); z := a0 + a8; print(z + 0 * 0); } f(1, 2, 3, 4, 5, 6, 7, 8, 9);", "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n");
+#endif
 	TEST("class C() { obj p(obj a1, obj a2, obj a3, obj a4, obj a5, obj a6, obj a7, int a8) { print(a6 * a6 + a1); return a7 + (2 * a8); } } obj a = C(); print(a.p(1, 2, 3, 4, 5, 6, 7, 2));", "37\n11\n");
+#ifndef AUX
 	TEST("class C(int height, int width) { int area = height * width; } obj c = C(2, 3); print(c.area);", "6\n");
 	TEST("class C(obj height, int width) { obj area = [/ height * width]; } obj c = C(2, 3); print(c.area.size());", "6\n");
 	TEST("class C(obj height, int width) { obj area = [/ ((height*width)+(1+1))*((3+2)-(2+1))]; } obj c = C(2, 3); print(c.area.size());", "16\n");

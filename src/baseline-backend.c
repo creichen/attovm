@@ -44,6 +44,7 @@
 #include "errors.h"
 #include "object.h"
 #include "registers.h"
+#include "stackmap.h"
 
 
 #define VAR_IS_OBJ
@@ -60,7 +61,7 @@ typedef struct relative_jump_label_list {
 //d Uebersetzungskontext
 //e translation context
 typedef struct {
-	int stackmap_offset;	/*e position relative to $fp that the stackmap points to */
+	symtab_entry_t *symtab_entry;
 	bitvector_t stackmap;
 	int self_stack_location; /*e memory offset of the `SELF' reference, relative to $fp */ /*d Speicherstelle der `SELF'-Referenz relativ zu $fp */
 
@@ -104,6 +105,15 @@ jll_labels_resolve(relative_jump_label_list_t **list, void *addr)
 		buffer_setlabel(&node->label, addr);
 		free(node);
 	}
+}
+
+static void
+save_stackmap(buffer_t *buf, context_t *context)
+{
+	/* fprintf(stderr, "---> ISSUE stackmap ["); */
+	/* bitvector_print(stderr, context->stackmap); */
+	/* fprintf(stderr, "] at %p\n", buffer_target(buf)); */
+	stackmap_put(buffer_target(buf), bitvector_clone(context->stackmap), context->symtab_entry);
 }
 
 static void
@@ -217,9 +227,43 @@ baseline_temp_get_fp_offset(ast_node_t *node, context_t *context)
 }
 
 static void
+stackmap_mark(context_t *context, int fp_offset, bool is_reference)
+{
+	/* fprintf(stderr, "STACKMAP-MARK(%d)[%d(%d) with base %d(%d), len %zd] => ", */
+	/* 	is_reference, */
+	/* 	fp_offset / 8, */
+	/* 	fp_offset, */
+	/* 	context->stack_offset_base / 8, */
+	/* 	context->stack_offset_base, */
+	/* 	bitvector_size(context->stackmap)); */
+	fp_offset -= context->stack_offset_base;
+	fp_offset /= 8; /*e dear compiler: you better turn this into an arithmetic shift! (NB: it seems to do just that) */
+	/* fprintf(stderr, "%d\n", fp_offset); */
+	assert(fp_offset >= 0);
+	assert(fp_offset < bitvector_size(context->stackmap));
+	if (is_reference) {
+		context->stackmap = BITVECTOR_SET(context->stackmap, fp_offset);
+	} else {
+		context->stackmap = BITVECTOR_CLEAR(context->stackmap, fp_offset);
+	}
+}
+
+static void
 baseline_store_temp(buffer_t *buf, int reg, ast_node_t *node, context_t *context)
 {
-	emit_sd(buf, reg, baseline_temp_get_fp_offset(node, context), REGISTER_FP);
+	int offset = baseline_temp_get_fp_offset(node, context);
+	emit_sd(buf, reg, offset, REGISTER_FP);
+	stackmap_mark(context, offset, (node->type & TYPE_FLAGS) == TYPE_OBJ);
+}
+
+//e tells the stack map that this slot is no longer in use
+static void
+baseline_free_temp(ast_node_t *node, context_t *context)
+{
+	if (node->storage >= 0) {
+		int offset = baseline_temp_get_fp_offset(node, context);
+		stackmap_mark(context, offset, false);
+	}
 }
 
 static void
@@ -279,11 +323,20 @@ baseline_id_get_location(buffer_t *buf, symtab_entry_t *sym, int *reg, int *offs
 }
 
 static void
-baseline_store(buffer_t *buf, int reg, symtab_entry_t *sym, context_t *context)
+baseline_store_type(buffer_t *buf, int reg, symtab_entry_t *sym, context_t *context, bool is_obj)
 {
 	int offset, base_reg;
 	baseline_id_get_location(buf, sym, &base_reg, &offset, context);
+	if (base_reg == REGISTER_FP) {
+		stackmap_mark(context, offset, is_obj);
+	}
 	emit_sd(buf, reg, offset, base_reg);
+}
+
+static void
+baseline_store(buffer_t *buf, int reg, symtab_entry_t *sym, context_t *context)
+{
+	baseline_store_type(buf, reg, sym, context, (sym->ast_flags & TYPE_FLAGS) == TYPE_OBJ);
 }
 
 static void
@@ -327,6 +380,7 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 		case TYPE_OBJ:
 			emit_la(buf, REGISTER_V0, &new_int);
 			emit_jalr(buf, REGISTER_V0);
+			save_stackmap(buf, context);
 			emit_optmove(buf, dest_register, REGISTER_V0);
 			return;
 		case TYPE_VAR:
@@ -353,7 +407,7 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 			emit_ld(buf, dest_register,
 				//d Int-Wert im Objekt:
 				//e int value in object:
-				offsetof(object_t, members[0].int_v),
+				offsetof(object_t, fields[0].int_v),
 				REGISTER_A0);
 			return;
 		}
@@ -436,6 +490,7 @@ baseline_compile_builtin_eq(buffer_t *buf, int dest_register,
 	case TYPE_OBJ:
 		emit_la(buf, REGISTER_V0, builtin_op_obj_test_eq);
 		emit_jalr(buf, REGISTER_V0);
+		save_stackmap(buf, context);
 		emit_optmove(buf, dest_register, REGISTER_V0);
 		break;
 
@@ -569,6 +624,7 @@ baseline_compile_builtin_op(buffer_t *buf, int ty_and_node_flags, int op, ast_no
 		emit_la(buf, REGISTER_A0, sym->r_mem);
 		emit_li(buf, REGISTER_A1, sym->storage.fields_nr);
 		emit_jalr(buf, REGISTER_V0);
+		save_stackmap(buf, context);
 	}
 		break;
 
@@ -631,8 +687,8 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 
 	STACK_ALLOCATE(stack_args_nr);
 
-	//e recursively compute nontrivial values and values that go on the stack
-	//d Nichttriviale Werte und Werte, die ohnehin auf den Stapel muessen, rekursiv ausrechnen
+	//e recursively compute nontrivial values
+	//d Nichttriviale Werte rekursiv ausrechnen
 	for (int i = 0; i < children_nr; i++) {
 		int arg_nr = i + first_arg;
 		int reg = REGISTER_V0;
@@ -640,8 +696,7 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 			reg = registers_argument[arg_nr];
 		}
 		
-		if (arg_nr >= REGISTERS_ARGUMENT_NR
-		    || !is_simple(children[i])) {
+		if (!is_simple(children[i])) {
 			baseline_compile_expr(buf, children[i], reg, context);
 
 			if (last_nonsimple > i || arg_nr >= REGISTERS_ARGUMENT_NR) {
@@ -650,6 +705,11 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 				int dest_stack_location;
 				int base_reg;
 				if (arg_nr >= REGISTERS_ARGUMENT_NR) {
+					if (last_nonsimple > i) {
+						//e GC is still possible:
+						//e We still need to store it so the GC can find it
+						baseline_store_temp(buf, reg, children[i], context);
+					}
 					dest_stack_location = WORD_SIZE * (arg_nr - REGISTERS_ARGUMENT_NR);
 					base_reg = REGISTER_SP;
 				} else {
@@ -665,7 +725,26 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 			}
 		}
 	}
+	//e from here on GC is impossible until the actual function call
 
+	//e compute trivial values that have to go on the stack (but can't trigger GC)
+	//d Berechne triviale Werte, die unbedingt auf den Stapel müssen (aber kein GC auslösen können)
+	for (int i = REGISTERS_ARGUMENT_NR; i < children_nr; i++) {
+		int reg = REGISTER_V0;
+		
+		if (is_simple(children[i])) {
+			baseline_compile_expr(buf, children[i], reg, context);
+
+			int dest_stack_location;
+			int base_reg;
+			dest_stack_location = WORD_SIZE * (i + first_arg - REGISTERS_ARGUMENT_NR);
+			base_reg = REGISTER_SP;
+			emit_sd(buf, reg,
+				dest_stack_location,
+				base_reg);
+		}
+	}
+	
 	//d Triviale Registerinhalte generieren, vorher berechnete Werte bei Bedarf laden
 	//e trivial register contents, or load previously computed values
 	const int max = children_nr < REGISTERS_ARGUMENT_NR ? children_nr : REGISTERS_ARGUMENT_NR;
@@ -681,6 +760,8 @@ baseline_prepare_arguments(buffer_t *buf, int children_nr, ast_node_t **children
 				baseline_temp_get_fp_offset(children[i], context),
 				REGISTER_FP);
 		}
+		//e deallocate in stack map
+		baseline_free_temp(children[i], context);
 	}
 	return stack_args_nr;
 }
@@ -706,6 +787,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		emit_li(buf, REGISTER_A1, strlen(string));
 		emit_la(buf, REGISTER_V0, &new_string);
 		emit_jalr(buf, REGISTER_V0);
+		save_stackmap(buf, context);
 		emit_optmove(buf, dest_register, REGISTER_V0);
 	}
 		break;
@@ -717,11 +799,19 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 
 		baseline_id_get_location(buf, ast->sym, &reg, &offset, context);
 		
-		// Adresse oder Wert?
+		//d Adresse oder Wert?
+		//e address or value?
 		if (ast->type & AST_FLAG_LVALUE) {
-			// Wir wollen nur die Adresse:
+			//d Wir wollen nur die Adresse:
+			//e we only want the address:
 			emit_li(buf, dest_register, offset);
 			emit_add(buf, dest_register, reg);
+			//e This of course means that a store is imminent, so we update the stack map.
+			//e Note that this is the right time to do so, as the assignment's rhs is generated first
+			//e and the lhs cannot trigger memory allocation.
+			if (reg == REGISTER_FP) {
+				stackmap_mark(context, offset, (ast->type & TYPE_FLAGS) == TYPE_OBJ);
+			}
 		} else {
 			emit_ld(buf, dest_register, offset, reg);
 		}
@@ -767,10 +857,12 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			assert(0 == baseline_prepare_arguments(buf, 0, NULL, context,
 							       PREPARE_ARGUMENTS_MUSTALIGN));
 			emit_jalr(buf, REGISTER_V0);
+			save_stackmap(buf, context);
 		} else {
 			baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
 			if (NODE_TY(ast->children[0]) == AST_VALUE_ID) {
-				baseline_store(buf, REGISTER_V0, ast->children[0]->sym, context);
+				baseline_store_type(buf, REGISTER_V0, ast->children[0]->sym, context,
+						    AST_TYPE(ast->children[1]) == TYPE_OBJ);
 			} else {
 				if (!is_simple(ast->children[0])) {
 					baseline_store_temp(buf, REGISTER_V0, ast->children[1], context);
@@ -805,6 +897,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		}
 		emit_la(buf, REGISTER_V0, &new_array);
 		emit_jalr(buf, REGISTER_V0);
+		save_stackmap(buf, context);
 		//e We now have the allocated array in REGISTER_V0
 		baseline_store_temp(buf, REGISTER_V0, ast, context);
 		for (int i = 0; i < ast->children[0]->children_nr; i++) {
@@ -952,10 +1045,12 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		assert(0 == baseline_prepare_arguments(buf, 0, NULL, context,
 						       PREPARE_ARGUMENTS_MUSTALIGN));
 		emit_jalr(buf, REGISTER_V0);
+		save_stackmap(buf, context);
 		
 		//d Speichere Sprungadresse
 		//e save jump address
 		baseline_store_temp(buf, REGISTER_V0, ast, context);
+		baseline_free_temp(ast, context);
 		int stack_frame_size =
 			baseline_prepare_arguments(buf,
 						   ast->children[2]->children_nr,
@@ -971,6 +1066,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		}
 		baseline_load_temp(buf, REGISTER_V0, ast, context);
 		emit_jalr(buf, REGISTER_V0);
+		save_stackmap(buf, context);
 
 		STACK_DEALLOCATE(stack_frame_size);
 
@@ -997,6 +1093,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		assert(0 == baseline_prepare_arguments(buf, 0, NULL, context,
 						       PREPARE_ARGUMENTS_MUSTALIGN));
 		emit_jalr(buf, REGISTER_V0);
+		save_stackmap(buf, context);
 		emit_optmove(buf, dest_register, REGISTER_V0);
 	}
 		break;
@@ -1031,10 +1128,12 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			if (llabs(distance) < 0x7ffffff0) {
 				label_t lab;
 				emit_jal(buf, &lab);
+				save_stackmap(buf, context);
 				buffer_setlabel(&lab, sym->r_mem);
 			} else {
 				emit_la(buf, REGISTER_V0, sym->r_mem);
 				emit_jalr(buf, REGISTER_V0);
+				save_stackmap(buf, context);
 			}
 
 			// Stapelrahmen nachbereiten, soweit noetig
@@ -1105,18 +1204,29 @@ init_address_store()
 
 }
 
+
+#define	MCONTEXT_KIND_DEFAULT		0
+#define	MCONTEXT_KIND_CONSTRUCTOR	1
+#define	MCONTEXT_KIND_METHOD		2
+
 int
 setup_mcontext(context_t *context, symtab_entry_t *sym,
-	       storage_record_t *storage, int parameters_nr, bool has_self, int additional_words)
+	       storage_record_t *storage, int parameters_nr, int kind, int additional_words)
 {
 	int words = 0;
-	if (has_self) {
+	if ((kind == MCONTEXT_KIND_CONSTRUCTOR) || (kind == MCONTEXT_KIND_METHOD)) {
 		words = 1;
 		context->self_stack_location = -WORD_SIZE;
+	} else {
+		context->self_stack_location = 0;
+	}
+	int excess_parameters_bound = REGISTERS_ARGUMENT_NR;
+	if (kind == MCONTEXT_KIND_METHOD) {
+		--excess_parameters_bound; /*e method also must pass self */
 	}
 
-	const int excess_parameters = (parameters_nr > REGISTERS_ARGUMENT_NR) ? parameters_nr - REGISTERS_ARGUMENT_NR : 0;
-	words += (parameters_nr > REGISTERS_ARGUMENT_NR) ? REGISTERS_ARGUMENT_NR : parameters_nr;
+	const int excess_parameters = (parameters_nr > excess_parameters_bound) ? parameters_nr - excess_parameters_bound : 0;
+	words += (parameters_nr > excess_parameters_bound) ? excess_parameters_bound : parameters_nr;
 	context->stack_offset_args = -WORD_SIZE * (words);
 	words += storage->vars_nr;
 	context->stack_offset_locals = -WORD_SIZE * (words);
@@ -1127,17 +1237,21 @@ setup_mcontext(context_t *context, symtab_entry_t *sym,
 	if (words & 1) { /*e align stack if needed */ /*d Aufrufstapel ausrichten, sofern nötig */ 
 		++words;
 	}
-	context->stack_offset_base = -WORD_SIZE * (1 + words);
+	context->stack_offset_base = -WORD_SIZE * (words);
 
-	int stackmap_extra_bits = 2 /* $fp, jreturn addr. */ + excess_parameters;
-	context->stackmap_offset = -1 - excess_parameters;
+	int stackmap_extra_bits = 0;
+	if (excess_parameters) {
+		stackmap_extra_bits += 2 /* $fp, jreturn addr. */ + excess_parameters;
+	}
 	if (sym) {
-		sym->stackframe_start = context->stackmap_offset;
+		sym->stackframe_start = context->stack_offset_base;
 	}
 
 	context->stackmap = bitvector_alloc(words + stackmap_extra_bits);
+	context->symtab_entry = sym;
 
-	/* fprintf(stderr, "[mcontext: params=%d, vars=%d, temps=%d, extra=%d, cons=%d]\n", parameters_nr, storage->vars_nr, storage->temps_nr, additional_words, has_self); */
+	/* fprintf(stderr, "[mcontext: params=%d, vars=%d, temps=%d, extra=%d, cons|method=%d, excess-args=%d]\n", */
+	/* 	parameters_nr, storage->vars_nr, storage->temps_nr, additional_words, kind, excess_parameters); */
 	/* fprintf(stderr, "           params@%d, vars@%d, temps@%d,     self@%d  (total words = %d)\n", */
 	/* 	context->stack_offset_args, */
 	/* 	context->stack_offset_locals, */
@@ -1168,7 +1282,7 @@ baseline_compile_entrypoint(ast_node_t *root,
 	mcontext.continue_labels = NULL;
 	mcontext.break_labels = NULL;
 	context_t *context = &mcontext;
-	int stack_entries_nr = setup_mcontext(&mcontext, NULL, storage, 0, false, 1);
+	int stack_entries_nr = setup_mcontext(&mcontext, NULL, storage, 0, MCONTEXT_KIND_DEFAULT, 1);
 	int gp_offset = -WORD_SIZE * stack_entries_nr;
 
 	buffer_t mbuf = buffer_new(1024);
@@ -1240,7 +1354,8 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 	if (is_constructor) {
 		parameters_nr = sym->parent->parameters_nr;
 	}
-	int stack_entries_nr = setup_mcontext(&mcontext, sym, &sym->storage, parameters_nr, is_constructor, 0);
+	int stack_entries_nr = setup_mcontext(&mcontext, sym, &sym->storage, parameters_nr,
+					      is_constructor ? MCONTEXT_KIND_CONSTRUCTOR : MCONTEXT_KIND_DEFAULT, 0);
 	context_t *context = &mcontext;
 
 	buffer_t mbuf = buffer_new(1024);
@@ -1266,6 +1381,13 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 		args[i]->sym->offset = i + 2 + (is_constructor? 1 : 0); // post $fp and return address
 		args[i]->sym->symtab_flags |= SYMTAB_EXCESS_PARAM;
 	}
+	if (is_constructor) {
+		//e Zero the `self' reference so the GC can tell if it hasn't been assigned yet
+		//d `self'-Referenz auf NULL setzen, damit der GC sie nicht fälschlich sucht
+		emit_li(buf, REGISTER_T0, 0);
+		emit_sd(buf, REGISTER_T0, context->self_stack_location, REGISTER_FP);
+		stackmap_mark(context, context->self_stack_location, true);
+	}
 
 	baseline_compile_expr(buf, body, REGISTER_V0, context);
 
@@ -1285,7 +1407,8 @@ baseline_compile_method(symtab_entry_t *sym)
 	context_t mcontext;
 	mcontext.continue_labels = NULL;
 	mcontext.break_labels = NULL;
-	int stack_entries_nr = setup_mcontext(&mcontext, sym, &sym->storage, sym->parameters_nr + 1, true, 0);
+	int stack_entries_nr = setup_mcontext(&mcontext, sym, &sym->storage, sym->parameters_nr,
+					      MCONTEXT_KIND_METHOD, 0);
 	context_t *context = &mcontext;
 
 	buffer_t mbuf = buffer_new(1024);
@@ -1297,21 +1420,22 @@ baseline_compile_method(symtab_entry_t *sym)
 
 	assert(NODE_TY(node) == AST_NODE_FUNDEF);
 	ast_node_t **args = node->children[1]->children;
-	const int args_nr = node->children[1]->children_nr + 1; /*d implizites SELF-Argument */ /*e implicit SELF reference */
+	const int full_args_nr = node->children[1]->children_nr + 1; /*d implizites SELF-Argument */ /*e implicit SELF reference */
 	ast_node_t *body = node->children[2];
 
 	//d Parameter in Argumentregistern auf Stapel
 	//e Move parameters in argument registers onto the stack
 	//e subtract one since we're handling the `self' parameter separately
-	const int spilled_args = args_nr > (REGISTERS_ARGUMENT_NR) ? (REGISTERS_ARGUMENT_NR) : args_nr;
+	const int excess_args = full_args_nr > (REGISTERS_ARGUMENT_NR) ? (REGISTERS_ARGUMENT_NR) : full_args_nr;
 
 	emit_sd(buf, REGISTER_A0, context->self_stack_location, REGISTER_FP);
+	stackmap_mark(context, context->self_stack_location, true);
 	
-	for (int i = 1; i < spilled_args; i++) {
+	for (int i = 1; i < excess_args; i++) {
 		baseline_store(buf, registers_argument[i], args[i - 1]->sym, context);
 	}
-	for (int i = spilled_args; i < args_nr; i++) {
-		args[i - 1]->sym->offset = i + 3; // post $fp and return address
+	for (int i = excess_args; i < full_args_nr; i++) {
+		args[i - 1]->sym->offset = i + 2; // post $fp, return address
 		args[i - 1]->sym->symtab_flags |= SYMTAB_EXCESS_PARAM;
 	}
 

@@ -30,8 +30,9 @@
 #ifndef _ATTOL_BITVECTOR_H
 #define _ATTOL_BITVECTOR_H
 
-#include<stdbool.h>
-#include<stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
 /*e
  * Bitvectors are implemented in one of two shapes:  either as a `small' bitvector,
@@ -55,6 +56,8 @@ typedef union bitvector bitvector_t;
 
 #define BITVECTOR_IS_SMALL(BV) ((BV.small & 1))
 
+#define BITVECTOR_MAKE_SMALL(size, v) {.small = ((((unsigned long long) v) << BITVECTOR_BODY_SHIFT) | (((unsigned long long) size) << BITVECTOR_SIZE_SHIFT) | 1) }
+
 #ifdef BITVECTOR_INLINE
 #  define BITVECTOR_SET(BV, B) ((BITVECTOR_IS_SMALL(BV))? (bitvector_t)((BV).small | (1ull << (BITVECTOR_BODY_SHIFT + (B)))) : bitvector_set_slow((BV), (B)))
 #  define BITVECTOR_CLEAR(BV, B) ((BITVECTOR_IS_SMALL(BV))? (bitvector_t)((BV).small & ~(1ull << (BITVECTOR_BODY_SHIFT + (B)))) : bitvector_clear_slow((BV), (B)))
@@ -72,6 +75,14 @@ typedef union bitvector bitvector_t;
  */
 bitvector_t
 bitvector_alloc(size_t size);
+
+/*e
+ * Creates a bitvector from a pre-existing size and unsigned long long value.
+ *
+ * In the resulting bitvector, bit 0 is set iff the LSB in v is set and so on.
+ */
+bitvector_t
+bitvector(size_t size, unsigned long long v);
 
 /*e
  * Determines the number of bits in the bitvector.
@@ -127,5 +138,14 @@ bitvector_clear_slow(bitvector_t bitvector, size_t pos);
  */
 bool
 bitvector_is_set_slow(bitvector_t bitvector, size_t pos);
+
+/*e
+ * Prints out the bit vector, LSB first
+ *
+ * @param f File to print to
+ * @param bitvector The vector to print
+ */
+void
+bitvector_print(FILE *f, bitvector_t bitvector);
 
 #endif // !defined(_ATTOL_BITVECTOR_H)

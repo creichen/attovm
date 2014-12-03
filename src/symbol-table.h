@@ -43,10 +43,10 @@
  * Accessing a SELECTOR symbol must thus only access that field; all other information is initially meaningless.
  */
 
-#define SYMTAB_TY_MASK		0x0003
-#define SYMTAB_TY_VAR		0x0001
-#define SYMTAB_TY_FUNCTION	0x0002
-#define SYMTAB_TY_CLASS		0x0003
+#define SYMTAB_KIND_MASK	0x0003
+#define SYMTAB_KIND_VAR		0x0001
+#define SYMTAB_KIND_FUNCTION	0x0002
+#define SYMTAB_KIND_CLASS	0x0003
 
 #define SYMTAB_SELECTOR		0x0004	/*d Selektor in ein Objekt */ /*e selector for selector table */
 #define SYMTAB_PARAM		0x0008	/*d nur mit TY_VAR */ /*e only with TY_VAR */
@@ -58,11 +58,11 @@
 #define SYMTAB_OPT		0x0200	/*d Mit Optimierungen übersetzt */ /*e fully translated with optimisations */
 #define SYMTAB_EXCESS_PARAM	0x0400	/*d PARAM, den wir auf dem Stapel uebergeben */ /*e PARAM passed on the stack */
 
-
-#define SYMTAB_TY(s)			(((s)->symtab_flags) & SYMTAB_TY_MASK)
-#define SYMTAB_IS_STATIC(s)		(!(s)->parent && (SYMTAB_TY(s) == SYMTAB_TY_VAR))					/*d static-alloziert */ /*e in static memory */
+#define SYMTAB_TYPE(s)			(((s)->ast_flags) & TYPE_FLAGS)	/*e TYPE_INT, TYPE_OBJ etc */
+#define SYMTAB_KIND(s)			(((s)->symtab_flags) & SYMTAB_KIND_MASK)
+#define SYMTAB_IS_STATIC(s)		(!(s)->parent && (SYMTAB_KIND(s) == SYMTAB_KIND_VAR))					/*d static-alloziert */ /*e in static memory */
 #define SYMTAB_IS_STACK_DYNAMIC(s)	(((s)->parent && (!((s)->symtab_flags & SYMTAB_MEMBER))) || s->id == BUILTIN_OP_SELF)	/*d Stapel/Register-Alloziert */ /*e stack or register */
-#define SYMTAB_IS_CONS_ARG(s)		(((s)->parent && ((s)->symtab_flags & SYMTAB_PARAM) && (SYMTAB_TY((s)->parent) == SYMTAB_TY_CLASS)))
+#define SYMTAB_IS_CONS_ARG(s)		(((s)->parent && ((s)->symtab_flags & SYMTAB_PARAM) && (SYMTAB_KIND((s)->parent) == SYMTAB_KIND_CLASS)))
 
 typedef struct {
 	short functions_nr;		/*e methods */
@@ -94,7 +94,7 @@ typedef struct symtab_entry {
 						 * PARAM: parameter number
 						 * VAR: variable number, either on stack or in static memory
 						 */
-	signed short stackframe_start;		/*e stack frame start, relative to $fp (filled in by code generator) */
+	signed short stackframe_start;		/*e functions/methods: stack frame start, relative to $fp (filled in by code generator) */
 	storage_record_t storage;
 } symtab_entry_t;
 

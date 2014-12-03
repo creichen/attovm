@@ -28,7 +28,8 @@
 #ifndef _ATTOL_RUNTIME_H
 #define _ATTOL_RUNTIME_H
 
-/* Zentraler Sammelpunkt fuer Laufzeitsystem und Uebersetzer */
+//d Zentraler Sammelpunkt fuer Laufzeitsystem und Uebersetzer
+//e central meeting point for run-time system and compiler
 
 #include "ast.h"
 #include "assembler-buffer.h"
@@ -59,8 +60,6 @@ typedef struct {
 	ast_node_t *ast;	/*d Fertig analysierter abstrakter Syntaxbaum */
 } runtime_image_t;
 
-//e current run-time image; active during program execution.  Current clients: GC
-extern runtime_image_t *current_image;
 
 #define RUNTIME_ACTION_NONE			0 // only allocate the image and put in the AST
 #define RUNTIME_ACTION_NAME_ANALYSIS		1
@@ -94,8 +93,11 @@ void
 runtime_free(runtime_image_t *);
 
 
-/**
+/*d
  * Liefert das letztallozierte Laufzeit-Image
+ */
+/*e
+ * Retrieves the most recently installed run-time image
  */
 runtime_image_t *
 runtime_current(void);

@@ -39,18 +39,21 @@
 
 class_t class_boxed_int = {
 	.id = NULL,
+	.object_map = BITVECTOR_MAKE_SMALL(1, 0),
 	.table_mask = 0,
 	.members = { { 0, NULL } }
 };
 
 class_t class_boxed_real = {
 	.id = NULL,
+	.object_map = BITVECTOR_MAKE_SMALL(1, 0),
 	.table_mask = 0,
 	.members = { { 0, NULL } }
 };
 
 class_t class_string = {
 	.id = NULL,
+	.object_map = BITVECTOR_MAKE_SMALL(0, 0),
 	.table_mask = 1,
 	.members = { { 0, NULL }, { 0, NULL },
 		     { 0, NULL }} // Zusaetzlicher Platz fuer virtuelle Funktionstabelle
@@ -58,6 +61,7 @@ class_t class_string = {
 
 class_t class_array = {
 	.id = NULL,
+	.object_map = BITVECTOR_MAKE_SMALL(0, 0),
 	.table_mask = 1,
 	.members = { { 0, NULL }, { 0, NULL },
 		     { 0, NULL }} // Zusaetzlicher Platz fuer virtuelle Funktionstabelle
@@ -134,35 +138,35 @@ static object_t *builtin_op_string_size(object_t *arg);
 static object_t *builtin_op_array_size(object_t *arg); 
 
 static struct builtin_ops builtin_ops[] = {
-	{ BUILTIN_OP_ADD, "+", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_MUL, "*", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_SUB, "-", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_DIV, "/", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_TEST_EQ, "==", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_any_any, NULL }, // but see object.c
-	{ BUILTIN_OP_TEST_LE, "<=", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_TEST_LT, "<", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_CONVERT, "*convert", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), 0, 1, args_any, NULL },
-	{ BUILTIN_OP_NOT, "not", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 1, args_int, NULL },
-	{ BUILTIN_OP_ALLOCATE, "*allocate", (SYMTAB_TY_FUNCTION | SYMTAB_HIDDEN), TYPE_OBJ, 1, args_int, NULL },
-	{ BUILTIN_OP_SELF, "*self", (SYMTAB_TY_VAR | SYMTAB_HIDDEN | SYMTAB_PARAM), TYPE_OBJ, 0, NULL, NULL },
+	{ BUILTIN_OP_ADD, "+", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_MUL, "*", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_SUB, "-", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_DIV, "/", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_TEST_EQ, "==", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_any_any, NULL }, // but see object.c
+	{ BUILTIN_OP_TEST_LE, "<=", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_TEST_LT, "<", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
+	{ BUILTIN_OP_CONVERT, "*convert", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), 0, 1, args_any, NULL },
+	{ BUILTIN_OP_NOT, "not", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 1, args_int, NULL },
+	{ BUILTIN_OP_ALLOCATE, "*allocate", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_OBJ, 1, args_int, NULL },
+	{ BUILTIN_OP_SELF, "*self", (SYMTAB_KIND_VAR | SYMTAB_HIDDEN | SYMTAB_PARAM), TYPE_OBJ, 0, NULL, NULL },
 	// not with a fixed position
-	{ 0, "print", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_print },
-	{ 0, "assert", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_int, &builtin_op_assert },
-	{ 0, "magic", SYMTAB_TY_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_magic }
+	{ 0, "print", SYMTAB_KIND_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_print },
+	{ 0, "assert", SYMTAB_KIND_FUNCTION, TYPE_OBJ, 1, args_int, &builtin_op_assert },
+	{ 0, "magic", SYMTAB_KIND_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_magic }
 };
 
 static struct builtin_ops builtin_selectors[] = {
-	{ 0, "size", SYMTAB_TY_FUNCTION | SYMTAB_SELECTOR, TYPE_INT, 0, NULL, NULL }
+	{ 0, "size", SYMTAB_KIND_FUNCTION | SYMTAB_SELECTOR, TYPE_INT, 0, NULL, NULL }
 };
 
 static struct builtin_ops builtin_classes[] = {
-	{ BUILTIN_PRELINKED_CLASS_INT, "int", SYMTAB_TY_CLASS, 0, 0, NULL, NULL },
-	{ BUILTIN_PRELINKED_CLASS_REAL, "real", SYMTAB_TY_CLASS, 0, 0, NULL, NULL },
-	{ BUILTIN_PRELINKED_CLASS_STRING, "string", SYMTAB_TY_CLASS, 0, 0, NULL, NULL },
-	{ BUILTIN_PRELINKED_CLASS_ARRAY, "Array", SYMTAB_TY_CLASS, 0, 0, NULL, NULL },
+	{ BUILTIN_PRELINKED_CLASS_INT, "int", SYMTAB_KIND_CLASS, 0, 0, NULL, NULL },
+	{ BUILTIN_PRELINKED_CLASS_REAL, "real", SYMTAB_KIND_CLASS, 0, 0, NULL, NULL },
+	{ BUILTIN_PRELINKED_CLASS_STRING, "string", SYMTAB_KIND_CLASS, 0, 0, NULL, NULL },
+	{ BUILTIN_PRELINKED_CLASS_ARRAY, "Array", SYMTAB_KIND_CLASS, 0, 0, NULL, NULL },
 
-	{ BUILTIN_PRELINKED_METHOD_STRING_SIZE, "size", SYMTAB_TY_FUNCTION | SYMTAB_MEMBER, TYPE_INT, 0, NULL, &builtin_op_string_size },
-	{ BUILTIN_PRELINKED_METHOD_ARRAY_SIZE, "size", SYMTAB_TY_FUNCTION | SYMTAB_MEMBER, TYPE_INT, 0, NULL, &builtin_op_array_size }
+	{ BUILTIN_PRELINKED_METHOD_STRING_SIZE, "size", SYMTAB_KIND_FUNCTION | SYMTAB_MEMBER, TYPE_INT, 0, NULL, &builtin_op_string_size },
+	{ BUILTIN_PRELINKED_METHOD_ARRAY_SIZE, "size", SYMTAB_KIND_FUNCTION | SYMTAB_MEMBER, TYPE_INT, 0, NULL, &builtin_op_array_size }
 };
 
 extern int symtab_selectors_nr; // symbol-table.c
@@ -286,13 +290,13 @@ builtin_op_assert(long long int arg)
 static object_t *
 builtin_op_string_size(object_t *arg)
 {
-	return new_int(arg->members[0].int_v);
+	return new_int(arg->fields[0].int_v);
 }
 
 static object_t *
 builtin_op_array_size(object_t *arg)
 {
-	return new_int(arg->members[0].int_v);
+	return new_int(arg->fields[0].int_v);
 } 
 
 static object_t *

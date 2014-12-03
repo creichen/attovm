@@ -179,7 +179,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 			error(node, "undefined name");
 		} else {
 			if (SYMTAB_IS_CONS_ARG(lookup)
-			    && SYMTAB_TY(parent) == SYMTAB_TY_FUNCTION) {
+			    && SYMTAB_KIND(parent) == SYMTAB_KIND_FUNCTION) {
 				error(node, "must not reference constructor parameter in method body");
 				return;
 			}
@@ -227,7 +227,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 		}
 
 		lookup = symtab_new(node->type & ~AST_NODE_MASK,
-				    SYMTAB_TY_VAR | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
+				    SYMTAB_KIND_VAR | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
 				    AV_NAME(name_node),
 				    node);
 		lookup->occurrence_count = occurrence_count;
@@ -353,7 +353,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 					error(name_node, "nested functions are not permitted");
 				}
 				syminfo = symtab_new(cnode->type & ~AST_NODE_MASK,
-						     SYMTAB_TY_FUNCTION | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
+						     SYMTAB_KIND_FUNCTION | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
 						     AV_NAME(name_node),
 						     cnode);
 
@@ -371,7 +371,7 @@ fixnames(ast_node_t *node, hashtable_t *env, symtab_entry_t *parent, int child_f
 					error(name_node, "nested classes are not permitted");
 				}
 				syminfo = symtab_new(TYPE_OBJ,
-						     SYMTAB_TY_CLASS | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
+						     SYMTAB_KIND_CLASS | (child_flags & ~NF_SPECIAL_CHILD_FLAGS),
 						     AV_NAME(name_node),
 						     cnode);
 				break;

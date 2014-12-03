@@ -28,8 +28,15 @@
 #include "chash.h"
 #include "stackmap.h"
 
+cstack_t *debug_stack = NULL;
 static hashtable_t *bitvector_registry = NULL;
 static hashtable_t *symtab_registry = NULL;
+
+void
+stackmap_debug(cstack_t *stack)
+{
+	debug_stack = stack;
+}
 
 void
 stackmap_init(void)
@@ -55,6 +62,9 @@ stackmap_clear(void)
 void
 stackmap_put(void *address, bitvector_t bitvector, symtab_entry_t *entry)
 {
+	if (debug_stack) {
+		stack_push(debug_stack, &address);
+	}
 	void *value = (void *) bitvector.large;
 	hashtable_put(bitvector_registry, address, value, (void (*)(void *)) bitvector_free);
 	hashtable_put(symtab_registry, address, (void *) entry, NULL);

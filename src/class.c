@@ -35,13 +35,14 @@
 class_t *
 class_new(symtab_entry_t *entry)
 {
-	assert(entry->symtab_flags & SYMTAB_TY_CLASS);
+	assert(entry->symtab_flags & SYMTAB_KIND_CLASS);
 	int size = class_selector_table_size(entry->storage.functions_nr, entry->storage.fields_nr);
 	class_t *classref = calloc(1, sizeof(class_t)
 				   + sizeof(class_member_t) * size
 				   // Virtuelle Methodentabelle
 				   + (entry->storage.functions_nr * sizeof(void *)));
 	classref->table_mask = size - 1;
+	classref->object_map = bitvector_alloc(entry->storage.fields_nr);
 
 	return class_initialise_and_link(classref, entry);
 }
@@ -146,13 +147,13 @@ class_add_selector(class_t *classref, symtab_entry_t *selector_impl)
 		index = (index + 1) & classref->table_mask;
 	}
 	int type_encoding;
-	if (SYMTAB_TY(selector_impl) == SYMTAB_TY_VAR) {
+	if (SYMTAB_KIND(selector_impl) == SYMTAB_KIND_VAR) {
 		if (selector_impl->ast_flags & TYPE_INT) {
 			type_encoding = CLASS_MEMBER_VAR_INT;
 		} else {
 			type_encoding = CLASS_MEMBER_VAR_OBJ;
 		}
-	} else if (SYMTAB_TY(selector_impl) == SYMTAB_TY_FUNCTION) {
+	} else if (SYMTAB_KIND(selector_impl) == SYMTAB_KIND_FUNCTION) {
 		type_encoding = CLASS_MEMBER_METHOD(selector_impl->parameters_nr);
 	} else {
 		symtab_entry_dump(stderr, selector_impl);
@@ -182,6 +183,11 @@ class_initialise_and_link(class_t *classref, symtab_entry_t *entry)
 			       || NODE_TY(child) == AST_NODE_VARDECL);
 			class_add_selector(classref,
 					   (symtab_entry_t *) child->children[0]->sym);
+
+			if (NODE_TY(child) == AST_NODE_VARDECL
+			    && SYMTAB_TYPE(child->children[0]->sym) == TYPE_OBJ) {
+				classref->object_map = BITVECTOR_SET(classref->object_map, i);
+			}
 		}
 	}
 	return classref;

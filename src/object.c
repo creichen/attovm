@@ -46,7 +46,7 @@ object_t *
 new_int(long long int v)
 {
 	object_t *obj = heap_allocate_object(&class_boxed_int, 1);
-	obj->members[0].int_v = v;
+	obj->fields[0].int_v = v;
 	return obj;
 }
 
@@ -54,7 +54,7 @@ object_t *
 new_real(double v)
 {
 	object_t *obj = heap_allocate_object(&class_boxed_real, 1);
-	obj->members[0].real_v = v;
+	obj->fields[0].real_v = v;
 	return obj;
 }
 
@@ -63,7 +63,7 @@ new_string(char *string, size_t len)
 {
 	size_t fields_nr_space = (len + sizeof(void*)) & ~(sizeof (void*) - 1);
 	object_t *obj = heap_allocate_object(&class_string, 1 + (fields_nr_space >> 3));
-	obj->members[0].int_v = len;
+	obj->fields[0].int_v = len;
 	memcpy(OBJECT_STRING(obj), string, len + 1);
 	return obj;
 }
@@ -73,7 +73,7 @@ object_t *
 new_array(size_t len)
 {
 	object_t *obj = heap_allocate_object(&class_array, len + 1);
-	obj->members[0].int_v = len;
+	obj->fields[0].int_v = len;
 	return obj;
 }
 
@@ -90,10 +90,10 @@ builtin_op_obj_test_eq(object_t *a0, object_t *a1)
 		return 0;
 	}
 	if (a0->classref == &class_boxed_int) {
-		return a0->members[0].int_v == a1->members[0].int_v;
+		return a0->fields[0].int_v == a1->fields[0].int_v;
 	}
 	if (a0->classref == &class_boxed_real) {
-		return a0->members[0].real_v == a1->members[0].real_v;
+		return a0->fields[0].real_v == a1->fields[0].real_v;
 	}
 	if (a0->classref == &class_string) {
 		return !strcmp(OBJECT_STRING(a0), OBJECT_STRING(a1));
@@ -122,21 +122,21 @@ object_print_internal(FILE *f, object_t *obj, int depth, bool debug, char *sep)
 	}
 
 	if (classref == &class_boxed_int) {
-		fprintf(f, "%lld%s", obj->members[0].int_v, loc);
+		fprintf(f, "%lld%s", obj->fields[0].int_v, loc);
 		return;
 	} else if (classref == &class_boxed_real) {
-		fprintf(f, "%f%s", obj->members[0].real_v, loc);
+		fprintf(f, "%f%s", obj->fields[0].real_v, loc);
 		return;
 	} else if (classref == &class_string) {
 		fprintf(f, "%s%s", OBJECT_STRING(obj), loc);
 		return;
 	} else if (classref == &class_array) {
 		fprintf(f, "[");
-		for (int i = 0; i < obj->members[0].int_v; i++) {
+		for (int i = 0; i < obj->fields[0].int_v; i++) {
 			if (i > 0) {
 				fprintf(f, ",");
 			}
-			object_print_internal(f, obj->members[i+1].object_v, depth - 1, debug, " ");
+			object_print_internal(f, obj->fields[i+1].object_v, depth - 1, debug, " ");
 		}
 		fprintf(f, "]%s", loc);
 		return;
@@ -169,10 +169,10 @@ object_print_internal(FILE *f, object_t *obj, int depth, bool debug, char *sep)
 			fprintf(f, "%s %s = ", ty, msym->name);
 
 			if (msym->ast_flags & TYPE_OBJ) {
-				object_print_internal(f, obj->members[CLASS_DECODE_SELECTOR_OFFSET(coding)].object_v,
+				object_print_internal(f, obj->fields[CLASS_DECODE_SELECTOR_OFFSET(coding)].object_v,
 						      depth - 1, debug, " ");
 			} else if (msym->ast_flags & TYPE_INT) {
-				fprintf(f, "%lld", obj->members[CLASS_DECODE_SELECTOR_OFFSET(coding)].int_v);
+				fprintf(f, "%lld", obj->fields[CLASS_DECODE_SELECTOR_OFFSET(coding)].int_v);
 			} else {
 				fprintf(f, "?");
 			}
@@ -286,12 +286,12 @@ object_read_member_field_obj(object_t *obj, ast_node_t *node, int selector)
 
 	/* fprintf(stderr, "Reading from field slc=0x%x of object:\n", selector); */
 	/* object_print(stderr, obj, true, 3); */
-	/* fprintf(stderr, "\nreading from %p\n", &(obj->members[offset].int_v)); */
+	/* fprintf(stderr, "\nreading from %p\n", &(obj->fields[offset].int_v)); */
 
 	if (type == CLASS_MEMBER_VAR_OBJ) {
-		return obj->members[offset].object_v;
+		return obj->fields[offset].object_v;
 	} else if (type == CLASS_MEMBER_VAR_INT) {
-		return new_int(obj->members[offset].int_v);
+		return new_int(obj->fields[offset].int_v);
 	} else {
 		fail_selector_lookup(obj, node, type, CLASS_MEMBER_VAR_OBJ);
 	}
@@ -304,13 +304,13 @@ object_read_member_field_int(object_t *obj, ast_node_t *node, int selector)
 	// `type' und `offset' sind nun gesetzt
 
 	if (type == CLASS_MEMBER_VAR_OBJ) {
-		object_t *elt = obj->members[offset].object_v;
+		object_t *elt = obj->fields[offset].object_v;
 		if (elt->classref == &class_boxed_int) {
-			return elt->members[0].int_v;
+			return elt->fields[0].int_v;
 		}
 		fail_at_node(node, "attempted to convert non-int object to int value");
 	} else if (type == CLASS_MEMBER_VAR_INT) {
-		return obj->members[offset].int_v;
+		return obj->fields[offset].int_v;
 	} else {
 		fail_selector_lookup(obj, node, type, CLASS_MEMBER_VAR_INT);
 	}
@@ -323,9 +323,9 @@ object_write_member_field_int(object_t *obj, ast_node_t *node, int selector, lon
 	//d `type' und `offset' sind nun gesetzt
 	//e `type' und `offset' are now set
 	if (type == CLASS_MEMBER_VAR_OBJ) {
-		obj->members[offset].object_v = new_int(value);
+		obj->fields[offset].object_v = new_int(value);
 	} else if (type == CLASS_MEMBER_VAR_INT) {
-		obj->members[offset].int_v = value;
+		obj->fields[offset].int_v = value;
 	} else {
 		fail_selector_lookup(obj, node, type, CLASS_MEMBER_VAR_INT);
 	}
@@ -338,13 +338,13 @@ object_write_member_field_obj(object_t *obj, ast_node_t *node, int selector, obj
 	// `type' und `offset' sind nun gesetzt
 
 	if (type == CLASS_MEMBER_VAR_OBJ) {
-		obj->members[offset].object_v = value;
+		obj->fields[offset].object_v = value;
 	} else if (type == CLASS_MEMBER_VAR_INT) {
 		if (!value) {
 			fail_at_node(node, "attempted to assign NULL to int field");
 		}
 		if (value->classref == &class_boxed_int) {
-			obj->members[offset].int_v = value->members[0].int_v;
+			obj->fields[offset].int_v = value->fields[0].int_v;
 		}
 		fail_at_node(node, "attempted to convert non-int object to int value");
 	} else {

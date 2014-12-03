@@ -36,6 +36,7 @@
 #include "dynamic-compiler.h"
 #include "heap.h"
 #include "runtime.h"
+#include "stackmap.h"
 #include "symbol-table.h"
 
 struct compiler_options compiler_options = {
@@ -48,7 +49,7 @@ struct compiler_options compiler_options = {
 	.heap_size			= 0x100000
 };
 
-runtime_image_t *last = NULL;
+static runtime_image_t *last = NULL;
 
 runtime_image_t *
 runtime_prepare(ast_node_t *ast, unsigned int action)
@@ -101,10 +102,10 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		image->static_memory = NULL;
 	}
 
+	stackmap_init();
 	image->dyncomp = dyncomp_build_generic();
 	image->trampoline = dyncomp_build_trampoline(buffer_entrypoint(image->dyncomp),
 						     image->callables, image->storage.functions_nr + image->classes_nr);
-
 	heap_init(compiler_options.heap_size);
 	image->code_buffer = baseline_compile_entrypoint(ast, &image->storage, image->static_memory);
 	image->main_entry_point = buffer_entrypoint(image->code_buffer);
@@ -135,8 +136,6 @@ text_instruction_location(unsigned char *_)
 	return true;
 }
 
-runtime_image_t *current_image = NULL;
-
 //e loader
 void
 runtime_execute(runtime_image_t *img)
@@ -145,15 +144,12 @@ runtime_execute(runtime_image_t *img)
 	void (*f)(void) = (void (*)(void)) img->main_entry_point;
 	//fprintf(stderr, "calling(%p)\n", f);
 	//e remember where we called from to help automatic memory management
-	current_image = img;
 	heap_root_frame_pointer = __builtin_frame_address(0);
 
 	if (compiler_options.debug_assembly) {
 		debugger_config_t conf = {
-			.debug_region_start = (unsigned char *) 100,
-			.debug_region_end = ((unsigned char *) ASSEMBLER_BIN_PAGES_START) + 0x10000000000000 /*e wild guess */,
-			/* .debug_region_start = (unsigned char *) ASSEMBLER_BIN_PAGES_START, */
-			/* .debug_region_end = ((unsigned char *) ASSEMBLER_BIN_PAGES_START) + 0x1000000000 /\*e wild guess *\/, */
+			.debug_region_start = (unsigned char *) ASSEMBLER_BIN_PAGES_START,
+			.debug_region_end = ((unsigned char *) ASSEMBLER_BIN_PAGES_START) + 0x1000000000 /*e wild guess */,
 			.static_section = img->static_memory,
 			.static_section_size = sizeof(void*) * img->globals_nr,
 			.name_lookup = NULL,
@@ -166,13 +162,13 @@ runtime_execute(runtime_image_t *img)
 		(*f)();
 	}
 	heap_root_frame_pointer = NULL;
-	current_image = NULL;
 }
 
 void
 runtime_free(runtime_image_t *img)
 {
 	heap_free();
+	stackmap_clear();
 	if (img->globals_nr) {
 		free(img->static_memory);
 		img->static_memory = NULL;

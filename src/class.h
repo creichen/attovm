@@ -25,7 +25,8 @@
 
 ***************************************************************************/
 
-// Klassenrepraesentierung
+//d Klassenrepraesentierung
+//e class representation
 
 #ifndef _ATTOL_CLASS_H
 #define _ATTOL_CLASS_H
@@ -33,6 +34,7 @@
 #include <stdio.h>
 
 #include "symbol-table.h"
+#include "bitvector.h"
 
 #define CLASS_ENCODE_SELECTOR_SHIFT 0
 #define CLASS_ENCODE_TYPE_SHIFT 16
@@ -56,45 +58,76 @@
 #define CLASS_DECODE_SELECTOR_OFFSET(ENCODED) (((ENCODED) >> CLASS_ENCODE_OFFSET_SHIFT) & CLASS_DECODE_MASK)
 #define CLASS_DECODE_SELECTOR_TYPE(ENCODED) (((ENCODED) >> CLASS_ENCODE_TYPE_SHIFT) & CLASS_DECODE_MASK)
 
-// Zugriff auf die virtuelle Funktionstabelle
+//d Zugriff auf die virtuelle Funktionstabelle
+//e access to virtual function table
 #define CLASS_VTABLE(CLASSREF) ((void **) (((class_member_t *) &((CLASSREF)->members)) + ((CLASSREF)->table_mask + 1)))
 
 typedef struct {
-	unsigned long long selector_encoding; // Kodiert per CLASS_ENCODE_SELECTOR()
-	symtab_entry_t *symbol;  // Nur zum Debugging
+	unsigned long long selector_encoding; /*d Kodiert per CLASS_ENCODE_SELECTOR() *//*e encoded via CLASS_ENCODE_SELECTOR() */
+	symtab_entry_t *symbol;  /*d Nur zum Debugging *//*e debugging only */
 } class_member_t;
 
-// Klassenstruktur
-// ---------------
-// Wir identifizieren Felder/Methoden durch `Selektoren' (selector).  Ein Selektor ist
-// eindeutig durch seinen Namen (z.B. "size") bestimmt.  Der Uebersetzer verwendet Selektoren,
-// um anzuzeigen, welches Feld/welche Methode verwendet werden soll; Felder und Methoden
-// verwenden die gleichen Selektoren.
-//
-// Alle Methoden und Felder werden in der `open access'-Hashtabelle `members' abgelegt.
-// Initiale Position eines Eintrages ist (selector & table_mask).  Wenn diese Position schon
-// belegt ist, wird die naechste freie Position genommen.  Die Kodierung beinhaltet den Typ
-// und den tatsaechlichen Abstand, der entweder in die vtable zeigt (Methoden) oder in die
-// `member'-Struktur von Objekten (Felder).
-//
-// Zugriff:
-// - object_{read,write}_member_field_{obj,int}	// (Felder)
-// - object_get_member_method			// (Methoden)
-//
-// Methodenadressen liegen unmittelbar hinter der Tabelle im Speicher (CLASS_VTABLE).
-//
-// Hinweis zur Kodierung:  Alle Methoden werden von der Typanalyse umgeschrieben, um Parameter
-// vom Typ compiler_options.method_call_param_type zu nehmen und Rueckgabewerte vom Typ
-// compiler_options.method_call_return_type zurueckzugeben (normalerweise TYPE_OBJ, der
-// intern einem object_t* entspricht).
-//
-// Felder unterscheiden weiterhin zwischen Typen.
+//d Klassenstruktur
+//d ---------------
+//d Wir identifizieren Felder/Methoden durch `Selektoren' (selector).  Ein Selektor ist
+//d eindeutig durch seinen Namen (z.B. "size") bestimmt.  Der Uebersetzer verwendet Selektoren,
+//d um anzuzeigen, welches Feld/welche Methode verwendet werden soll; Felder und Methoden
+//d verwenden die gleichen Selektoren.
+//d
+//d Alle Methoden und Felder werden in der `open access'-Hashtabelle `members' abgelegt.
+//d Initiale Position eines Eintrages ist (selector & table_mask).  Wenn diese Position schon
+//d belegt ist, wird die naechste freie Position genommen.  Die Kodierung beinhaltet den Typ
+//d und den tatsaechlichen Abstand, der entweder in die vtable zeigt (Methoden) oder in die
+//d `fields'-Struktur von Objekten (Felder).
+//d
+//d Zugriff:
+//d - object_{read,write}_member_field_{obj,int}	// (Felder)
+//d - object_get_member_method			// (Methoden)
+//d
+//d Methodenadressen liegen unmittelbar hinter der Tabelle im Speicher (CLASS_VTABLE).
+//d
+//d Hinweis zur Kodierung:  Alle Methoden werden von der Typanalyse umgeschrieben, um Parameter
+//d vom Typ compiler_options.method_call_param_type zu nehmen und Rueckgabewerte vom Typ
+//d compiler_options.method_call_return_type zurueckzugeben (normalerweise TYPE_OBJ, der
+//d intern einem object_t* entspricht).
+//d
+//d Felder unterscheiden weiterhin zwischen Typen.
+//e class structure
+//e ---------------
+//e We identify fields/methods by selectors.  A selector is uniquely identified by its name (e.g., "size").
+//e The compiler uses selectors to mark which field/method we should use; fields and methods draw from the
+//e same pool of selectors.
+//e
+//e All methods/fields are stored in an `open access' hash table, represented by the field `members'.
+//e Initial positions for the entries are (selector & table_mask).  If that position is already taken,
+//e the next free location is selected instead.  Each `member' entry encodes the entry type (one of
+//e `method with k parameters', `int-field', `obj-field') and offset.  For methods, the offset points into
+//e the virtual function table, and for fields it points into the objects' `fields' structure.
+//e
+//e Access:
+//e - object_{read,write}_member_field_{obj,int}	// (fields)
+//e - object_get_member_method			// (methods)
+//e
+//e Method addresses reside in memory immediately after the `members' table (cf. CLASS_VTABLE).
+//e
+//e Note wrt encoding:  All members are re-written by type analysis to take parameters of type
+//e compiler_options.method_call_param_type and to return values of type
+//e compiler_options.method_call_return_type.  (Usually both are TYPE_OBJ, corresponding to object_t *)
 typedef struct {
-	symtab_entry_t *id; // Symboltabelleneintrag (fuer den Uebersetzer/Debugging)
-	unsigned long long table_mask; // Tabellengroesse - 1
+	//e WARNING: class_string and class_array have SPECIAL layouts:
+	//e - class_array does not use object_map.
+	//e   - fields[0] contains the number of array elements (int).
+	//e   - fields[1] ... fields[fields[0]] contain the array elements (all objects).
+	//e - class_string does not use object_map.
+	//e   - fields[0] contains the string length (int).
+	//e   - fields[1]ff etc. are filled with the character string.  The total object size is still block-aligned
+	symtab_entry_t *id; /*d Symboltabelleneintrag (fuer den Uebersetzer/Debugging) *//*e symbol table entry */
+	bitvector_t object_map; /*e bitvector marking the offsets of reference (object_t *) fields */
+	unsigned long long table_mask; /*d Tabellengroesse - 1 *//* table size - 1 */
 
-	class_member_t members[]; // (table_mask + 1) Eintraege
-	// Hinter den `members' liegt die virtuelle Funktionstabelle (vtable) (Adressen der tatsaechlichen Einsprungpunkte der Methoden)
+	class_member_t members[]; /* (table_mask + 1) Eintraege *//* (table_mask + 1) entries */
+	//d Hinter den `members' liegt die virtuelle Funktionstabelle (vtable) (Adressen der tatsaechlichen Einsprungpunkte der Methoden)
+	//e vtable (virtual function table) resides behind members
 } class_t;
 
 extern class_t class_boxed_int;	// Ein Eintrag: int_v

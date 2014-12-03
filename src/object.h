@@ -46,11 +46,11 @@ typedef	union {
 
 typedef struct object {
 	class_t *classref; // Zeigt auf Klassenobjekt
-	object_member_t members[];
+	object_member_t fields[];
 } object_t;
 
 //e gets the string pointer from a string object (performs no type check)
-#define OBJECT_STRING(obj) ((char *)(&((obj)->members[1])))
+#define OBJECT_STRING(obj) ((char *)(&((obj)->fields[1])))
 
 /*d
  * Alloziert ein neues Objekt fuer eine beliebige Klasse
@@ -58,7 +58,7 @@ typedef struct object {
  * Die Anzahl der allozierten Felder wird als Optimierung explizit angegeben.
  *
  * @param classref Die zu verwendende Klasse
- * @param members_nr Anzahl der Felder der Klasse
+ * @param fields_nr Anzahl der Felder der Klasse
  * @return Ein alloziertes Objekt
  */
 /*e
@@ -67,11 +67,11 @@ typedef struct object {
  * The number of fields must be passed explicitly
  *
  * @param classref Pointer to the type descriptor
- * @param members_nr Number of fields for this class
+ * @param fields_nr Number of fields for this class
  * @return pointer to an allocated object
  */
 object_t *
-new_object(class_t *classref, unsigned long long members_nr);
+new_object(class_t *classref, unsigned long long fields_nr);
 
 /*d
  * Alloziert ein neues `Int' Objekt, um eine Ganzzahl zu repraesentieren

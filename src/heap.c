@@ -64,7 +64,7 @@
 typedef struct {
 	unsigned char *start;
 	unsigned char *end;
-} heap_t;
+} semispace_t;
 
 void *heap_root_frame_pointer = NULL; /*e initialised by runtime_execute() */
 
@@ -72,8 +72,8 @@ static unsigned char *heap_base = NULL;
 static size_t heap_size_total;
 static unsigned char *heap_free_pointer = NULL;
 
-static heap_t active_semispace = { NULL, NULL };
-static heap_t passive_semispace = { NULL, NULL };
+static semispace_t to_space = { NULL, NULL };
+static semispace_t from_space = { NULL, NULL };
 
 void
 heap_init(size_t requested_heap_size)
@@ -108,12 +108,12 @@ heap_init(size_t requested_heap_size)
 	memset(heap_base, 0, heap_size_total);
 
 	//e Copying GC: split heap into two semispaces
-	active_semispace.start = heap_base;
-	active_semispace.end = heap_base + (heap_size_total >> 1);
-	passive_semispace.start = active_semispace.end;
-	passive_semispace.end = heap_base + heap_size_total;
+	to_space.start = heap_base;
+	to_space.end = heap_base + (heap_size_total >> 1);
+	from_space.start = to_space.end;
+	from_space.end = heap_base + heap_size_total;
 
-	heap_free_pointer = active_semispace.start;
+	heap_free_pointer = to_space.start;
 }
 
 void
@@ -138,7 +138,7 @@ heap_allocate_object(class_t* type, size_t fields_nr)
 
 	//	fprintf(stderr, "alloc(%s, %zu * %zu) : ", type->id->name, fields_nr, sizeof(object_member_t));
 	
-	if (heap_free_pointer >= active_semispace.end) {
+	if (heap_free_pointer >= to_space.end) {
 		heap_free_pointer -= requested_bytes;
 		//e __builtin_frame_address(0) reads the $fp
 		handle_out_of_memory(__builtin_frame_address(0));
@@ -157,39 +157,39 @@ heap_allocate_object(class_t* type, size_t fields_nr)
 size_t
 heap_available(void)
 {
-	return active_semispace.end - heap_free_pointer;
+	return to_space.end - heap_free_pointer;
 }
 
 size_t
 heap_size(void)
 {
-	return active_semispace.end - active_semispace.start;
+	return to_space.end - to_space.start;
 }
 
 // ================================================================================
 // garbage collector implementation
 
-// Swaps contents of active_semispace and passive_semispace.
+// Swaps contents of to_space and from_space.
 static void
 swap_semispaces(void)
 {
-	heap_t buf = active_semispace;
-	active_semispace = passive_semispace;
-	passive_semispace = buf;
+	semispace_t buf = to_space;
+	to_space = from_space;
+	from_space = buf;
 }
 
 static bool
-is_passive(void *addr)
+in_from_space(void *addr)
 {
-	return (((unsigned char *)addr) >= passive_semispace.start
-		&& ((unsigned char *)addr) < passive_semispace.end);
+	return (((unsigned char *)addr) >= from_space.start
+		&& ((unsigned char *)addr) < from_space.end);
 }
 
 static bool
-is_active(void *addr)
+in_to_space(void *addr)
 {
-	return (((unsigned char *)addr) >= active_semispace.start
-		&& ((unsigned char *)addr) < active_semispace.end);
+	return (((unsigned char *)addr) >= to_space.start
+		&& ((unsigned char *)addr) < to_space.end);
 }
 
 static void *
@@ -203,31 +203,6 @@ set_forwarding_pointer(void *addr, void *reloc_addr)
 {
 	*((void **)addr) = reloc_addr;
 }
-
-#if 0
-/*e
- * handle out-of-memory situations
- *
- * @param frame_pointer Frame pointer of the failed invocation to heap_allocate_object;
- * can be used to trace the parent frame pointers up to heap_root_frame_pointer
- */
-static void
-handle_out_of_memory(void *frame_pointer);
-{
-	void **seeker = (void **) frame_pointer;
-	fprintf(stderr, "Out of memory! Seeking from %p to %p\n", seeker, heap_root_frame_pointer);
-	if (!heap_root_frame_pointer) {
-		fprintf(stderr, "Error: ran out of memory before starting program.");
-		exit(1);
-	}
-	while (seeker != heap_root_frame_pointer) {
-		seeker = (void **) *seeker;
-		fprintf(stderr, "stack : %p\n", seeker);
-	}
-	fprintf(stderr, "Help!  I don't know how to handle out-of-memory situations yet!\n");
-	exit(1);
-}
-#endif
 
 static size_t
 object_size(object_t *obj)
@@ -251,9 +226,9 @@ gc_move(object_t **memref)
 	if (!*memref) {
 		return;
 	}
-	if (is_passive(*memref)) {
+	if (in_from_space(*memref)) {
 		void *reloc = get_forwarding_pointer(*memref);
-		if (is_active(reloc)) {
+		if (in_to_space(reloc)) {
 			// already relocated
 			*memref = reloc;
 			return;
@@ -262,7 +237,7 @@ gc_move(object_t **memref)
 		reloc = heap_free_pointer;
 		size_t obj_size = object_size(*memref);
 		heap_free_pointer += obj_size;
-		assert(heap_free_pointer < active_semispace.end);
+		assert(heap_free_pointer < to_space.end);
 		memcpy(reloc, *memref, obj_size);
 		debug(" - [%p -> %p (%s, %zu bytes)]\n", *memref, reloc, (*memref)->classref->id->name, obj_size);
 		set_forwarding_pointer(*memref, reloc);
@@ -276,7 +251,7 @@ static void
 gc_init()
 {
 	swap_semispaces();
-	heap_free_pointer = active_semispace.start;
+	heap_free_pointer = to_space.start;
 }
 
 static void
@@ -338,7 +313,7 @@ static void
 gc_do_scan()
 {
 	debug(" <scan>\n");
-	unsigned char *scan = active_semispace.start;
+	unsigned char *scan = to_space.start;
 	while ((unsigned char *) scan < heap_free_pointer) {
 		object_t *obj = (object_t *) scan;
 		size_t obj_size = object_size(obj);
@@ -374,16 +349,18 @@ handle_out_of_memory(void *frame_pointer)
 		exit(1);
 	}
 
+#if defined(INFO) || defined(DEBUG)
 	size_t before = heap_available();
+#endif
 	gc_init();
 	gc_rootset_static();
 	gc_rootset_stack(frame_pointer);
 	gc_do_scan();
 	//e clear memory at end of stack frame
-	memset(heap_free_pointer, 0, active_semispace.end - heap_free_pointer);
+	memset(heap_free_pointer, 0, to_space.end - heap_free_pointer);
 
-	size_t after = heap_available();
 #if defined(INFO) || defined(DEBUG)
+	size_t after = heap_available();
 	fflush(NULL);
 	fprintf(stderr, "[GC: Reclaimed %zu bytes]\n", after - before);
 #endif

@@ -47,7 +47,7 @@ FINAL_OBJS = atl.o atl containers-test.o containers-test backend-test.o backend-
 all: atl backend-test assembler-buffer-test asm
 
 echo-distfiles:
-	echo DIST-START Makefile ${BACKEND_HEADERS} ${FRONTEND_HEADERS} ${FRONTEND_GENSRC} ${BACKEND_GENSRC} ${FRONTEND_SRC} ${BACKEND_SRC} DIST-END
+	echo DIST-START Makefile ${BACKEND_HEADERS} ${FRONTEND_HEADERS} ${FRONTEND_GENSRC} ${BACKEND_GENSRC} ${FRONTEND_SRC} ${BACKEND_SRC} ${FINAL_SRC} DIST-END
 
 clean:
 	rm -f $(FRONTEND_OBJS) $(BACKEND_OBJS) ${FINAL_OBJS} ${ASM_OBJS}

@@ -13,7 +13,7 @@ clean:
 	(cd src; make clean)
 
 test:
-	(cd src; make backend-test; ./backend-test)
+	(cd src; make test)
 
 dist:
 	sh localizescript.sh ${VERSION} ${DISTFILES}

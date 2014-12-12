@@ -177,7 +177,7 @@ dump_ast(char *msg, ast_node_t *ast)
 
 //d Kann dieser Knoten ohne temporaere Register berechnet werden?
 //e Can we compute this node without using temporary registers?
-static int
+static bool
 is_simple(ast_node_t *n)
 {
 	//e Strings are presently allocated every time we encounter them
@@ -827,24 +827,25 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		// fall through
 	case AST_NODE_ASSIGN:
 		if (NODE_TY(ast->children[0]) == AST_NODE_MEMBER) {
+			//e field
 			ast_node_t *member = ast->children[0];
 			ast_node_t *selector_node = member->children[1];
 			const int selector = selector_node->sym->selector;
 
-			if (!is_simple(member->children[1])) {
+			if (!is_simple(ast->children[1])) {
 				baseline_compile_expr(buf, ast->children[1], REGISTER_A3, context);
 
 				if (!is_simple(member->children[0])) {
-					baseline_store_temp(buf, REGISTER_A3, member->children[1], context);
+					baseline_store_temp(buf, REGISTER_A3, ast->children[0], context);
 				}
 			}
 
 			baseline_compile_expr(buf, member->children[0], REGISTER_A0, context);
 
-			if (is_simple(member->children[1])) {
-				baseline_compile_expr(buf, ast->children[1], REGISTER_A3, context);				
+			if (is_simple(ast->children[1])) {
+				baseline_compile_expr(buf, ast->children[1], REGISTER_A3, context);
 			} else if (!is_simple(member->children[0])) {
-				baseline_load_temp(buf, REGISTER_A3, member->children[1], context);
+				baseline_load_temp(buf, REGISTER_A3, ast->children[0], context);
 			}
 			
 			emit_la(buf, REGISTER_A1, selector_node);
@@ -868,6 +869,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			emit_jalr(buf, REGISTER_V0);
 			save_stackmap(buf, context);
 		} else {
+			//e local or global variable
 			baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
 			if (NODE_TY(ast->children[0]) == AST_VALUE_ID) {
 				baseline_store_type(buf, REGISTER_V0, ast->children[0]->sym, context,

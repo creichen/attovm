@@ -502,9 +502,7 @@ main(int argc, char **argv)
 	TEST("class C(){}; obj a = C(); if (a != NULL) print(1);", "1\n");
 	TEST("class C(){}; obj a = C(); obj b = C(); if (a != b) print(1);", "1\n");
 	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
-#endif
 	TEST("class C(){ int x; }; obj a = C(); a.x := 2; print(a.x);", "2\n");
-#ifndef AUX
 	TEST("class C(){ obj x; }; obj a = C(); a.x := 2; a.x := a.x + 1; print(a.x);", "3\n");
 	TEST("class C(){ int x; }; obj a = C(); obj b = C(); a.x := 3; b.x := 2; print(a.x); print(b.x);", "3\n2\n");
 	TEST("class C(){ obj x; int y; }; obj a = C(); a.x := 2; a.y := 3; print(a.x); print(a.y); ", "2\n3\n");
@@ -591,10 +589,10 @@ main(int argc, char **argv)
 	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } obj clear(int x, int y) { a[i(x, y)] := 0; } } obj c = C(); c.clear(1, 1); print(c.a);", "[1,2,0,4,5]\n");
 	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } int get(int x, int y) { return a[i(x, y)]; } } obj c = C(); print(c.get(1, 1)); ", "3\n");
 	TEST("class C() { obj a = [1, 2, 3, 4, 5]; int i(int x, int y) { return x + y; } int get(int x, int y) { return a[i(x, y)]; } int z() { obj v = 2; v := get(1, 1) + v; return v;} } obj c = C(); print(c.z()); ", "5\n");
-#endif
 	TEST("class C(obj parent) { obj p = parent; obj v = 0; } obj c = C(C(C(NULL))); print(c.p.p.v); ", "0\n");
 	TEST("class C(obj parent, int i) { obj p = parent; obj v = i; } obj c = C(C(C(NULL, 3), 2), 1); obj d = C(C(NULL, 10), 9); print(c.v); print(c.p.v); print(d.p.v);", "1\n2\n10\n");
 	TEST("class C(obj parent, int i) { obj p = parent; obj v = i; } obj c = C(C(C(NULL, 3), 2), 1); obj d = C(C(NULL, 10), 9); c.v := d.v; print(c.v);", "9\n");
+#endif
 	TEST("class C(obj parent, int i) { obj p = parent; obj v = i; } obj c = C(C(C(NULL, 3), 2), 1); obj d = C(C(NULL, 10), 9); c.p.v := d.p.v; print(c.p.v);", "10\n");
 #ifndef AUX
 #endif
@@ -605,4 +603,3 @@ main(int argc, char **argv)
 	}
 	return failures > 0;
 }
-

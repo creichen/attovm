@@ -594,6 +594,7 @@ main(int argc, char **argv)
 	TEST("class C(obj parent, int i) { obj p = parent; obj v = i; } obj c = C(C(C(NULL, 3), 2), 1); obj d = C(C(NULL, 10), 9); c.v := d.v; print(c.v);", "9\n");
 #endif
 	TEST("class C(obj parent, int i) { obj p = parent; obj v = i; } obj c = C(C(C(NULL, 3), 2), 1); obj d = C(C(NULL, 10), 9); c.p.v := d.p.v; print(c.p.v);", "10\n");
+	TEST("class C(obj parent, int i) { obj p = parent; obj v = i; } obj c = C(C(C(NULL, 3), 2), 1); c.p.v := 1 + 2; print(c.p.v);", "3\n");
 #ifndef AUX
 #endif
 	if (!failures) {

@@ -31,6 +31,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "ast-analyses.h"
+
 struct symtab_entry; // symbol_table.h
 
 /*d Abstrakter Syntaxbaum (AST).  Repräsentiert Programme nach dem Parsen. */
@@ -38,7 +40,7 @@ struct symtab_entry; // symbol_table.h
 
 //d AST-Knotentypen
 //e AST node types
-		
+//e AST_NODE_INTERNAL: used for auxiliary nodes for e.g., control-flow-graphs
 $$NODE_TYPES$$
 
 #define NODE_TY(n) ((n)->type & AST_NODE_MASK)
@@ -68,6 +70,7 @@ typedef struct ast_node {
 	short storage;		/*d Temporaere Speicherstelle (oder Gesamtplatz, fuer Bloecke) *//*e temporary storage offset, or total temporary space (blocks) */
 	short source_line;	/*d Quellcode-Zeile *//*e source line */
 	struct symtab_entry *sym;
+	struct ast_analyses analyses;
 	struct ast_node * children[0]; /*d Kindknoten *//*e child nodes */
 } ast_node_t;
 
@@ -84,6 +87,7 @@ typedef struct {
 	short storage;
 	short source_location;
 	struct symtab_entry *sym;
+	struct ast_analyses analyses;
 	ast_value_union_t v;
 } ast_value_node_t;
 

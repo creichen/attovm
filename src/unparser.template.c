@@ -105,6 +105,7 @@ dump_recursively(FILE *file, int indent, ast_node_t *node, int flags)
 		if (flags & AST_NODE_DUMP_FLAGS) {
 			ast_print_flags(file, node->type);
 		}
+		ast_analyses_print(file, node, flags);
 		return;
 	}
 
@@ -119,6 +120,7 @@ dump_recursively(FILE *file, int indent, ast_node_t *node, int flags)
 	if (flags & AST_NODE_DUMP_FLAGS) {
 		ast_print_flags(file, node->type);
 	}
+	ast_analyses_print(file, node, flags);
 	const int long_format = (flags & AST_NODE_DUMP_FORMATTED) && node->children_nr;
 	if (long_format) {
 		fputs("\n", file);

@@ -55,7 +55,6 @@ ast_node_alloc_generic(int type, int children_nr, ...)
 		retval->children[i] = va_arg(va, ast_node_t *);
 	}
 	va_end(va);
-
 	return retval;
 }
 
@@ -67,7 +66,6 @@ value_node_alloc_generic(int type, ast_value_union_t value)
 	ast_value_node_t *retval = (ast_value_node_t *) calloc(1, sizeof(ast_value_node_t));
 	retval->type = type;
 	retval->v = value;
-
 	return (ast_node_t *) retval;
 }
 
@@ -81,13 +79,16 @@ ast_node_free(ast_node_t *node, int recursive)
 	int children_nr = 0;
 
 	if (IS_VALUE_NODE(node)) {
-		// Value-Knoten mit Strings/Bezeichnern zeigen auf separat allozierten Speicher
+		//d Value-Knoten mit Strings/Bezeichnern zeigen auf separat allozierten Speicher
 		if (node->type == AST_VALUE_STRING) {
 			free(AV_STRING(node));
 		}
 	} else {
 		children_nr = node->children_nr;
 	}
+
+	//e free program analysis annotations, if any
+	ast_analyses_free(node);
 
 	if (recursive) {
 		while (children_nr--) {

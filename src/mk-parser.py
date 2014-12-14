@@ -1212,6 +1212,7 @@ def printASTHeader():
         node_ty_decls.append('#define ' + nodety + (' ' * (max_astname_len - len(nodety))) + ' 0x%02x' % number)
 
     addNodeTyDecl('AST_ILLEGAL') # 0
+    addNodeTyDecl('AST_NODE_INTERNAL') # 1
     addNodeTyDecl('AST_NODE_MASK', AST_NODE_MASK)
     for n in value_nty_names:
         addNodeTyDecl(n)

@@ -30,7 +30,8 @@
 #ifndef _ATTOL_CSTACK_H
 #define _ATTOL_CSTACK_H
 
-#include<stdlib.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 struct cstack;
 typedef struct cstack cstack_t;
@@ -75,12 +76,37 @@ stack_pop(cstack_t *stack);
 /*e
  * Directly accesses an element on the stack
  *
+ * The returned pointer may become invalid on the next push or pop operation,
+ * so it must no longer be used then.
+ *
  * @param stack The stack to access
  * @param index Index of the element to read
  * @return Pointer to the element, or NULL if `index' was invalid
  */
 void *
 stack_get(cstack_t *stack, size_t index);
+
+/*e
+ * Duplicates an existing stack
+ *
+ * @param stack The stack to clone
+ * @param clone A function to apply to the stack elements after copying (e.g., to duplicate dynamically
+ *        allocated memory) or NULL to skip this step.
+ * @return The duplicate
+ */
+cstack_t *
+stack_clone(cstack_t *stack, void (*clone)(void *));
+
+/*e
+ * Removes all elements from a stack
+ *
+ * Afterwards, the stack will behave as if freshly allocated.
+ *
+ * @param stack The stack to clear
+ * @param element_free A function to deallocate stack elements, or NULL if not needed
+ */
+void
+stack_clear(cstack_t *stack, void (*free)(void *));
 
 /*e
  * Deallocates a stack
@@ -90,5 +116,15 @@ stack_get(cstack_t *stack, size_t index);
  */
 void
 stack_free(cstack_t *stack, void (*element_free)(void *));
+
+/*e
+ * Prints the given stack
+ *
+ * @param file File to print to
+ * @param stack
+ * @param print A printing function for each stack element
+ */
+void
+stack_print(FILE *file, cstack_t *stack, void (*print)(FILE *, void *));
 
 #endif // !defined(_ATTOL_CSTACK_H)

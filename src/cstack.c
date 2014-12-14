@@ -26,6 +26,7 @@
 ***************************************************************************/
 
 #include <string.h>
+
 #include "cstack.h"
 
 #define MAX_GROWTH_BYTES (1024 * 1024 * 8) // grow by at most 8 MB at a time
@@ -79,6 +80,20 @@ stack_get(cstack_t *stack, size_t index)
 	return stack->data + (index * stack->element_size);
 }
 
+cstack_t *
+stack_clone(cstack_t *stack, void (*clone)(void *))
+{
+	cstack_t *duplicate = stack_alloc(stack->element_size, stack->tos + 1);
+	memcpy(duplicate->data, stack->data, stack->element_size * stack->tos);
+	duplicate->tos = stack->tos;
+	if (clone) {
+		for (int i = 0; i < duplicate->tos; i++) {
+			clone(stack_get(duplicate, i));
+		}
+	}
+	return duplicate;
+}
+
 void
 stack_push(cstack_t *stack, void *element)
 {
@@ -103,7 +118,7 @@ stack_push(cstack_t *stack, void *element)
 }
 
 void
-stack_free(cstack_t *stack, void (*element_free)(void *))
+stack_clear(cstack_t *stack, void (*element_free)(void *))
 {
 	if (element_free) {
 		void *d;
@@ -111,6 +126,26 @@ stack_free(cstack_t *stack, void (*element_free)(void *))
 			element_free(d);
 		}
 	}
+	stack->tos = 0;
+}
+
+void
+stack_free(cstack_t *stack, void (*element_free)(void *))
+{
+	stack_clear(stack, element_free);
 	free(stack->data);
 	free(stack);
+}
+
+void
+stack_print(FILE *file, cstack_t *stack, void (*print)(FILE *, void *))
+{
+	fprintf(file, "[");
+	for (int i = 0; i < stack_size(stack); i++) {
+		if (i > 0) {
+			fprintf(file, ", ");
+		}
+		print(file, stack_get(stack, i));
+	}
+	fprintf(file, "]");
 }

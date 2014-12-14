@@ -102,6 +102,9 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		image->static_memory = NULL;
 	}
 
+	//e run any additional optional program analyses
+	ast_analyses_run(ast);
+	
 	stackmap_init();
 	image->dyncomp = dyncomp_build_generic();
 	image->trampoline = dyncomp_build_trampoline(buffer_entrypoint(image->dyncomp),

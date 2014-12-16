@@ -26,6 +26,7 @@
 ***************************************************************************/
 
 #include <assert.h>
+#include <string.h>
 
 #include "ast.h"
 #include "control-flow-graph.h"
@@ -302,13 +303,15 @@ control_flow_graph_build(ast_node_t *ast)
 	stack_free(context.loop_breaks, NULL);
 }
 
+#define MAX_EXPR_SIZE 80
+
 static void
 cfg_dottify(FILE *file, ast_node_t *node, ast_node_t *owner /*e only for function exit node */)
 {
 	if (node == NULL) {
 		return;
 	}
-	
+
 	if (node->analyses.cfg) {
 		
 		fprintf(file, "  n%p [label=\"", node);
@@ -326,6 +329,9 @@ cfg_dottify(FILE *file, ast_node_t *node, ast_node_t *owner /*e only for functio
 			break;
 			
 		default: {
+			char expr_string[MAX_EXPR_SIZE + 1];
+			FILE *tempfile = fmemopen(expr_string, MAX_EXPR_SIZE, "w");
+
 			//e We temporarily NULL child nodes that are handled by the graph, to avoid information duplication
 			int *subs_indices;
 			int subs_nr = control_flow_graph_subnodes(node, &subs_indices);
@@ -335,11 +341,21 @@ cfg_dottify(FILE *file, ast_node_t *node, ast_node_t *owner /*e only for functio
 				subs[i] = node->children[subs_indices[i]];
 				node->children[subs_indices[i]] = NULL;
 			}
-			ast_node_dump(file, node, 0);
+			ast_node_print(tempfile, node, 1);
+			fclose(tempfile);
 			
 			//e And now we restore them again
 			for (int i = 0; i < subs_nr; ++i) {
 				node->children[subs_indices[i]] = subs[i];
+			}
+
+			// now print while escaping
+			for (int i = 0; i < strlen(expr_string); ++i) {
+				char c = expr_string[i];
+				if (c == '\\' || c == '"') {
+					fputc('\\', file);
+				}
+				fputc(c, file);
 			}
 		}
 		}

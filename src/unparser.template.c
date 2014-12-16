@@ -25,9 +25,10 @@
 
 ***************************************************************************/
 
+#include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include <assert.h>
 
 #include "ast.h"
 #include "symbol-table.h"
@@ -39,7 +40,7 @@ $$PRINT_FLAGS$$
 }
 
 static void
-print_id_string(FILE *file, int id)
+print_id_string(FILE *file, int id, bool print_long)
 {
 	switch (id) {
 $$PRINT_IDS$$
@@ -48,13 +49,18 @@ $$PRINT_IDS$$
 		if (!e) {
 			fprintf(file, "(UNKNOWN-SYM[%d])", id);
 		} else {
-			fprintf(file, "(SYM[%d] ", id);
+			if (print_long) {
+				fprintf(file, "(SYM[%d] ", id);
+			}
 			symtab_entry_name_dump(file, e);
-			fprintf(file, ")");
+			if (print_long) {
+				fprintf(file, ")");
+			}
 		}
 	}
 	}
 }
+
 
 static void
 print_tag_string(FILE *file, int tag)
@@ -73,7 +79,7 @@ print_value_node(FILE *file, ast_value_node_t *node)
 {
 	switch (node->type & AST_NODE_MASK) {
 	case AST_VALUE_ID:
-		print_id_string(file, AV_ID(node));
+		print_id_string(file, AV_ID(node), true);
 		return;
 $$PRINT_VNODES$$
 	default:
@@ -156,10 +162,192 @@ ast_node_dump(FILE *file, ast_node_t *node, int flags)
 }
 
 
+static void
+print_primty(FILE *file, int type)
+{
+	switch (type) {
+	case TYPE_OBJ:
+		fprintf(file, "obj");
+		break;
+	case TYPE_VAR:
+		fprintf(file, "var");
+		break;
+	case TYPE_INT:
+		fprintf(file, "int");
+		break;
+	default:
+		fprintf(file, "?");
+	}
+}
+
+
 // pretty-printer
 void
 ast_node_print(FILE *file, ast_node_t *node, int recursive)
 {
-	// FIXME
+	if (node == NULL) {
+		return;
+	}
+	const int node_ty = NODE_TY(node);
+
+	if (node_ty == AST_VALUE_ID) {
+		print_id_string(file, AV_ID(node), false);
+	} else if (node_ty <= AST_VALUE_MAX) {
+		print_value_node(file, (ast_value_node_t *) node);
+	} else {
+		switch (node_ty) {
+
+		case AST_NODE_METHODAPP:
+		case AST_NODE_MEMBER:
+			ast_node_print(file, node->children[0], recursive);
+			fprintf(file, ".");
+			for (int i = 1; i < node->children_nr; ++i) {
+				ast_node_print(file,node->children[i], recursive);
+			}
+			break;
+
+		case AST_NODE_BREAK:
+			fprintf(file, "break");
+			break;
+
+		case AST_NODE_CONTINUE:
+			fprintf(file, "continue");
+			break;
+
+		case AST_NODE_ISPRIMTY: {
+			int type = node->type & TYPE_FLAGS;
+			ast_node_print(file, node->children[0], recursive);
+			fprintf(file, " is ");
+			print_primty(file, type);
+			break;
+		}
+
+		case AST_NODE_SKIP:
+			fprintf(file, ";");
+			break;
+
+		case AST_NODE_ACTUALS:
+			//e fall through
+		case AST_NODE_FORMALS: {
+			fprintf(file, "(");
+			for (int i = 0; i < node->children_nr; ++i) {
+				if (i > 0) {
+					fprintf(file, ", ");
+				}
+				ast_node_print(file, node->children[i], recursive);
+			}
+			fprintf(file, ")");
+			break;
+		}
+
+		case AST_NODE_ARRAYSUB:
+			ast_node_print(file, node->children[0], recursive);
+			fprintf(file, "[");
+			ast_node_print(file, node->children[1], recursive);
+			fprintf(file, "]");
+			break;
+
+		case AST_NODE_VARDECL:
+			print_primty(file, node->type & TYPE_FLAGS);
+			fprintf(stderr, " ");
+			ast_node_print(file, node->children[0], recursive);
+			if (node->children_nr > 1) {
+				fprintf(file, " = ");
+				ast_node_print(file, node->children[1], recursive);
+			}
+			break;
+
+		case AST_NODE_NULL:
+			fprintf(file, "NULL");
+			break;
+
+		case AST_NODE_RETURN:
+			fprintf(file, "return");
+			if (node->children_nr > 0) {
+				fprintf(file, " ");
+				ast_node_print(file, node->children[0], recursive);
+			}
+			break;
+
+		case AST_NODE_ASSIGN:
+			ast_node_print(file, node->children[0], recursive);
+			fprintf(file, " := ");
+			ast_node_print(file, node->children[1], recursive);
+			break;
+
+		case AST_NODE_NEWINSTANCE:
+		case AST_NODE_FUNAPP:
+			ast_node_print(file, node->children[0], recursive);
+			ast_node_print(file, node->children[1], recursive);
+			break;
+
+		case AST_NODE_FUNDEF:
+			//e fall through
+		case AST_NODE_CLASSDEF:
+			print_primty(file, node->type & TYPE_FLAGS);
+			fprintf(stderr, " ");
+			for (int i = 0; i < node->children_nr; ++i) {
+				ast_node_print(file, node->children[i], recursive);
+			}
+			break;
+
+		case AST_NODE_ISINSTANCE:
+			ast_node_print(file, node->children[0], recursive);
+			fprintf(file, " is ");
+			ast_node_print(file, node->children[1], recursive);
+			break;
+
+		case AST_NODE_ARRAYLIST:
+			for (int i = 0; i < node->children_nr; ++i) {
+				if (i > 0) {
+					fprintf(file, ", ");
+				}
+				ast_node_print(file, node->children[i], recursive);
+			}
+			break;
+
+		case AST_NODE_ARRAYVAL:
+			fprintf(file, "[");
+			ast_node_print(file, node->children[0], recursive);
+			if (node->children[0] && node->children[0]->children_nr) {
+				fprintf(file, ",");
+			}
+			if (node->children_nr > 1) {
+				fprintf(file, "/");
+				ast_node_print(file, node->children[1], recursive);
+			}
+			fprintf(file, "]");
+			break;
+
+		case AST_NODE_IF:
+			fprintf(file, "if ");
+			ast_node_print(file, node->children[0], recursive);
+			if (node->children[1]) {
+				ast_node_print(file, node->children[1], recursive);
+			}
+			if (node->children[2]) {
+				fprintf(file, " else ");
+				ast_node_print(file, node->children[2], recursive);
+			}
+			break;
+
+		case AST_NODE_WHILE:
+			fprintf(file, "while (");
+			ast_node_print(file, node->children[0], recursive);
+			fprintf(file, ") ");
+			ast_node_print(file, node->children[1], recursive);
+			break;
+
+		case AST_NODE_BLOCK:
+			fprintf(file, "{ ");
+			for (int i = 0; i < node->children_nr; ++i) {
+				ast_node_print(file, node->children[i], recursive);
+				fprintf(file, "; ");
+			}
+			fprintf(file, "}");
+		default:
+			ast_node_dump(file, node, 0);
+		}
+	}
 }
 

@@ -217,7 +217,10 @@ cfg_exit(cfg_context_t context)
 static void
 cfg_make(ast_node_t *node, cfg_context_t context)
 {
-	if (NODE_TY(node) != AST_NODE_BLOCK) {
+	int node_ty = NODE_TY(node);
+	if (node_ty != AST_NODE_BLOCK
+	    && node_ty != AST_NODE_FUNDEF
+	    && node_ty != AST_NODE_CLASSDEF) {
 		while (stack_size(context.before)) {
 			cfg_node_t *before = *((cfg_node_t **) stack_pop(context.before));
 			cfg_add(before, cfg(node));
@@ -320,6 +323,13 @@ cfg_build(ast_node_t *ast)
 {
 	cfg_context_t context;
 	context.before = stack_alloc(sizeof(ast_node_t *), 2);
+	if (NODE_TY(ast) == AST_NODE_BLOCK) {
+		//e introduce init node, so that ast->cfg will always set for the main entry point
+		cfg_node_t *init_node = cfg_new_node(ast);
+		ast->cfg = init_node;
+		push_node(context.before, init_node);
+	}
+	
 	context.loop_breaks = stack_alloc(sizeof(ast_node_t *), 2);
 	context.fun_exit = cfg_new_node(NULL);
 	context.loop_continue = NULL;
@@ -344,53 +354,57 @@ cfg_subdottify(FILE *file, cfg_node_t *cfg_node, hashset_ptr_t *visited_nodes)
 	fprintf(file, "  n%p [label=\"", cfg_node);
 
 	if (!cfg_node->ast) {
-		fprintf(file, "<exit>");
+		fprintf(file, "<exit>\"];\n");
 		return;
 	}
 
 	ast_node_t *ast_node = cfg_node->ast;
 	
 	switch (NODE_TY(ast_node)) {
-
-		case AST_NODE_FUNDEF:
-			symtab_entry_name_dump(file, AST_CALLABLE_SYMREF(ast_node));
-			if (cfg_node == AST_CALLABLE_SYMREF(ast_node)->cfg_exit) {
-				fprintf(file, ":exit");
-			} else {
-				fprintf(file, ":init");
-			}
-			break;
-
-		default: {
-			char expr_string[MAX_EXPR_SIZE + 1];
-			FILE *tempfile = fmemopen(expr_string, MAX_EXPR_SIZE, "w");
-
-			//e We temporarily NULL child nodes that are handled by the graph, to avoid information duplication
-			int *subs_indices;
-			int subs_nr = cfg_subnodes(ast_node, &subs_indices);
-			assert(subs_nr >= 0);
-			ast_node_t *subs[subs_nr];
-			for (int i = 0; i < subs_nr; ++i) {
-				subs[i] = ast_node->children[subs_indices[i]];
-				ast_node->children[subs_indices[i]] = NULL;
-			}
-			ast_node_print(tempfile, ast_node, 1);
-			fclose(tempfile);
-			
-			//e And now we restore them again
-			for (int i = 0; i < subs_nr; ++i) {
-				ast_node->children[subs_indices[i]] = subs[i];
-			}
-
-			// now print while escaping
-			for (int i = 0; i < strlen(expr_string); ++i) {
-				char c = expr_string[i];
-				if (c == '\\' || c == '"') {
-					fputc('\\', file);
-				}
-				fputc(c, file);
-			}
+		
+	case AST_NODE_FUNDEF:
+		symtab_entry_name_dump(file, AST_CALLABLE_SYMREF(ast_node));
+		if (cfg_node == AST_CALLABLE_SYMREF(ast_node)->cfg_exit) {
+			fprintf(file, ":exit");
+		} else {
+			fprintf(file, ":init");
 		}
+		break;
+
+	case AST_NODE_BLOCK:
+		fprintf(file, "<init>");
+		break;
+
+	default: {
+		char expr_string[MAX_EXPR_SIZE + 1];
+		FILE *tempfile = fmemopen(expr_string, MAX_EXPR_SIZE, "w");
+
+		//e We temporarily NULL child nodes that are handled by the graph, to avoid information duplication
+		int *subs_indices;
+		int subs_nr = cfg_subnodes(ast_node, &subs_indices);
+		assert(subs_nr >= 0);
+		ast_node_t *subs[subs_nr];
+		for (int i = 0; i < subs_nr; ++i) {
+			subs[i] = ast_node->children[subs_indices[i]];
+			ast_node->children[subs_indices[i]] = NULL;
+		}
+		ast_node_print(tempfile, ast_node, 1);
+		fclose(tempfile);
+			
+		//e And now we restore them again
+		for (int i = 0; i < subs_nr; ++i) {
+			ast_node->children[subs_indices[i]] = subs[i];
+		}
+
+		// now print while escaping
+		for (int i = 0; i < strlen(expr_string); ++i) {
+			char c = expr_string[i];
+			if (c == '\\' || c == '"') {
+				fputc('\\', file);
+			}
+			fputc(c, file);
+		}
+	}
 	}
 
 	fprintf(file, "\"];\n");
@@ -403,26 +417,50 @@ cfg_subdottify(FILE *file, cfg_node_t *cfg_node, hashset_ptr_t *visited_nodes)
 	}
 	
 	for (int i = 0; i < cfg_edges_nr(cfg_node, CFG_OUT); i++) {
-		cfg_subdottify(file, cfg_edge(cfg_node, CFG_OUT, i)->node, visited_nodes);
+		cfg_subdottify(file, cfg_edge(cfg_node, i, CFG_OUT)->node, visited_nodes);
 	}
 	//e The following is needed to find unreachable code:
+	
 	for (int i = 0; i < cfg_edges_nr(cfg_node, CFG_IN); i++) {
-		cfg_subdottify(file, cfg_edge(cfg_node, CFG_IN, i)->node, visited_nodes);
+		cfg_subdottify(file, cfg_edge(cfg_node, i, CFG_IN)->node, visited_nodes);
 	}
 }
 
 static void
 cfg_subdottify_ast(FILE *file, ast_node_t *node, hashset_ptr_t *visited_nodes)
 {
+	if (!node) {
+		return;
+	}
 	cfg_subdottify(file, node->cfg, visited_nodes);
 }
+
+#define DOTTIFY_CONSERVATIVELY
+
+#ifdef DOTTIFY_CONSERVATIVELY
+static void
+cfg_subdottify_ast_recursively(FILE *file, ast_node_t *node, hashset_ptr_t *visited_nodes)
+{
+	cfg_subdottify_ast(file, node, visited_nodes);
+	if (node && !IS_VALUE_NODE(node)) {
+		for (int i = 0; i < node->children_nr; i++) {
+			cfg_subdottify_ast_recursively(file, node->children[i], visited_nodes);
+		}
+	}
+}
+#endif
 
 void
 cfg_dottify(FILE *file, symtab_entry_t *symtab)
 {
 	hashset_ptr_t *visited_nodes = hashset_ptr_alloc();
 	fprintf(file, "digraph cfg {\n");
+#ifdef DOTTIFY_CONSERVATIVELY
+	cfg_subdottify_ast_recursively(file, symtab->astref, visited_nodes);
+#else
 	cfg_subdottify_ast(file, symtab->astref, visited_nodes);
+
+#endif
 	fprintf(file, "}\n");
 	hashset_ptr_free(visited_nodes);
 }

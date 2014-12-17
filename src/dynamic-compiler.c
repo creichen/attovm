@@ -76,7 +76,7 @@ dyncomp_build_trampoline(void *dyncomp_entry, ast_node_t **functions, int functi
 	}
 	buffer_t buf = buffer_new(16 * functions_nr);
 	for (int i = 0; i < functions_nr; i++) {
-		symtab_entry_t *sym = functions[i]->children[0]->sym;
+		symtab_entry_t *sym = AST_CALLABLE_SYMREF(functions[i]);
 		assert(sym);
 		sym->r_trampoline = buffer_target(&buf);
 		sym->r_mem = sym->r_trampoline;
@@ -125,7 +125,7 @@ dyncomp_compile_function(int symtab_entry, void **update_address_on_call_stack)
 			buffer_disassemble((buffer_t) class_sym->r_trampoline);
 		}
 		for (int i = 0; i < method_defs_nr; i++) {
-			CLASS_VTABLE(class)[i] = method_defs[i]->children[0]->sym->r_trampoline;
+			CLASS_VTABLE(class)[i] = AST_CALLABLE_SYMREF(method_defs[i])->r_trampoline;
 		}
 	}
 

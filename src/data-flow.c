@@ -75,8 +75,8 @@ dflow_init_node(cstack_t *worklist, ast_node_t *node, data_flow_analysis_t *anal
 #endif
 }
 
-void
-dataflow_analyse(cfg_node_t *init, cfg_node_t *exit, data_flow_analysis_t *analysis)
+static void
+dflow_analyse(cfg_node_t *init, cfg_node_t *exit, data_flow_analysis_t *analysis)
 {
 #if 0
 	bool edge_direction = analysis->forward ? CFG_OUT : CFG_IN;

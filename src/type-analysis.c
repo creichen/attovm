@@ -171,9 +171,9 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 
 	if (!IS_VALUE_NODE(node)) {
 		if (NODE_TY(node) == AST_NODE_CLASSDEF) {
-			classref = node->children[0]->sym;
+			classref = AST_CALLABLE_SYMREF(node);
 		} else if (NODE_TY(node) == AST_NODE_FUNDEF) {
-			function = node->children[0]->sym;
+			function = AST_CALLABLE_SYMREF(node);
 		}
 
 		for (int i = 0; i < node->children_nr; i++) {
@@ -239,7 +239,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		if (NODE_TY(node->children[0]) == AST_VALUE_ID) {
 			//d Funktionsaufruf
 			//e function call
-			function = node->children[0]->sym;
+			function = AST_CALLABLE_SYMREF(node);
 
 			if (function->parent) {
 				//d SELF-Methodenaufruf
@@ -366,7 +366,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 	case AST_NODE_CLASSDEF: {
 		context->classes[context->classes_nr++] = node;
 
-		classref = node->children[0]->sym;
+		classref = AST_CALLABLE_SYMREF(node);
 		node->sym = classref;
 		int class_body_size = node->children[2]->children_nr;
 		ast_node_t **class_body = node->children[2]->children;
@@ -446,7 +446,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		symtab_entry_t *constructor_sym = symtab_new(TYPE_OBJ, SYMTAB_KIND_FUNCTION | SYMTAB_CONSTRUCTOR,
 							     classref->name, constructor);
 		constructor_sym->parent = classref;
-		constructor->children[0]->sym = constructor_sym;
+		AST_CALLABLE_SYMREF(constructor) = constructor_sym;
 		constructor_sym->storage = classref->storage;
 		context->callables[context->functions_nr++] = constructor;
 

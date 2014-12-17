@@ -102,12 +102,12 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	//e run any additional optional program analyses: first build full control-flow graph
 	main_sym->cfg_exit = cfg_build(ast);
 	//e run mandatory program analyses on whole program
-	runtime_foreach_symbol(image, (void (*)(symtab_entry_t *, void *)) data_flow_analyses,
-			       data_flow_analyses_correctness);
+	runtime_foreach_callable(image, (void (*)(symtab_entry_t *, void *)) data_flow_analyses,
+				 data_flow_analyses_correctness);
 	//e FIXME: run individually, on demand, in dyncomp_compile_function()
 	//e (We're only doing this here to simplify debugging...)
-	runtime_foreach_symbol(image, (void (*)(symtab_entry_t *, void *)) data_flow_analyses,
-			       data_flow_analyses_optimisation);
+	runtime_foreach_callable(image, (void (*)(symtab_entry_t *, void *)) data_flow_analyses,
+				 data_flow_analyses_optimisation);
 
 	if (action == RUNTIME_ACTION_SEMANTIC_ANALYSIS) {
 		return image;
@@ -137,7 +137,7 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 
 
 void
-runtime_foreach_symbol(runtime_image_t *image, void (*fn)(symtab_entry_t *sym, void *arg), void *argument)
+runtime_foreach_callable(runtime_image_t *image, void (*fn)(symtab_entry_t *sym, void *arg), void *argument)
 {
 	fn(symtab_lookup(image->main_entry_sym), argument);
 	for (int i = 0; i < image->callables_nr; ++i) {

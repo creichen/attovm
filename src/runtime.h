@@ -88,7 +88,7 @@ runtime_prepare(ast_node_t *ast, unsigned int action);
  * @param argument Additional argument to fn
  */
 void
-runtime_foreach_symbol(runtime_image_t *image, void (*fn)(symtab_entry_t *sym, void *arg), void *argument);
+runtime_foreach_callable(runtime_image_t *image, void (*fn)(symtab_entry_t *sym, void *arg), void *argument);
 		       
 
 /**

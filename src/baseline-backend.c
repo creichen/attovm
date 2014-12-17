@@ -872,7 +872,7 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			//e local or global variable
 			baseline_compile_expr(buf, ast->children[1], REGISTER_V0, context);
 			if (NODE_TY(ast->children[0]) == AST_VALUE_ID) {
-				baseline_store_type(buf, REGISTER_V0, ast->children[0]->sym, context,
+				baseline_store_type(buf, REGISTER_V0, AST_CALLABLE_SYMREF(ast), context,
 						    AST_TYPE(ast->children[1]) == TYPE_OBJ);
 			} else {
 				if (!is_simple(ast->children[0])) {
@@ -1116,10 +1116,11 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 	case AST_NODE_NEWINSTANCE:
 	case AST_NODE_FUNAPP: {
 		// Annahme: Funktionsaufrufe (noch keine Unterstuetzung fuer Selektoren)
-		symtab_entry_t *sym = ast->children[0]->sym;
+		symtab_entry_t *sym = AST_CALLABLE_SYMREF(ast);
 		if (NODE_TY(ast) == AST_NODE_NEWINSTANCE) {
-			// Konstruktor-Symbol
-			sym = sym->astref->children[3]->children[0]->sym;
+			//d Konstruktor-Symbol
+			//e constructor symbol
+			sym = AST_CALLABLE_SYMREF(sym->astref->children[3]);
 		}
 		assert(sym);
 		// Besondere eingebaute Operationen werden in einer separaten Funktion behandelt

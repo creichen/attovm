@@ -52,10 +52,8 @@
 #define PRINT_SYMTAB		-1
 #define PRINT_SYMTAB_ALL	-2
 #define PRINT_ASM		-3
-#ifdef ANALYSIS_CONTROL_FLOW_GRAPH
-#  define PRINT_CFG_AST		-4
-#  define PRINT_CFG_DOT		-5
-#endif
+#define PRINT_CFG_AST		-4
+#define PRINT_CFG_DOT		-5
 
 #define COMPOPT_NO_BOUNDS_CHECKS	1
 #define COMPOPT_INT_ARRAYS		2
@@ -78,10 +76,8 @@ static const option_rec_t options_printing[] = {
 	{ "asm",	PRINT_ASM,		"Assembly code for main entry point" },
 	{ "symtab",	PRINT_SYMTAB,		"Symbol table with user-defined symbols" },
 	{ "symtab-all",	PRINT_SYMTAB_ALL,	"Full symbol table, including built-in symbols" },
-#ifdef ANALYSIS_CONTROL_FLOW_GRAPH
 	{ "cfg-ast",	PRINT_CFG_AST,		"AST with control flow graph annotations" },
 	{ "cfg",	PRINT_CFG_DOT,		"Control-flow graph in DOT format" },
-#endif
 	{ NULL, 0, NULL }
 };
 
@@ -149,6 +145,12 @@ print_version()
 }
 
 
+static void
+dottify(symtab_entry_t *sym, void *_)
+{
+	cfg_dottify(stdout, sym);
+}
+
 void
 do_print(runtime_image_t *img, int mode)
 {
@@ -172,15 +174,17 @@ do_print(runtime_image_t *img, int mode)
 		}
 		return;
 
-#ifdef ANALYSIS_CONTROL_FLOW_GRAPH
 	case PRINT_CFG_DOT:
-		cfg_dottify(stdout, img->ast);
+		fprintf(stderr, "FIXME: dottify ALL THE CALLABLES");
+		/*
+		  runtime_foreach_callable(image, dottify, NULL);
+		 */
+		cfg_dottify(stdout, symtab_lookup(img->main_entry_sym));
 		return;
 
 	case PRINT_CFG_AST:
-		dump_flags |= AST_NODE_DUMP_CONTROL_FLOW_GRAPH;
+		dump_flags |= AST_NODE_DUMP_CFG;
 		break;
-#endif
 
 	default:
 		break;

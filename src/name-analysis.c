@@ -105,7 +105,7 @@ resolve_node(ast_node_t *node, symtab_entry_t *symtab)
 static void
 fix_with_parameters(ast_node_t *cnode, hashtable_t *env, int child_flags_params, int child_flags_body, storage_record_t *counters, int *classes_nr)
 {
-	symtab_entry_t *syminfo = cnode->children[0]->sym;
+	symtab_entry_t *syminfo = AST_CALLABLE_SYMREF(cnode);
 	assert(syminfo);
 
 	env = hashtable_clone(env, NULL, NULL);	

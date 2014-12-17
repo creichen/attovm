@@ -181,11 +181,10 @@ class_initialise_and_link(class_t *classref, symtab_entry_t *entry)
 			ast_node_t *child = defs->children[i];
 			assert(NODE_TY(child) == AST_NODE_FUNDEF
 			       || NODE_TY(child) == AST_NODE_VARDECL);
-			class_add_selector(classref,
-					   (symtab_entry_t *) child->children[0]->sym);
+			class_add_selector(classref, AST_CALLABLE_SYMREF(child));
 
 			if (NODE_TY(child) == AST_NODE_VARDECL
-			    && SYMTAB_TYPE(child->children[0]->sym) == TYPE_OBJ) {
+			    && SYMTAB_TYPE(AST_CALLABLE_SYMREF(child)) == TYPE_OBJ) {
 				classref->object_map = BITVECTOR_SET(classref->object_map, i);
 			}
 		}

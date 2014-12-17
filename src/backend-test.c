@@ -165,7 +165,7 @@ test_run(char *source, char *expected_result, int line)
 #ifdef DEBUG
 	fflush(NULL);
 	for (int i = 0; i < image->callables_nr; i++) {
-		symtab_entry_t *sym = image->callables[i]->children[0]->sym;
+		symtab_entry_t *sym = AST_CALLABLE_SYMREF(image->callables[i]);
 		fprintf(stderr, "%s %s:\n",
 			SYMTAB_KIND(sym) == SYMTAB_KIND_CLASS ? "CONSTRUCTOR" : "FUNCTION",
 			sym->name);

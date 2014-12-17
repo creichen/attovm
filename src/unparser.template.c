@@ -249,7 +249,7 @@ ast_node_print(FILE *file, ast_node_t *node, int recursive)
 
 		case AST_NODE_VARDECL:
 			print_primty(file, node->type & TYPE_FLAGS);
-			fprintf(stderr, " ");
+			fprintf(file, " ");
 			ast_node_print(file, node->children[0], recursive);
 			if (node->children_nr > 1) {
 				fprintf(file, " = ");
@@ -285,7 +285,7 @@ ast_node_print(FILE *file, ast_node_t *node, int recursive)
 			//e fall through
 		case AST_NODE_CLASSDEF:
 			print_primty(file, node->type & TYPE_FLAGS);
-			fprintf(stderr, " ");
+			fprintf(file, " ");
 			for (int i = 0; i < node->children_nr; ++i) {
 				ast_node_print(file, node->children[i], recursive);
 			}

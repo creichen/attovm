@@ -60,13 +60,20 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		return image;
 	}
 
-	if (name_analysis(ast, &image->storage, &image->classes_nr)) {
+	symtab_entry_t *main_sym = symtab_new(0,
+					      SYMTAB_KIND_FUNCTION | SYMTAB_MAIN_ENTRY_POINT,
+					      "<main>",
+					      ast);
+	image->main_entry_sym = main_sym->id;
+	image->storage = &main_sym->storage;
+	
+	if (name_analysis(ast, image->storage, &image->classes_nr)) {
 		free(image);
 		return NULL;
 	}
 
-	image->callables_nr = image->storage.functions_nr + image->classes_nr;
-	image->globals_nr = image->storage.vars_nr;
+	image->callables_nr = image->storage->functions_nr + image->classes_nr;
+	image->globals_nr = image->storage->vars_nr;
 
 	if (action == RUNTIME_ACTION_NAME_ANALYSIS) {
 		return image;
@@ -108,9 +115,9 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	stackmap_init();
 	image->dyncomp = dyncomp_build_generic();
 	image->trampoline = dyncomp_build_trampoline(buffer_entrypoint(image->dyncomp),
-						     image->callables, image->storage.functions_nr + image->classes_nr);
+						     image->callables, image->storage->functions_nr + image->classes_nr);
 	heap_init(compiler_options.heap_size);
-	image->code_buffer = baseline_compile_entrypoint(ast, &image->storage, image->static_memory);
+	image->code_buffer = baseline_compile_entrypoint(ast, image->storage, image->static_memory);
 	image->main_entry_point = buffer_entrypoint(image->code_buffer);
 
 	last = image;

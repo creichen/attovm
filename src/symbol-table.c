@@ -106,7 +106,7 @@ symtab_lookup(int id)
 	symtab_get(&id, &ids_nr, &alloc_size, &symtab);
 
 	if (id >= *ids_nr) {
-		fprintf(stderr, "Looking up invalid symtab ID %d (post-convesion)", id);
+		fprintf(stderr, "Looking up invalid symtab ID %d (post-conversion)", id);
 		return NULL;
 	}
 	if (id < 0) {

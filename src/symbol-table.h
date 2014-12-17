@@ -57,6 +57,7 @@
 #define SYMTAB_COMPILED		0x0100	/*d Fertig uebersetzt */ /*e fully translated to machine code */
 #define SYMTAB_OPT		0x0200	/*d Mit Optimierungen übersetzt */ /*e fully translated with optimisations */
 #define SYMTAB_EXCESS_PARAM	0x0400	/*d PARAM, den wir auf dem Stapel uebergeben */ /*e PARAM passed on the stack */
+#define SYMTAB_MAIN_ENTRY_POINT	0x0800	/*e special symbol for main entry point */
 
 #define SYMTAB_TYPE(s)			(((s)->ast_flags) & TYPE_FLAGS)	/*e TYPE_INT, TYPE_OBJ etc */
 #define SYMTAB_KIND(s)			(((s)->symtab_flags) & SYMTAB_KIND_MASK)

@@ -51,7 +51,8 @@ typedef struct {
 	int classes_nr;
 	ast_node_t **classes;
 
-	storage_record_t storage;	/*e number of functions, variables, and temps (informs size of static_memory) */
+	int main_entry_sym;		/*e symbol for main entry point */
+	storage_record_t *storage;	/*e number of functions, variables, and temps (informs size of static_memory) for main entry point */
 
 	buffer_t dyncomp;	/*d Generischer Einsprungpunkt fuer den dynamischen Uebersetzer *//*e generic entrypoint for the dynamic compiler */
 	buffer_t trampoline;	/*d Trampolin-Puffer: Hierher springen wir fuer eine nicht uebersetzte Funktion

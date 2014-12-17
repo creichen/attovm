@@ -80,6 +80,17 @@ runtime_image_t *
 runtime_prepare(ast_node_t *ast, unsigned int action);
 
 
+/*e
+ * Executes `fn' on each symbol in the run-time image
+ *
+ * @param image The image to run over
+ * @param fn The function to run over each symbol
+ * @param argument Additional argument to fn
+ */
+void
+runtime_foreach_symbol(runtime_image_t *image, void (*fn)(symtab_entry_t *sym, void *arg), void *argument);
+		       
+
 /**
  * Fuehrt ein gegebenes runtime_image_t aus
  */

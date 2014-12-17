@@ -98,6 +98,17 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		return NULL;
 	}
 
+	//----------------------------------------
+	//e run any additional optional program analyses: first build full control-flow graph
+	main_sym->cfg_exit = cfg_build(ast);
+	//e run mandatory program analyses on whole program
+	runtime_foreach_symbol(image, (void (*)(symtab_entry_t *, void *)) data_flow_analyses,
+			       data_flow_analyses_correctness);
+	//e FIXME: run individually, on demand, in dyncomp_compile_function()
+	//e (We're only doing this here to simplify debugging...)
+	runtime_foreach_symbol(image, (void (*)(symtab_entry_t *, void *)) data_flow_analyses,
+			       data_flow_analyses_optimisation);
+
 	if (action == RUNTIME_ACTION_SEMANTIC_ANALYSIS) {
 		return image;
 	}
@@ -109,9 +120,8 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		image->static_memory = NULL;
 	}
 
-	//e run any additional optional program analyses
-	ast_analyses_run(ast);
-	
+	//----------------------------------------
+	//e start assembly translation
 	stackmap_init();
 	image->dyncomp = dyncomp_build_generic();
 	image->trampoline = dyncomp_build_trampoline(buffer_entrypoint(image->dyncomp),
@@ -125,7 +135,28 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	return image;
 }
 
-// Helfer fuer gdb-breakpoints
+
+void
+runtime_foreach_symbol(runtime_image_t *image, void (*fn)(symtab_entry_t *sym, void *arg), void *argument)
+{
+	fn(symtab_lookup(image->main_entry_sym), argument);
+	for (int i = 0; i < image->callables_nr; ++i) {
+		fn(AST_CALLABLE_SYMREF(image->callables[i]), argument);
+	}
+	for (int i = 0; i < image->classes_nr; ++i) {
+		ast_node_t *classref = image->classes[i];
+		ast_node_t *class_body = classref->children[2];
+		symtab_entry_t *class_sym = AST_CALLABLE_SYMREF(classref);
+		const int first_method_index = class_sym->storage.fields_nr;
+		const int methods_nr = class_sym->storage.functions_nr;
+		for (int k = first_method_index; k < first_method_index + methods_nr; ++k) {
+			fn(AST_CALLABLE_SYMREF(class_body->children[k]), argument);
+		}
+	}
+}
+
+
+//d Helfer fuer gdb-breakpoints
 void
 start_dynamic() {};
 
@@ -188,7 +219,7 @@ runtime_free(runtime_image_t *img)
 	}
 	if (img->callables) {
 		for (int i = 0; i < img->callables_nr; i++) {
-			symtab_entry_t *sym = img->callables[i]->children[0]->sym;
+			symtab_entry_t *sym = AST_CALLABLE_SYMREF(img->callables[i]);
 			if (sym->r_mem != sym->r_trampoline) {
 				buffer_free(buffer_from_entrypoint(sym->r_mem));
 			}

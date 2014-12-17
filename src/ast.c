@@ -87,8 +87,8 @@ ast_node_free(ast_node_t *node, int recursive)
 		children_nr = node->children_nr;
 	}
 
-	//e free program analysis annotations, if any
-	ast_analyses_free(node);
+	//e free control flow graph and program analysis annotations, if any
+	cfg_ast_free(node);
 
 	if (recursive) {
 		while (children_nr--) {

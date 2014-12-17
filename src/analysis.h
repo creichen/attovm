@@ -28,10 +28,12 @@
 #ifndef _ATTOL_ANALYSIS_H
 #define _ATTOL_ANALYSIS_H
 
+#include <stdbool.h>
+
 #include "ast.h"
 #include "symbol-table.h"
 
-/**
+/*d
  * Ersetzt alle AST_VALUE_NAME-Knoten durch AST_VALUE_ID-Knoten
  *
  * Erste Analysephase
@@ -45,7 +47,7 @@ int
 name_analysis(ast_node_t *, storage_record_t *storage, int *classes_nr);
 
 
-/**
+/*d
  * Fuehrt Typanalyse durch:
  *
  * - Fuegt *convert-Knoten ein, wo noetig
@@ -64,5 +66,21 @@ name_analysis(ast_node_t *, storage_record_t *storage, int *classes_nr);
  */
 int
 type_analysis(ast_node_t **, ast_node_t **callables, ast_node_t **classes, int *globals);
+
+struct data_flow_analysis;
+extern struct data_flow_analysis *data_flow_analyses_correctness[];
+extern struct data_flow_analysis *data_flow_analyses_optimisation[];
+
+/*e
+ * Runs intra-procedural data flow analyses (and, possibly, AST-transformation based updates)
+ *
+ * These depend on control flow graphs (control-flow-graph.h) having been built.
+ *
+ * @param sym The symbol to analyse/optimise
+ * @param recursive Whether to recursively analyse any encountered syb-
+ * @return Number of observed errors
+ */
+int
+data_flow_analyses(symtab_entry_t *sym, struct data_flow_analysis *analyses[]);
 
 #endif 

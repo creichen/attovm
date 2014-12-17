@@ -28,14 +28,24 @@
 #ifndef _ATTOL_DATA_FLOW_H
 #define _ATTOL_DATA_FLOW_H
 
-#include <bool.h>
+#include <stdbool.h>
 
-typedef struct {
-	
-} flow_info_t;
+#include "control-flow-graph.h"
+#include "ast.h"
 
+/*e
+ * Reports an error at a given AST node
+ *
+ * @param node The node to report the error for
+ * @param fmt A format string (as for printf)
+ * @param ... Any additional parameters needed for the format string (cf. `man printf')
+ */
+static void
+data_flow_error(const ast_node_t *node, char *fmt, ...);
 
-typedef struct {
+//e data flow analysis definitions
+
+typedef struct data_flow_analysis {
 	//e forward analysis?  otherwise backward
 	bool forward;
 	//e name of the analysis
@@ -88,10 +98,22 @@ typedef struct {
 	void (*free)(void *fact);
 } data_flow_analysis_t;
 
+
 /*e
- * Executes the dataflow analysis until a fixed point is reached
+ * Frees an array of dataflow analysis results (from a CFG node)
  */
 void
-dataflow_analyse(runtime_image_t *image, data_flow_analysis_t *analysis);
+data_flow_free(void *data[]);
+
+/*e
+ * Prints out analysis results for the specified cfg node
+ *
+ * @param file File to print to
+ * @param node CFG node containing the analysis results we want to print
+ * @param flags Bit-flags to indicate which analysis results to print, with the least
+ * significant bit printing analysis #0, the next bit enabling printing analysis #1 etc.
+ */
+void
+data_flow_print(FILE *file, cfg_node_t *node, int flags);
 
 #endif // !defined(_ATTOL_DATA_FLOW_H)

@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "ast-analyses.h"
+#include "control-flow-graph.h"
 
 struct symtab_entry; // symbol_table.h
 
@@ -46,6 +46,7 @@ $$NODE_TYPES$$
 #define NODE_TY(n) ((n)->type & AST_NODE_MASK)
 #define NODE_FLAGS(n) ((n)->type & ~AST_NODE_MASK)
 #define IS_VALUE_NODE(n) (NODE_TY(n) <= AST_VALUE_MAX)
+#define AST_CALLABLE_SYMREF(n) ((n)->children[0]->sym) /*e symtab_entry_t* for function, constructor, or method */
 
 $$AV_VALUE_GETTERS$$
 
@@ -70,7 +71,7 @@ typedef struct ast_node {
 	short storage;		/*d Temporaere Speicherstelle (oder Gesamtplatz, fuer Bloecke) *//*e temporary storage offset, or total temporary space (blocks) */
 	short source_line;	/*d Quellcode-Zeile *//*e source line */
 	struct symtab_entry *sym;
-	struct ast_analyses analyses;
+	cfg_node_t *cfg;	/*e control-flow graph (optional) */
 	struct ast_node * children[0]; /*d Kindknoten *//*e child nodes */
 } ast_node_t;
 
@@ -87,7 +88,7 @@ typedef struct {
 	short storage;
 	short source_location;
 	struct symtab_entry *sym;
-	struct ast_analyses analyses;
+	cfg_node_t *cfg;
 	ast_value_union_t v;
 } ast_value_node_t;
 

@@ -174,7 +174,7 @@ do_print(runtime_image_t *img, int mode)
 
 #ifdef ANALYSIS_CONTROL_FLOW_GRAPH
 	case PRINT_CFG_DOT:
-		control_flow_graph_dottify(stdout, img->ast);
+		cfg_dottify(stdout, img->ast);
 		return;
 
 	case PRINT_CFG_AST:

@@ -289,6 +289,9 @@ symtab_entry_free(symtab_entry_t *e)
 	if (e->parameters_nr && !(e->symtab_flags & SYMTAB_BUILTIN)) {
 		free(e->parameter_types);
 	}
+	if (e->cfg_exit) {
+		cfg_node_free(e->cfg_exit);
+	}
 	free(e);
 }
 

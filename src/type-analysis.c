@@ -48,7 +48,8 @@ typedef struct {
 	ast_node_t **callables;
 	ast_node_t **classes;
 	int *globals;
-	int functions_nr; int classes_nr;
+	int functions_nr;
+	int classes_nr;
 } context_t;
 
 static ast_node_t *
@@ -450,7 +451,7 @@ analyse(ast_node_t *node, symtab_entry_t *classref, symtab_entry_t *function, co
 		context->callables[context->functions_nr++] = constructor;
 
 		//d Neuen Klassenkoerper erzeugen: Felder nach vorne, Methoden nach hinten
-		//e Create new class body: start with fields, put methods behind
+		//e Create new class body: start with fields, followed by methods
 		ast_node_t *new_class_body_node =
 			ast_node_alloc_generic_without_init(AST_NODE_BLOCK,
 							    classref->storage.fields_nr + classref->storage.functions_nr);

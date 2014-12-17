@@ -32,70 +32,84 @@
 
 #include <stdbool.h>
 
+#define DATA_FLOW_ANALYSES_NR 3	/*e max number of permitted data flow analyses */
+
 struct ast_node;
 typedef struct ast_node ast_node_t;
 
 typedef struct {
-	struct ast_node *node;	/*e guaranteed non-NULL */
-} control_flow_edge_t;
+	struct cfg_node *node;	/*e guaranteed non-NULL */
+} cfg_edge_t;
 
-typedef struct control_flow_node {
-	cstack_t *in; /*e contains control_flow_edge_t */
+typedef struct cfg_node {
+	cstack_t *in; /*e contains cfg_edge_t */
 	cstack_t *out;
-	struct ast_node *return_node; /*e function/method definitions/uses only: exit/return node */
-} control_flow_node_t;
+	ast_node_t *ast;
+	void *analysis_result[DATA_FLOW_ANALYSES_NR];
+} cfg_node_t;
+
+struct symtab_entry;
 
 //e preprocessor interface
 
 /*e
  * Obtains the given node's return node, if it exists (function/method definitions and invocations only)
  */
-#define CONTROL_FLOW_RETURN(ast_node) (((ast_node)->analyses.cfg)? ((ast_node)->analyses.cfg->return_node) : NULL)
+#define CFG_RETURN(ast_node) (((ast_node)->analyses.cfg)? ((ast_node)->analyses.cfg->return_node) : NULL)
 
-#define CONTROL_FLOW_IN true
-#define CONTROL_FLOW_OUT false
+#define CFG_IN true
+#define CFG_OUT false
 
 /*e
  * Constructs a full control-flow graph for the given AST
+ *
+ * @param ast The abstract syntax tree 
+ * @return The control flow graph's exit node
  */
-void
-control_flow_graph_build(ast_node_t *ast);
+cfg_node_t *
+cfg_build(ast_node_t *ast);
 
 /*e
  * Reads the number of control flow edges
  *
  * @param node The node to read from
- * @param edge_direction CONTROL_FLOW_IN or CONTROL_FLOW_OUT
+ * @param edge_direction CFG_IN or CFG_OUT
  * @return Number of edges in the given edge direction
  */
 int
-control_flow_graph_edges_nr(ast_node_t *node, bool edge_direction);
+cfg_edges_nr(cfg_node_t *node, bool edge_direction);
 
 /*e
  * Reads the control flow graph's edges
  *
  * @param node The node to read from
  * @param edge_nr Number of the edge to read
- * @param edge_direction CONTROL_FLOW_IN or CONTROL_FLOW_OUT
+ * @param edge_direction CFG_IN or CFG_OUT
  */
-control_flow_edge_t *
-control_flow_graph_edge(ast_node_t *node, int edge_nr, bool edge_direction);
+cfg_edge_t *
+cfg_edge(cfg_node_t *node, int edge_nr, bool edge_direction);
 
 /*e
- * deallocates control_flow_node_t information from a single AST node
+ * deallocates cfg_node_t information from a single AST node
  *
  * @param node The node from which to deallocate
  */
 void
-control_flow_graph_node_free(ast_node_t *node);
+cfg_ast_free(ast_node_t *node);
 
 /*e
- * Finds the child indices of all subnodes that show up in the control flow graph
+ * deallocates cfg_node_t information
+ */
+void
+cfg_node_free(cfg_node_t *node);
+
+/*e
+ * Finds the child indices of all AST subnodes that show up in the control flow graph
  *
  * Usage example:
  *
  * int *subnodes;
- * int subnodes_nr = control_flow_graph_subnodes(node, &subnodes);
+ * int subnodes_nr = cfg_subnodes(node, &subnodes);
  * if (subnodes_nr == -1) {
  *    subnodes_n
  * }
@@ -112,18 +126,28 @@ control_flow_graph_node_free(ast_node_t *node);
  * subnodes show up on the control flow graph)
  */
 int
-control_flow_graph_subnodes(ast_node_t *node, int **subs);
+cfg_subnodes(ast_node_t *node, int **subs);
 
 /*e
  * print node-specific AST information
  */
 void
-control_flow_graph_node_print(FILE *file, ast_node_t *node);
+cfg_node_print(FILE *file, cfg_node_t *node);
 
 /*e
  * print entire control-flow graph in DOT format
  */
 void
-control_flow_graph_dottify(FILE *file, ast_node_t *node);
+cfg_dottify(FILE *file, struct symtab_entry *symbol);
 
-#endif // !defined(_ATTOL_CONTROL_FLOW_GRAPH_H)
+#define AST_NODE_DUMP_CFG	0x1000
+#define AST_NODE_DUMP_DATA_FLOW	0x10000 /*e shift left by index of data flow analysis to print */
+#define AST_NODE_DUMP_DATA_FLOW_SHIFT 16
+/*e
+ * Perform pretty printing of CFG and/or analysis results on the AST
+ */
+void
+cfg_analyses_print(FILE *file, ast_node_t *ast, int flags);
+
+
+#endif // !defined(_ATTOL_CFG_H)

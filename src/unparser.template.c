@@ -83,7 +83,7 @@ print_value_node(FILE *file, ast_value_node_t *node)
 		return;
 $$PRINT_VNODES$$
 	default:
-		fprintf(file, "<unknown value node tpe 0x%x>", node->type & AST_NODE_MASK);
+		fprintf(file, "<unknown value node type 0x%x>", node->type & AST_NODE_MASK);
 	}
 }
 

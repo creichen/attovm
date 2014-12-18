@@ -143,3 +143,43 @@ bitvector_print(FILE *f, bitvector_t bitvector)
 		fprintf(f, "%llu", BITVECTOR_IS_SET(bitvector, i));
 	}
 }
+
+bitvector_t
+bitvector_or(bitvector_t bv1, bitvector_t bv2)
+{
+	size_t size = bitvector_size(bv1);
+	if (size == bitvector_size(bv2)) {
+		if (BITVECTOR_IS_SMALL(bv1)) {
+			bv1.small |= bv2.small;
+			return bv1;
+		} else {
+			bitvector_t result = bitvector_alloc(size);
+			for (int i = ((size + 63) >> 6); i > 0; --i) {
+				result.large[i] = bv1.large[i] | bv2.large[i];
+			}
+			return result;
+		}
+	} else {
+		assert(false); // unsupported
+	}
+}
+
+bitvector_t
+bitvector_and(bitvector_t bv1, bitvector_t bv2)
+{
+	size_t size = bitvector_size(bv1);
+	if (size == bitvector_size(bv2)) {
+		if (BITVECTOR_IS_SMALL(bv1)) {
+			bv1.small &= bv2.small;
+			return bv1;
+		} else {
+			bitvector_t result = bitvector_alloc(size);
+			for (int i = ((size + 63) >> 6); i > 0; --i) {
+				result.large[i] = bv1.large[i] & bv2.large[i];
+			}
+			return result;
+		}
+	} else {
+		assert(false); // unsupported
+	}
+}

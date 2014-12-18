@@ -20,7 +20,8 @@ FRONTEND_SRC = parser.template.c parser.template.h ast.template.h lexer.template
 		mk-codegen.py mk-parser.py lexer-support.c ast.c chash.c cstack.c bitvector.c symbol-table.c \
 		name-analysis.c type-analysis.c atl.c backend-test.c data-flow.c control-flow-graph.c
 FRONTEND_OBJS = parser.o lexer.o lexer-support.o ast.o unparser.o chash.o cstack.o bitvector.o symbol-table.o \
-		name-analysis.o type-analysis.o data-flow.o control-flow-graph.o
+		name-analysis.o type-analysis.o data-flow.o control-flow-graph.o \
+		data-flow-reaching-definitions.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
 # --------------------

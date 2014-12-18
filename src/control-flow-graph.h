@@ -41,14 +41,19 @@ typedef struct {
 	struct cfg_node *node;	/*e guaranteed non-NULL */
 } cfg_edge_t;
 
+typedef struct cfg_data_flow_facts {
+	void *inb, *outb;
+} cfg_data_flow_facts_t;
+
 typedef struct cfg_node {
 	cstack_t *in; /*e contains cfg_edge_t */
 	cstack_t *out;
 	ast_node_t *ast;
-	void *analysis_result[DATA_FLOW_ANALYSES_NR];
+	cfg_data_flow_facts_t analysis[DATA_FLOW_ANALYSES_NR];
 } cfg_node_t;
 
 struct symtab_entry;
+struct data_flow_analysis;
 
 //e preprocessor interface
 
@@ -136,9 +141,13 @@ cfg_node_print(FILE *file, cfg_node_t *node);
 
 /*e
  * print entire control-flow graph in DOT format
+ *
+ * @param file The file to print to
+ * @param symbol The symbol to dottify
+ * @param analysis Any program analysis results to print, or NULL
  */
 void
-cfg_dottify(FILE *file, struct symtab_entry *symbol);
+cfg_dottify(FILE *file, struct symtab_entry *symbol, struct data_flow_analysis *analysis);
 
 #define AST_NODE_DUMP_CFG	0x1000
 #define AST_NODE_DUMP_DATA_FLOW	0x10000 /*e shift left by index of data flow analysis to print */

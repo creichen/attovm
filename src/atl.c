@@ -33,6 +33,7 @@
 #include "ast.h"
 #include "class.h"
 #include "compiler-options.h"
+#include "data-flow.h"
 #include "parser.h"
 #include "runtime.h"
 #include "symbol-table.h"
@@ -59,6 +60,7 @@
 #define COMPOPT_INT_ARRAYS		2
 #define COMPOPT_DEBUG_DYNAMIC_COMPILER	3
 #define COMPOPT_DEBUG_ASSEMBLY		4
+#define COMPOPT_DEBUG_DATA_FLOW		5
 
 typedef struct {
 	char *name;
@@ -86,6 +88,7 @@ static const option_rec_t options_compiler[] = {
 	{ "int-arrays",			COMPOPT_INT_ARRAYS,		"Change the type of array elements to 'int'" },
 	{ "debug-dynamic-compiler",	COMPOPT_DEBUG_DYNAMIC_COMPILER,	"Print out informative messages and disassembly during runtime compilation" },
 	{ "debug-asm",			COMPOPT_DEBUG_ASSEMBLY,		"Use interactive assembly debugger to run" },
+	{ "debug-data-flow",		COMPOPT_DEBUG_DATA_FLOW,	"Debug the selected data flow analysis" },
 	{ NULL, 0, NULL }
 };
 
@@ -135,6 +138,12 @@ print_help(char *fn)
 	print_options(options_compiler, "\t\t\t");
 	printf("\t-p <n>\tPrint intermediate representation, with <n> from:\n");
 	print_options(options_printing, "\t\t\t");
+	printf("\t-a <n>\tObserve data flow analysis (e.g., with -p cfg), with <n> from:\n");
+	for (int i = 0; i < DATA_FLOW_ANALYSES_NR; ++i) {
+		if (data_flow_analysis_by_index(i)) {
+			printf("\t\t\t%s\n", data_flow_analysis_by_index(i)->name);
+		}
+	}
 	exit(0);
 }
 
@@ -144,11 +153,12 @@ print_version()
 	printf("AttoVM version " VERSION ".\n");
 }
 
+static data_flow_analysis_t *data_flow_analysis = NULL;
 
 static void
 dottify(symtab_entry_t *sym, void *_)
 {
-	cfg_dottify(stdout, sym);
+	cfg_dottify(stdout, sym, data_flow_analysis);
 }
 
 void
@@ -175,11 +185,9 @@ do_print(runtime_image_t *img, int mode)
 		return;
 
 	case PRINT_CFG_DOT:
-		fprintf(stderr, "FIXME: dottify ALL THE CALLABLES");
-		/*
-		  runtime_foreach_callable(image, dottify, NULL);
-		 */
-		cfg_dottify(stdout, symtab_lookup(img->main_entry_sym));
+		fprintf(stdout, "digraph cfg {\n");
+		runtime_foreach_callable(img, dottify, NULL);
+		fprintf(stdout, "}\n");
 		return;
 
 	case PRINT_CFG_AST:
@@ -199,8 +207,9 @@ main(int argc, char **argv)
 	int action = ACTION_RUN;
 	int print_mode = PRINT_ASM;
 	int opt;
+	bool debug_data_flow = false;
 
-	while ((opt = getopt(argc, argv, "hvxp:f:")) != -1) {
+	while ((opt = getopt(argc, argv, "hvxp:f:a:")) != -1) {
 		switch (opt) {
 
 		case 'v':
@@ -237,9 +246,31 @@ main(int argc, char **argv)
 			case COMPOPT_DEBUG_ASSEMBLY:
 				compiler_options.debug_assembly = true;
 				break;
+
+			case COMPOPT_DEBUG_DATA_FLOW:
+				debug_data_flow = true;
+				break;
 			}
 			break;
+
+		case 'a':
+			data_flow_analysis = data_flow_analysis_by_name(optarg);
+			if (!data_flow_analysis) {
+				fprintf(stderr, "No such analysis, `%s'\n", optarg);
+				return 1;
+			}
+			break;
+			
 		default:;
+		}
+	}
+	
+	if (debug_data_flow) {
+		if (data_flow_analysis) {
+			data_flow_analysis->debug = true;
+		} else {
+			fprintf(stderr, "No data flow analysis selected, can't debug\n");
+			return 1;
 		}
 	}
 

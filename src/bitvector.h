@@ -62,10 +62,12 @@ typedef union bitvector bitvector_t;
 #  define BITVECTOR_SET(BV, B) ((BITVECTOR_IS_SMALL(BV))? (bitvector_t)((BV).small | (1ull << (BITVECTOR_BODY_SHIFT + (B)))) : bitvector_set_slow((BV), (B)))
 #  define BITVECTOR_CLEAR(BV, B) ((BITVECTOR_IS_SMALL(BV))? (bitvector_t)((BV).small & ~(1ull << (BITVECTOR_BODY_SHIFT + (B)))) : bitvector_clear_slow((BV), (B)))
 #  define BITVECTOR_IS_SET(BV, B) ((BITVECTOR_IS_SMALL(BV))? (((BV).small >> (BITVECTOR_BODY_SHIFT + (B)) & 1ul)) : bitvector_is_set_slow((BV), (B)))
+#  define BITVECTOR_FREE(BV) if (!(BITVECTOR_IS_SMALL(BV))) bitvector_free(BV)
 #else
 #  define BITVECTOR_SET(BV, B) bitvector_set_slow((BV), (B))
 #  define BITVECTOR_CLEAR(BV, B) bitvector_clear_slow((BV), (B))
 #  define BITVECTOR_IS_SET(BV, B) bitvector_is_set_slow((BV), (B))
+#  define BITVECTOR_FREE(BV) bitvector_free(BV)
 #endif
 
 /*e
@@ -101,6 +103,18 @@ bitvector_free(bitvector_t bitvector);
  */
 bitvector_t
 bitvector_clone(bitvector_t bitvector);
+
+/*e
+ * Creates a new bitvector with the bit-wise disjunction of the inputs
+ */
+bitvector_t
+bitvector_or(bitvector_t bv1, bitvector_t bv2);
+
+/*e
+ * Creates a new bitvector with the bit-wise conjunction of the inputs
+ */
+bitvector_t
+bitvector_and(bitvector_t bv1, bitvector_t bv2);
 
 /*e
  * Sets a bit in a bitvector.  Returns the updated bitvector.

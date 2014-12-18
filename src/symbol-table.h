@@ -30,7 +30,6 @@
 #define _ATTOL_SYMBOL_TABLE_H
 
 #include "ast.h"
-#include "control-flow-graph.h"
 
 //e The symbol table stores mappins from `identifiers' to semantic information (bindings) for those identifiers
 
@@ -73,6 +72,8 @@ typedef struct {
 	short fields_nr;		/*e fields (classes only) */
 } storage_record_t;
 
+struct cfg_node;
+
 typedef struct symtab_entry {
 	char *name;
 	struct symtab_entry *parent;		/*d Struktureller Elterneintrag */ /*e structural parent entry */
@@ -81,7 +82,7 @@ typedef struct symtab_entry {
 	unsigned short ast_flags;
 	unsigned short symtab_flags;
 	ast_node_t *astref;			/* CLASSDEF, FUNDEF, VARDECL */
-	cfg_node_t *cfg_exit;			/*e control flow graph exit node (for SYMTAB_KIND_FUNCTION) */
+	struct cfg_node *cfg_exit;			/*e control flow graph exit node (for SYMTAB_KIND_FUNCTION) */
 	void *r_trampoline;			/*d Zeiger auf Trampolin-Code, falls vorhanden */ /*e pointer to trampoline code, if present */
 	void *r_mem;				/*d Zeiger auf Funktion / Klassenobjekt */ /*e pointer to function or class object */
 	unsigned short *parameter_types;	/*e for constructors, parameter_types and parameters_nr are 0.  Refer to the class to access them. */

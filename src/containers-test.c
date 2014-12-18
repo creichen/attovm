@@ -316,7 +316,7 @@ test_bitvec_basic(void)
 	ASSERT(0 == bitvector_size(b0));
 	ASSERT(3 == bitvector_size(b3));
 
-	bitvector_free(b0);
+	BITVECTOR_FREE(b0);
 
 	for (int i = 0; i < 3; i++) {
 		ASSERT(!BITVECTOR_IS_SET(b3, i));
@@ -335,7 +335,7 @@ test_bitvec_basic(void)
 	ASSERT(BITVECTOR_IS_SET(b3, 1));
 	ASSERT(!BITVECTOR_IS_SET(b3, 2));
 
-	bitvector_free(b3);
+	BITVECTOR_FREE(b3);
 }
 
 static void
@@ -387,9 +387,105 @@ test_bitvec_scale(void)
 
 		ASSERT(bitvector_size(b) == size);
 
-		bitvector_free(b);
-		bitvector_free(b2);
+		BITVECTOR_FREE(b);
+		BITVECTOR_FREE(b2);
 	}
+}
+
+static void
+test_bitvec_or(void)
+{
+	bitvector_t b0 = bitvector(5, 6);
+	bitvector_t b1 = bitvector(5, 12);
+	bitvector_t b2 = bitvector_or(b0, b1);
+	ASSERT(!BITVECTOR_IS_SET(b2, 0));
+	ASSERT( BITVECTOR_IS_SET(b2, 1));
+	ASSERT( BITVECTOR_IS_SET(b2, 2));
+	ASSERT( BITVECTOR_IS_SET(b2, 3));
+	ASSERT(!BITVECTOR_IS_SET(b2, 4));
+	ASSERT(bitvector_size(b2) == 5);
+
+	BITVECTOR_FREE(b0);
+	BITVECTOR_FREE(b1);
+	BITVECTOR_FREE(b2);
+
+	b0 = bitvector_alloc(100);
+	BITVECTOR_SET(b0, 30);
+	BITVECTOR_SET(b0, 60);
+	BITVECTOR_SET(b0, 90);
+	BITVECTOR_SET(b0, 92);
+	b1 = bitvector_alloc(100);
+	BITVECTOR_SET(b1, 35);
+	BITVECTOR_SET(b1, 60);
+	BITVECTOR_SET(b1, 90);
+	BITVECTOR_SET(b1, 95);
+	b2 = bitvector_or(b0, b1);
+	
+	ASSERT(!BITVECTOR_IS_SET(b2, 0));
+	ASSERT( BITVECTOR_IS_SET(b2, 30));
+	ASSERT(!BITVECTOR_IS_SET(b2, 31));
+	ASSERT( BITVECTOR_IS_SET(b2, 35));
+	ASSERT( BITVECTOR_IS_SET(b2, 60));
+	ASSERT( BITVECTOR_IS_SET(b2, 90));
+	ASSERT(!BITVECTOR_IS_SET(b2, 91));
+	ASSERT( BITVECTOR_IS_SET(b2, 92));
+	ASSERT(!BITVECTOR_IS_SET(b2, 93));
+	ASSERT(!BITVECTOR_IS_SET(b2, 94));
+	ASSERT( BITVECTOR_IS_SET(b2, 95));
+	ASSERT(!BITVECTOR_IS_SET(b2, 99));
+	ASSERT(bitvector_size(b2) == 100);
+
+	BITVECTOR_FREE(b0);
+	BITVECTOR_FREE(b1);
+	BITVECTOR_FREE(b2);
+}
+
+static void
+test_bitvec_and(void)
+{
+	bitvector_t b0 = bitvector(5, 6);
+	bitvector_t b1 = bitvector(5, 12);
+	bitvector_t b2 = bitvector_and(b0, b1);
+	ASSERT(!BITVECTOR_IS_SET(b2, 0));
+	ASSERT(!BITVECTOR_IS_SET(b2, 1));
+	ASSERT( BITVECTOR_IS_SET(b2, 2));
+	ASSERT(!BITVECTOR_IS_SET(b2, 3));
+	ASSERT(!BITVECTOR_IS_SET(b2, 4));
+	ASSERT(bitvector_size(b2) == 5);
+
+	BITVECTOR_FREE(b0);
+	BITVECTOR_FREE(b1);
+	BITVECTOR_FREE(b2);
+
+	b0 = bitvector_alloc(100);
+	BITVECTOR_SET(b0, 30);
+	BITVECTOR_SET(b0, 40);
+	BITVECTOR_SET(b0, 90);
+	BITVECTOR_SET(b0, 92);
+	b1 = bitvector_alloc(100);
+	BITVECTOR_SET(b1, 35);
+	BITVECTOR_SET(b1, 40);
+	BITVECTOR_SET(b1, 90);
+	BITVECTOR_SET(b1, 95);
+	b2 = bitvector_and(b0, b1);
+	
+	ASSERT(!BITVECTOR_IS_SET(b2, 0));
+	ASSERT(!BITVECTOR_IS_SET(b2, 30));
+	ASSERT(!BITVECTOR_IS_SET(b2, 31));
+	ASSERT(!BITVECTOR_IS_SET(b2, 35));
+	ASSERT( BITVECTOR_IS_SET(b2, 40));
+	ASSERT( BITVECTOR_IS_SET(b2, 90));
+	ASSERT(!BITVECTOR_IS_SET(b2, 91));
+	ASSERT(!BITVECTOR_IS_SET(b2, 92));
+	ASSERT(!BITVECTOR_IS_SET(b2, 93));
+	ASSERT(!BITVECTOR_IS_SET(b2, 94));
+	ASSERT(!BITVECTOR_IS_SET(b2, 95));
+	ASSERT(!BITVECTOR_IS_SET(b2, 99));
+	ASSERT(bitvector_size(b2) == 100);
+
+	BITVECTOR_FREE(b0);
+	BITVECTOR_FREE(b1);
+	BITVECTOR_FREE(b2);
 }
 
 int
@@ -406,6 +502,8 @@ main(int argc, char **args)
 
 	TEST(test_bitvec_basic);
 	TEST(test_bitvec_scale);
+	TEST(test_bitvec_or);
+	TEST(test_bitvec_and);
 	
 	return failures != 0;
 }

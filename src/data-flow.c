@@ -25,19 +25,31 @@
 
 ***************************************************************************/
 
+#include <assert.h>
 #include <stdarg.h>
+#include <string.h>
 
 #include "ast.h"
 #include "cstack.h"
+#include "chash.h"
 #include "control-flow-graph.h"
 #include "symbol-table.h"
 #include "data-flow.h"
+
+extern data_flow_analysis_t data_flow_analysis__reaching_definitions;
 
 data_flow_analysis_t *data_flow_analyses_correctness[] = {
 	NULL /*e terminator: must be final entry! */
 };
 data_flow_analysis_t *data_flow_analyses_optimisation[] = {
+	&data_flow_analysis__reaching_definitions,
 	NULL /*e terminator: must be final entry! */
+};
+
+static data_flow_analysis_t **analysis_sets[] = {
+	data_flow_analyses_correctness,
+	data_flow_analyses_optimisation,
+	NULL
 };
 
 
@@ -56,74 +68,287 @@ error(const ast_node_t *node, char *fmt, ...)
 	++error_count;
 }
 
-
-
 typedef struct {
 	cfg_node_t *from;
 	cfg_edge_t *to;
 } edge_t;
 
+
+typedef struct {
+	cfg_node_t *init, *exit;
+	cstack_t *worklist;
+	symtab_entry_t *sym;
+	int analysis_index;
+	data_flow_analysis_t *analysis;
+} context_t;
+
 static void
-dflow_init_node(cstack_t *worklist, ast_node_t *node, data_flow_analysis_t *analysis)
+fprintf_stderr(char *fmt, ...)
 {
-#if 0
-	...analysis->init(data, node);
-	for (int i = 0; i < cfg_edges_nr(node, edge_direction); i++) {
-		edge_t edge { .from = node, .to = cfg_edge(node, i, edge_direction) };
-		stack_push(worklist, &edge);
-	}
-#endif
+	va_list args;
+	va_start(args, fmt);
+	vfprintf(stderr, fmt, args);
+	va_end(args);
+	fprintf(stderr, "\n");
 }
 
+#define ADEBUG(s) if (ctx->analysis->debug) { fprintf(stderr, "[%s:", ctx->analysis->name); symtab_entry_name_dump(stderr, ctx->sym); fprintf(stderr, "] "); fprintf_stderr s; }
+
 static void
-dflow_analyse(cfg_node_t *init, cfg_node_t *exit, data_flow_analysis_t *analysis)
+dflow_init_node(context_t *ctx, bool edge_direction, cfg_node_t *cfg_node, hashset_ptr_t *set)
 {
-#if 0
-	bool edge_direction = analysis->forward ? CFG_OUT : CFG_IN;
+	//e avoid multiple iterations over the same node
+	if (hashset_ptr_contains(set, cfg_node)) {
+		return;
+	}
+	hashset_ptr_add(set, cfg_node);
 
-	cstack_t *worklist = stack_alloc(sizeof(edge_t), 128);
-
-	dflow_init_node(worklist, node, analysis);
-
-	while (stack_size(worklist)) {
-		edge_t *edge = stack_pop(worklist);
-		cfg_node_t *to_node = edge->to->node;
-
-		void *fact = analysis->transfer(edge->from->ast);
-		if (!analysis->is_less_than(fact, ...)) {
-			//e fact is meaningful, update
-			... = analysis->join(..., fact);
-			for (int i = 0; i < cfg_edges_nr(to_node, edge_direction); i++) {
-				edge_t edge { .from = to_node, .to = cfg_edge(to_node, i, edge_direction) };
-				stack_push(worklist, &edge);
-			}
+	//e initialise both in and out edges
+	void *datum = NULL;
+	if (ctx->analysis->init) {
+		datum = ctx->analysis->init(ctx->sym, cfg_node->ast);
+	}
+	cfg_node->analysis[ctx->analysis_index].inb = datum;
+	if (cfg_node->ast) {
+		cfg_node->analysis[ctx->analysis_index].outb = ctx->analysis->transfer(ctx->sym, cfg_node->ast, datum);
+	} else {
+		cfg_node->analysis[ctx->analysis_index].outb = ctx->analysis->copy(ctx->sym, cfg_node->analysis[ctx->analysis_index].inb);
+	}
+	if (ctx->analysis->debug) {
+		ADEBUG(("Initialise node <%p> :", cfg_node));
+		fprintf(stderr, "\t\t\t\tin:\t");
+		ctx->analysis->print(stderr, ctx->sym, cfg_node->analysis[ctx->analysis_index].inb);
+		fprintf(stderr, "\n\t\t\t\tbody:\t");
+		if (cfg_node->ast) {
+			ast_node_print(stderr, cfg_node->ast, true);
 		}
-		analysis->free(fact);
+		fprintf(stderr, "\n\t\t\t\tout:\t");
+		ctx->analysis->print(stderr, ctx->sym, cfg_node->analysis[ctx->analysis_index].outb);
+		fprintf(stderr, "\n");
 	}
 
-    stack_free(worklist);
-#endif
+	for (int k = 0; k < 2; k++) {
+		bool current_edge_direction = k > 0;
+		for (int i = 0; i < cfg_edges_nr(cfg_node, current_edge_direction); i++) {
+			cfg_edge_t *outedge = cfg_edge(cfg_node, i, current_edge_direction);
+			if (edge_direction == current_edge_direction) {
+				edge_t edge = { .from = cfg_node, .to = outedge };
+				stack_push(ctx->worklist, &edge);
+			}
+			dflow_init_node(ctx, edge_direction, outedge->node, set);
+		}
+	}
+}
+
+static void
+dflow_postprocess_node(context_t *ctx, cfg_node_t *cfg_node, void *data, hashset_ptr_t *set)
+{
+	//e avoid multiple iterations over the same node
+	if (hashset_ptr_contains(set, cfg_node)) {
+		return;
+	}
+	hashset_ptr_add(set, cfg_node);
+
+	ctx->analysis->postprocessor->visit_node(ctx->sym, data, cfg_node->ast);
+
+	for (int k = 0; k < 2; k++) {
+		bool edge_direction = k > 0;
+		for (int i = 0; i < cfg_edges_nr(cfg_node, edge_direction); i++) {
+			cfg_edge_t *outedge = cfg_edge(cfg_node, i, edge_direction);
+			dflow_postprocess_node(ctx, outedge->node, data, set);
+		}
+	}
 }
 
 
-void
+static void
+dflow_analyse(context_t *ctx)
+{
+	ADEBUG(("---------------------------------------- Debugging enabled ----------------------------------------"));
+
+	bool edge_direction = ctx->analysis->forward ? CFG_OUT : CFG_IN;
+
+	ctx->worklist = stack_alloc(sizeof(edge_t), 128);
+	if (!ctx->init) {
+		fprintf(stderr, "No init node for:\n");
+		symtab_entry_dump(stderr, ctx->sym);
+	}
+	assert(ctx->init);
+
+	hashset_ptr_t *set = hashset_ptr_alloc();
+	dflow_init_node(ctx, edge_direction, ctx->init, set);
+	hashset_ptr_free(set);
+
+	ADEBUG(("---------------------------------------- Initialisation completed ----------------------------------------"));
+
+	while (stack_size(ctx->worklist)) {
+		edge_t *edge = stack_pop(ctx->worklist);
+		cfg_node_t *from_node = edge->from;
+		cfg_node_t *to_node = edge->to->node;
+		void *from_outb = from_node->analysis[ctx->analysis_index].outb;
+
+		cfg_data_flow_facts_t *to_node_facts = &(to_node->analysis[ctx->analysis_index]);
+		ADEBUG(("----------------------------------------"));
+		ADEBUG(("Examining edge: <%p> -> <%p>", edge->from, edge->to->node));
+
+		if (!ctx->analysis->is_less_than_or_equal(ctx->sym, from_outb, to_node_facts->inb)) {
+			ADEBUG(("\t => Updating <%p> :", edge->to->node));
+			void *new_in_fact = ctx->analysis->join(ctx->sym, from_outb, to_node_facts->inb);
+			if (ctx->analysis->debug) {
+				fprintf(stderr, "\t\t\t\told in:\t");
+				ctx->analysis->print(stderr, ctx->sym, to_node_facts->inb);
+				fprintf(stderr, "\n");
+				fprintf(stderr, "\t\t\t\tnew in:\t");
+				ctx->analysis->print(stderr, ctx->sym, new_in_fact);
+				fprintf(stderr, "\n");
+			}
+			
+			ctx->analysis->free(to_node_facts->inb);
+			to_node_facts->inb = new_in_fact;
+			void *new_out_fact = ctx->analysis->transfer(ctx->sym, to_node->ast, new_in_fact);
+
+			if (ctx->analysis->debug) {
+				fprintf(stderr, "\t\t\t\told out:\t");
+				ctx->analysis->print(stderr, ctx->sym, to_node_facts->outb);
+				fprintf(stderr, "\n");
+				fprintf(stderr, "\t\t\t\tnew out:\t");
+				ctx->analysis->print(stderr, ctx->sym, new_out_fact);
+				fprintf(stderr, "\n");
+			}
+
+			if (ctx->analysis->is_less_than_or_equal(ctx->sym, new_out_fact, to_node_facts->outb)) {
+				//e didn't affect the result
+				ADEBUG(("\t => not propagating (less-than-or-equal says that there is nothing new here)"));
+				ctx->analysis->free(new_out_fact);
+			} else {
+				ctx->analysis->free(to_node_facts->outb);
+				ADEBUG(("\t => propagating to all reachable nodes"));
+				to_node_facts->outb = new_out_fact;
+				//e fact is meaningful, update others
+				for (int i = 0; i < cfg_edges_nr(to_node, edge_direction); i++) {
+					edge_t edge = { .from = to_node, .to = cfg_edge(to_node, i, edge_direction) };
+					ADEBUG(("\t<%p> -> <%p> added to worklist", edge.from, edge.to->node));
+					stack_push(ctx->worklist, &edge);
+				}
+			}
+		} else {
+			ADEBUG(("\t => ignoring (less-than-or-equal says that there is nothing new here)"));
+		}
+	}
+
+	stack_free(ctx->worklist, NULL);
+	ctx->worklist = NULL;
+	
+	ADEBUG(("---------------------------------------- Worklist empty ----------------------------------------"));
+
+	if (ctx->analysis->postprocessor) {
+		void *data;
+		
+		if (ctx->analysis->postprocessor->init) {
+			ctx->analysis->postprocessor->init(ctx->sym, &data);
+		}
+		
+		if (ctx->analysis->postprocessor->visit_node) {
+			set = hashset_ptr_alloc();
+			dflow_postprocess_node(ctx, ctx->init, data, set);
+			hashset_ptr_free(set);
+		}
+	}
+}
+
+
+static data_flow_analysis_t *all_analyses[DATA_FLOW_ANALYSES_NR];
+
+/*e
+ * Assign globally unique IDs to the analyses
+ */
+static void
+init_analyses(void)
+{
+	static bool initialised = false;
+	if (initialised) {
+		return;
+	}
+
+	int global_index = 0;
+
+	int i = 0;
+	while (analysis_sets[i]) {
+		data_flow_analysis_t **analyses = analysis_sets[i++];
+		int k = 0;
+		while (analyses[k]) {
+			data_flow_analysis_t *analysis = analyses[k++];
+			assert(global_index < DATA_FLOW_ANALYSES_NR);
+			analysis->unique_global_index = global_index++;
+			all_analyses[analysis->unique_global_index] = analysis;
+		}
+	}
+
+	//e if this fails: increase DATA_FLOW_ANALYSES_NR
+	initialised = true;
+}
+
+data_flow_analysis_t *
+data_flow_analysis_by_index(int index)
+{
+	init_analyses();
+	if (index < 0 || index >= DATA_FLOW_ANALYSES_NR) {
+		return NULL;
+	}
+	return all_analyses[index];
+}
+
+data_flow_analysis_t *
+data_flow_analysis_by_name(char *name)
+{
+	init_analyses();
+	for (int i = 0; i < DATA_FLOW_ANALYSES_NR; ++i) {
+		if (all_analyses[i] && !strcmp(all_analyses[i]->name, name)) {
+			return all_analyses[i];
+		}
+	}
+	return NULL;
+}
+
+int
 data_flow_analyses(symtab_entry_t *sym, data_flow_analysis_t *analyses[])
 {
-#if 0
+	init_analyses();
+	
+	context_t context = {
+		.init = sym->astref->cfg,
+		.exit = sym->cfg_exit,
+		.worklist = NULL,
+		.sym = sym,
+		.analysis_index = 0,
+		.analysis = NULL
+	};
+
 	error_count = 0;
 	int index = 0;
 	while (analyses[index]) {
-		...;
+		context.analysis_index = analyses[index]->unique_global_index;
+		context.analysis = analyses[index];
 		++index;
+		dflow_analyse(&context);
 	}
 	return error_count;
-#endif
 }
 
 void
-data_flow_free(void *data[])
+data_flow_free(cfg_data_flow_facts_t *data)
 {
-	// FIXME
+	int i = 0;
+	while (analysis_sets[i]) {
+		data_flow_analysis_t **analyses = analysis_sets[i++];
+		int k = 0;
+		while (analyses[k]) {
+			data_flow_analysis_t *analysis = analyses[k++];
+			cfg_data_flow_facts_t *facts = data + analysis->unique_global_index;
+			analysis->free(facts->inb);
+			analysis->free(facts->outb);
+		}
+	}
 }
 
 void

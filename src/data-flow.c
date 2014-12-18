@@ -37,8 +37,10 @@
 #include "data-flow.h"
 
 extern data_flow_analysis_t data_flow_analysis__reaching_definitions;
+extern data_flow_analysis_t data_flow_analysis__definite_assignments;
 
 data_flow_analysis_t *data_flow_analyses_correctness[] = {
+	&data_flow_analysis__definite_assignments,
 	NULL /*e terminator: must be final entry! */
 };
 data_flow_analysis_t *data_flow_analyses_optimisation[] = {
@@ -55,12 +57,12 @@ static data_flow_analysis_t **analysis_sets[] = {
 
 static int error_count;
 
-static void
-error(const ast_node_t *node, char *fmt, ...)
+void
+data_flow_error(const ast_node_t *node, char *fmt, ...)
 {
 	// Variable Anzahl von Parametern
 	va_list args;
-	fprintf(stderr, "Type error in line %d: ", node->source_line);
+	fprintf(stderr, "Error in line %d: ", node->source_line);
 	va_start(args, fmt);
 	vfprintf(stderr, fmt, args);
 	va_end(args);
@@ -149,7 +151,9 @@ dflow_postprocess_node(context_t *ctx, cfg_node_t *cfg_node, void *data, hashset
 	}
 	hashset_ptr_add(set, cfg_node);
 
-	ctx->analysis->postprocessor->visit_node(ctx->sym, data, cfg_node->ast);
+	ctx->analysis->postprocessor->visit_node(ctx->sym,
+						 cfg_node->analysis[ctx->analysis_index].inb,
+						 data, cfg_node->ast);
 
 	for (int k = 0; k < 2; k++) {
 		bool edge_direction = k > 0;
@@ -195,10 +199,10 @@ dflow_analyse(context_t *ctx)
 			ADEBUG(("\t => Updating <%p> :", edge->to->node));
 			void *new_in_fact = ctx->analysis->join(ctx->sym, from_outb, to_node_facts->inb);
 			if (ctx->analysis->debug) {
-				fprintf(stderr, "\t\t\t\told in:\t");
+				fprintf(stderr, "\t\t\t\told in :\t");
 				ctx->analysis->print(stderr, ctx->sym, to_node_facts->inb);
 				fprintf(stderr, "\n");
-				fprintf(stderr, "\t\t\t\tnew in:\t");
+				fprintf(stderr, "\t\t\t\tnew in :\t");
 				ctx->analysis->print(stderr, ctx->sym, new_in_fact);
 				fprintf(stderr, "\n");
 			}
@@ -250,9 +254,14 @@ dflow_analyse(context_t *ctx)
 		
 		if (ctx->analysis->postprocessor->visit_node) {
 			set = hashset_ptr_alloc();
-			dflow_postprocess_node(ctx, ctx->init, data, set);
+			dflow_postprocess_node(ctx, ctx->init, &data, set);
 			hashset_ptr_free(set);
 		}
+
+		if (ctx->analysis->postprocessor->free) {
+			ctx->analysis->postprocessor->free(ctx->sym, &data);
+		}
+
 	}
 }
 
@@ -350,6 +359,74 @@ data_flow_free(cfg_data_flow_facts_t *data)
 		}
 	}
 }
+
+int
+data_flow_number_of_locals(symtab_entry_t *sym)
+{
+	if (sym->symtab_flags & SYMTAB_MAIN_ENTRY_POINT) {
+		return 0;
+	}
+	int count = sym->storage.vars_nr + sym->parameters_nr;
+	/* if (sym->symtab_flags & (SYMTAB_MEMBER | SYMTAB_CONSTRUCTOR)) { */
+	/* 	++count;  // `self' */
+	/* } */
+	return count;
+}
+
+int
+data_flow_is_local_var(symtab_entry_t *sym, ast_node_t *ast)
+{
+	if (sym->symtab_flags & SYMTAB_MAIN_ENTRY_POINT) {
+		//e main function has no locals (all variables can be modified by subroutines,
+		//e which would break intra-procedural analysis)
+		return -1;
+	}
+	
+	switch (NODE_TY(ast)) {
+	case AST_VALUE_ID:
+		if (ast->sym->id == BUILTIN_OP_SELF) {
+			return -1;
+		}
+		if (SYMTAB_IS_STACK_DYNAMIC(ast->sym)) {
+			if (ast->sym->symtab_flags & SYMTAB_PARAM) {
+				return ast->sym->offset;
+			} else {
+				return sym->parameters_nr + ast->sym->offset;
+			}
+		}
+	default:
+		return -1;
+	}
+}
+
+
+static void
+data_flow_get_all_locals_internal(symtab_entry_t *sym, symtab_entry_t **locals, ast_node_t *ast)
+{
+	if (!ast) {
+		return;
+	}
+	
+	int var_nr = data_flow_is_local_var(sym, ast);
+	if (var_nr >= 0) {
+		locals[var_nr] = ast->sym;
+	}
+
+	if (!IS_VALUE_NODE(ast)) {
+		for (int i = 0; i < ast->children_nr; ++i) {
+			data_flow_get_all_locals_internal(sym, locals, ast->children[i]);
+		}
+	}
+}
+
+void
+data_flow_get_all_locals(symtab_entry_t *sym, symtab_entry_t **locals)
+{
+	assert(sym->astref); /*e only for callables (functions/methods/constructors) */
+	memset(locals, 0, sizeof(symtab_entry_t *) * data_flow_number_of_locals(sym));
+	data_flow_get_all_locals_internal(sym, locals, sym->astref);
+}
+
 
 void
 data_flow_print(FILE *file, cfg_node_t *node, int flags)

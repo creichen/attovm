@@ -41,7 +41,7 @@
  * @param fmt A format string (as for printf)
  * @param ... Any additional parameters needed for the format string (cf. `man printf')
  */
-static void
+void
 data_flow_error(const ast_node_t *node, char *fmt, ...);
 
 struct data_flow_postprocessor;
@@ -138,10 +138,21 @@ typedef struct data_flow_postprocessor {
 	 * (optional, may be NULL)
 	 *
 	 * @param sym Symbol that we analysed
+	 * @param fact Data flow in fact for this node
 	 * @param context Pointer to storage initialised by `init', where appropriate
 	 * @param node Node to analyse (guaranteed to have node->cfg)
 	 */
-	void (*visit_node)(symtab_entry_t *sym, void *context, ast_node_t *node);
+	void (*visit_node)(symtab_entry_t *sym, void *fact, void **context, ast_node_t *node);
+
+	/*e
+	 * Deinitialises the data flow postprocessor
+	 *
+	 * (optional, may be NULL)
+	 *
+	 * @param sym Symbol that we analysed
+	 * @param context Pointer to optional storage that the postprocessor used to carry context
+	 */
+	void (*free)(symtab_entry_t *sym, void **context);
 } data_flow_postprocessor_t;
 
 
@@ -183,5 +194,42 @@ data_flow_analysis_by_index(int index);
  */
 data_flow_analysis_t *
 data_flow_analysis_by_name(char *name);
+
+
+//e --- support functionality for analyses ---
+
+/*e
+ * Determines the total number of stack-dynamic variables for the given function/constructor/method
+ */
+int
+data_flow_number_of_locals(symtab_entry_t *sym);
+
+/*e
+ * Checks if the AST represents a local variable or parameter.
+ * Returns a local variable index in [0 .. number_of_locals - 1]
+ * if so, or -1 otherwise.
+ *
+ * @param sym The symbol to examine
+ * @param ast The AST node containing the presumed variable reference
+ */
+int
+data_flow_is_local_var(symtab_entry_t *sym, ast_node_t *ast);
+
+/*e
+ * Looks up all parameters and local variables defined in `sym' and places them in the array `locals'
+ *
+ * VERY inefficient; only use this for debugging/pretty-printing.
+ *
+ * Usage:
+ *
+ *   symtab_entry_t symbols[data_flow_number_of_locals(sym)];
+ *   data_flow_get_all_locals(sym, &symbols);
+ *
+ *
+ * @param sym The symbol to examine
+ * @param locals Pointer to array of locals to write to
+ */
+void
+data_flow_get_all_locals(symtab_entry_t *sym, symtab_entry_t **locals);
 
 #endif // !defined(_ATTOL_DATA_FLOW_H)

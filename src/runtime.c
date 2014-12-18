@@ -32,6 +32,7 @@
 #include "analysis.h"
 #include "baseline-backend.h"
 #include "compiler-options.h"
+#include "data-flow.h"
 #include "debugger.h"
 #include "dynamic-compiler.h"
 #include "heap.h"
@@ -50,6 +51,14 @@ struct compiler_options compiler_options = {
 };
 
 static runtime_image_t *last = NULL;
+
+static int data_flow_errors = 0;
+
+static void
+data_flow_analyses_run(symtab_entry_t *sym, void *data)
+{
+	data_flow_errors += data_flow_analyses(sym, data);
+}
 
 runtime_image_t *
 runtime_prepare(ast_node_t *ast, unsigned int action)
@@ -102,11 +111,17 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 	//e run any additional optional program analyses: first build full control-flow graph
 	main_sym->cfg_exit = cfg_build(ast);
 	//e run mandatory program analyses on whole program
-	runtime_foreach_callable(image, (void (*)(symtab_entry_t *, void *)) data_flow_analyses,
+	data_flow_errors = 0;
+	runtime_foreach_callable(image, data_flow_analyses_run,
 				 data_flow_analyses_correctness);
+	if (data_flow_errors) {
+		free(image);
+		return NULL;
+	}
+	//e Optimisations
 	//e FIXME: run individually, on demand, in dyncomp_compile_function()
 	//e (We're only doing this here to simplify debugging...)
-	runtime_foreach_callable(image, (void (*)(symtab_entry_t *, void *)) data_flow_analyses,
+	runtime_foreach_callable(image, data_flow_analyses_run,
 				 data_flow_analyses_optimisation);
 
 	if (action == RUNTIME_ACTION_SEMANTIC_ANALYSIS) {

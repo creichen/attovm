@@ -55,88 +55,11 @@ static ast_node_t *TOP = &AST_TOP;
 static ast_node_t *BOTTOM = NULL;
 
 
-/*e
- * Determines the total number of stack-dynamic variables for the given function/constructor/method
- */
-static int
-dflow_number_of_locals(symtab_entry_t *sym)
-{
-	return sym->storage.vars_nr + sym->parameters_nr;
-}
-
-/*e
- * Checks if the AST represents a local variable or parameter.
- * Returns a local variable index in [0 .. number_of_locals - 1]
- * if so, or -1 otherwise.
- *
- * @param sym The symbol to examine
- * @param ast The AST node containing the presumed variable reference
- */
-static int
-dflow_is_local(symtab_entry_t *sym, ast_node_t *ast)
-{
-	if (sym->symtab_flags & SYMTAB_MAIN_ENTRY_POINT) {
-		//e main function has no locals (all variables can be modified by subroutines,
-		//e which would break intra-procedural analysis)
-		return -1;
-	}
-	
-	switch (NODE_TY(ast)) {
-	case AST_VALUE_ID:
-		if (SYMTAB_IS_STACK_DYNAMIC(ast->sym)) {
-			if (ast->sym->symtab_flags & SYMTAB_PARAM) {
-				return ast->sym->offset;
-			} else {
-				return sym->parameters_nr + ast->sym->offset;
-			}
-		}
-	default:
-		return -1;
-	}
-}
-
-
-static void
-dflow_get_all_locals_internal(symtab_entry_t *sym, symtab_entry_t **locals, ast_node_t *ast)
-{
-	if (!ast) {
-		return;
-	}
-	
-	int var_nr = dflow_is_local(sym, ast);
-	if (var_nr >= 0) {
-		locals[var_nr] = ast->sym;
-	}
-
-	if (!IS_VALUE_NODE(ast)) {
-		for (int i = 0; i < ast->children_nr; ++i) {
-			dflow_get_all_locals_internal(sym, locals, ast->children[i]);
-		}
-	}
-}
-
-/*e
- * Looks up all parameters and local variables defined in `sym' and places them in the array `locals'
- *
- * VERY inefficient; only use this for debugging/pretty-printing.
- *
- * @param sym The symbol to examine
- * @param locals Pointer to array of locals to write to
- */
-static void
-dflow_get_all_locals(symtab_entry_t *sym, symtab_entry_t **locals)
-{
-	assert(sym->astref); /*e only for callables (functions/methods/constructors) */
-	dflow_get_all_locals_internal(sym, locals, sym->astref);
-}
-
-
-
 static void *
 init(symtab_entry_t *sym, ast_node_t *node)
 {
 	//e Array with NULL (i.e., BOTTOM)
-	return calloc(sizeof(ast_node_t *), dflow_number_of_locals(sym));
+	return calloc(sizeof(ast_node_t *), data_flow_number_of_locals(sym));
 }
 
 static void
@@ -149,10 +72,10 @@ print(FILE *file, symtab_entry_t *sym, void *data)
 
 	ast_node_t **vars = (ast_node_t **) data;
 
-	int entries_nr = dflow_number_of_locals(sym);
+	int entries_nr = data_flow_number_of_locals(sym);
 	symtab_entry_t *var_symbols[entries_nr];
 	
-	dflow_get_all_locals(sym, var_symbols);
+	data_flow_get_all_locals(sym, var_symbols);
 
 	bool printed_before = false;
 	if (data) {
@@ -179,7 +102,7 @@ join(symtab_entry_t *sym, void *in1, void *in2)
 {
 	ast_node_t **vars1 = (ast_node_t **) in1;
 	ast_node_t **vars2 = (ast_node_t **) in2;
-	int entries_nr = dflow_number_of_locals(sym);
+	int entries_nr = data_flow_number_of_locals(sym);
 	ast_node_t **results = calloc(sizeof(ast_node_t *), entries_nr);
 	
 	for (int i = 0; i < entries_nr; i++) {
@@ -198,7 +121,7 @@ join(symtab_entry_t *sym, void *in1, void *in2)
 static void *
 df_copy(symtab_entry_t *sym, void *data)
 {
-	int entries_nr = dflow_number_of_locals(sym);
+	int entries_nr = data_flow_number_of_locals(sym);
 	ast_node_t **results = malloc(sizeof(ast_node_t *) * entries_nr);
 	memcpy(results, data, entries_nr * sizeof(ast_node_t *));
 	return results;
@@ -216,7 +139,7 @@ transfer(symtab_entry_t *sym, ast_node_t *ast, void *in)
 	switch (NODE_TY(ast)) {
 	case AST_NODE_VARDECL:
 	case AST_NODE_ASSIGN:
-		var = dflow_is_local(sym, ast->children[0]);
+		var = data_flow_is_local_var(sym, ast->children[0]);
 		expression = ast->children[1];
 	}
 
@@ -233,7 +156,7 @@ is_less_than_or_equal(symtab_entry_t *sym, void *plhs, void *prhs)
 {
 	ast_node_t **lhs = (ast_node_t **) plhs;
 	ast_node_t **rhs = (ast_node_t **) prhs;
-	int entries_nr = dflow_number_of_locals(sym);
+	int entries_nr = data_flow_number_of_locals(sym);
 	
 	for (int i = 0; i < entries_nr; i++) {
 		if (lhs[i] == BOTTOM || lhs[i] == rhs[i] || rhs[i] == TOP) {

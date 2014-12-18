@@ -167,7 +167,7 @@ symtab_entry_name_dump(FILE *file, symtab_entry_t *entry)
 {
 	if (entry->parent) {
 		symtab_entry_name_dump(file, entry->parent);
-		fputs(".", file);
+		fputs("::", file);
 	}
 	fputs(entry->name, file);
 	if (entry->occurrence_count) {

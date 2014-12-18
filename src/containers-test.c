@@ -398,6 +398,17 @@ test_bitvec_or(void)
 	bitvector_t b0 = bitvector(5, 6);
 	bitvector_t b1 = bitvector(5, 12);
 	bitvector_t b2 = bitvector_or(b0, b1);
+
+	ASSERT(bitvector_is_subset(b0, b2));
+	ASSERT(bitvector_is_subset(b1, b2));
+	ASSERT(bitvector_is_subset(b0, b0));
+	ASSERT(bitvector_is_subset(b1, b1));
+	ASSERT(bitvector_is_subset(b2, b2));
+	ASSERT(!bitvector_is_subset(b2, b0));
+	ASSERT(!bitvector_is_subset(b2, b1));
+	ASSERT(!bitvector_is_subset(b1, b0));
+	ASSERT(!bitvector_is_subset(b0, b1));
+	
 	ASSERT(!BITVECTOR_IS_SET(b2, 0));
 	ASSERT( BITVECTOR_IS_SET(b2, 1));
 	ASSERT( BITVECTOR_IS_SET(b2, 2));
@@ -420,7 +431,17 @@ test_bitvec_or(void)
 	BITVECTOR_SET(b1, 90);
 	BITVECTOR_SET(b1, 95);
 	b2 = bitvector_or(b0, b1);
-	
+
+	ASSERT(bitvector_is_subset_eq(b0, b2));
+	ASSERT(bitvector_is_subset_eq(b1, b2));
+	ASSERT(bitvector_is_subset_eq(b0, b0));
+	ASSERT(bitvector_is_subset_eq(b1, b1));
+	ASSERT(bitvector_is_subset_eq(b2, b2));
+	ASSERT(!bitvector_is_subset_eq(b2, b0));
+	ASSERT(!bitvector_is_subset_eq(b2, b1));
+	ASSERT(!bitvector_is_subset_eq(b1, b0));
+	ASSERT(!bitvector_is_subset_eq(b0, b1));
+
 	ASSERT(!BITVECTOR_IS_SET(b2, 0));
 	ASSERT( BITVECTOR_IS_SET(b2, 30));
 	ASSERT(!BITVECTOR_IS_SET(b2, 31));

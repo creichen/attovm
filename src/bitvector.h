@@ -49,12 +49,15 @@ union bitvector {
 };
 typedef union bitvector bitvector_t;
 
+#define BITVECTOR_TO_POINTER(BV) ((void *)((BV).large))
+#define BITVECTOR_FROM_POINTER(P) ((bitvector_t)((unsigned long long *)(P)))
+
 #define BITVECTOR_SIZE_SHIFT 1
 #define BITVECTOR_BODY_SHIFT 7
 #define BITVECTOR_SMALL_MAX (64 - BITVECTOR_BODY_SHIFT)
 #define BITVECTOR_SIZE_MASK 63ull
 
-#define BITVECTOR_IS_SMALL(BV) ((BV.small & 1))
+#define BITVECTOR_IS_SMALL(BV) (((BV).small & 1))
 
 #define BITVECTOR_MAKE_SMALL(size, v) {.small = ((((unsigned long long) v) << BITVECTOR_BODY_SHIFT) | (((unsigned long long) size) << BITVECTOR_SIZE_SHIFT) | 1) }
 
@@ -77,6 +80,14 @@ typedef union bitvector bitvector_t;
  */
 bitvector_t
 bitvector_alloc(size_t size);
+
+/*e
+ * Allocates a fresh bit vector with the specified number of bits.
+ *
+ * All bits are initially set.
+ */
+bitvector_t
+bitvector_alloc_on(size_t size);
 
 /*e
  * Creates a bitvector from a pre-existing size and unsigned long long value.
@@ -105,16 +116,31 @@ bitvector_t
 bitvector_clone(bitvector_t bitvector);
 
 /*e
- * Creates a new bitvector with the bit-wise disjunction of the inputs
+ * Creates a new bitvector with the bit-wise disjunction (OR) of the inputs
+ *
+ * @param bv1, bv2 The two bitvectors to combine
+ * @return a bitvector with the disjunction of the bits in bv1 and bv2
  */
 bitvector_t
 bitvector_or(bitvector_t bv1, bitvector_t bv2);
 
 /*e
- * Creates a new bitvector with the bit-wise conjunction of the inputs
+ * Creates a new bitvector with the bit-wise conjunction (AND) of the inputs
+ *
+ * @param bv1, bv2 The two bitvectors to combine
+ * @return a bitvector with the conjunction of the bits in bv1 and bv2
  */
 bitvector_t
 bitvector_and(bitvector_t bv1, bitvector_t bv2);
+
+/*e
+ * Determines if any bit set in bv1 is also set in bv2
+ *
+ * @param bv1, bv2 The two bitvectors to compare
+ * @return true iff all bits set in bv1 are also set in bv2
+ */
+bool
+bitvector_is_subset_eq(bitvector_t bv1, bitvector_t bv2);
 
 /*e
  * Sets a bit in a bitvector.  Returns the updated bitvector.

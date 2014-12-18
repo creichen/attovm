@@ -29,7 +29,7 @@
 #define _DARWIN_C_SOURCE /*e activates MAP_ANON */
 
 //#define DEBUG
-#define INFO
+//#define INFO
 
 #include <assert.h>
 #include <errno.h>

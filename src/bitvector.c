@@ -52,6 +52,21 @@ bitvector_alloc(size_t size)
 }
 
 bitvector_t
+bitvector_alloc_on(size_t size)
+{
+	bitvector_t v;
+	if (size <= BITVECTOR_SMALL_MAX) {
+		v.small = (~0 << BITVECTOR_BODY_SHIFT) | (size << BITVECTOR_SIZE_SHIFT) | 1ull;
+	} else {
+		int words = (size + BITVECTOR_SIZE_MASK) >> 6;
+		v.large = malloc((1 + words) * 8);
+		memset(v.large + 1, ~0, words * 8);
+		v.large[0] = size;
+	}
+	return v;
+}
+
+bitvector_t
 bitvector(size_t size, unsigned long long v)
 {
 	if (size < BITVECTOR_SMALL_MAX) {
@@ -181,5 +196,27 @@ bitvector_and(bitvector_t bv1, bitvector_t bv2)
 		}
 	} else {
 		assert(false); // unsupported
+	}
+}
+
+bool
+bitvector_is_subset_eq(bitvector_t bv1, bitvector_t bv2)
+{
+	size_t size = bitvector_size(bv1);
+	if (size == bitvector_size(bv2)) {
+		if (BITVECTOR_IS_SMALL(bv1)) {
+			return !(bv1.small & ~bv2.small);
+		} else {
+			for (int i = ((size + 63) >> 6); i > 0; --i) {
+				if (bv1.large[i] & ~bv2.large[i]) {
+					return false;
+				}
+			}
+			return true;
+		}
+	} else {
+		fprintf(stderr, "ERROR: sizes %zd vs %zd\n", size, bitvector_size(bv2));
+		*((int *)0) = 0;
+		return false;
 	}
 }

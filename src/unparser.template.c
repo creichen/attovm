@@ -251,7 +251,7 @@ ast_node_print(FILE *file, ast_node_t *node, int recursive)
 			print_primty(file, node->type & TYPE_FLAGS);
 			fprintf(file, " ");
 			ast_node_print(file, node->children[0], recursive);
-			if (node->children_nr > 1) {
+			if (node->children_nr > 1 && node->children[1]) {
 				fprintf(file, " = ");
 				ast_node_print(file, node->children[1], recursive);
 			}

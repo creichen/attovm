@@ -38,6 +38,7 @@
 
 extern data_flow_analysis_t data_flow_analysis__reaching_definitions;
 extern data_flow_analysis_t data_flow_analysis__definite_assignments;
+extern data_flow_analysis_t data_flow_analysis__out_of_bounds;
 
 data_flow_analysis_t *data_flow_analyses_correctness[] = {
 	&data_flow_analysis__definite_assignments,
@@ -45,6 +46,7 @@ data_flow_analysis_t *data_flow_analyses_correctness[] = {
 };
 data_flow_analysis_t *data_flow_analyses_optimisation[] = {
 	&data_flow_analysis__reaching_definitions,
+	&data_flow_analysis__out_of_bounds,
 	NULL /*e terminator: must be final entry! */
 };
 

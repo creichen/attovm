@@ -22,7 +22,8 @@ FRONTEND_SRC = parser.template.c parser.template.h ast.template.h lexer.template
 		data-flow-reaching-definitions.c data-flow-definite-assignments.c
 FRONTEND_OBJS = parser.o lexer.o lexer-support.o ast.o unparser.o chash.o cstack.o bitvector.o symbol-table.o \
 		name-analysis.o type-analysis.o data-flow.o control-flow-graph.o \
-		data-flow-reaching-definitions.o data-flow-definite-assignments.o
+		data-flow-reaching-definitions.o data-flow-definite-assignments.o \
+		data-flow-out-of-bounds-elimination.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
 # --------------------

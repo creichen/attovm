@@ -236,6 +236,7 @@ builtins_init()
 	classes_init();
 }
 
+int symtab_selector_size; /*e global: used by program analyses */
 
 static void
 classes_init()
@@ -245,10 +246,9 @@ classes_init()
 	class_initialise_and_link(&class_string, symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_CLASS_STRING)));
 	class_initialise_and_link(&class_array, symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_CLASS_ARRAY)));
 
-	int size_selector = //1;//symtab_selector(mk_unique_string("size"))->selector;
-		builtin_selectors[0].index;
-	symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_STRING_SIZE))->selector = size_selector;
-	symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_ARRAY_SIZE))->selector = size_selector;
+	symtab_selector_size = builtin_selectors[0].index;
+	symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_STRING_SIZE))->selector = symtab_selector_size;
+	symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_ARRAY_SIZE))->selector = symtab_selector_size;
 
 	class_add_selector(&class_string, symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_STRING_SIZE)));
 	CLASS_VTABLE(&class_string)[0] = builtin_op_string_size;

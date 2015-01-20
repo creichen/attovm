@@ -51,7 +51,9 @@ $$NODE_TYPES$$
 $$AV_VALUE_GETTERS$$
 
 //d AST-Flags (Zusatzinformationen)
+//e AST flags (additional information)
 $$AV_FLAGS$$
+//e end of AST flags
 //d Ende der AST-Tags
 
 #define TYPE_INT	AST_FLAG_INT	/*d Integer-Zahl *//*e integer */
@@ -62,13 +64,22 @@ $$AV_FLAGS$$
 #define TYPE_ANY	0		/*d Beliebiges Bitmuster (von internen Operationen verwendet) *//*e arbitrary bit pattern (used by internal operations) */
 #define AST_TYPE(n)	((n)->type & TYPE_FLAGS)
 
-// Eingebaute Bezeichner.
+//d Eingebaute Bezeichner.
+//e Built-in identifiers.
 $$BUILTIN_IDS$$
+
+//e Optimisation flags that can be set by static program analysis
+#define OPT_FLAG_NO_TYPECHECK1	0x1
+#define OPT_FLAG_NO_TYPECHECK2	0x2
+#define OPT_FLAG_NO_LOWER	0x4
+#define OPT_FLAG_NO_UPPER	0x8
+//e Flag usage varies by operator
 
 typedef struct ast_node {
 	unsigned short type;
 	unsigned short children_nr;
-	short storage;		/*d Temporaere Speicherstelle (oder Gesamtplatz, fuer Bloecke) *//*e temporary storage offset, or total temporary space (blocks) */
+	short storage : 12;	/*d Temporaere Speicherstelle (oder Gesamtplatz, fuer Bloecke) *//*e temporary storage offset, or total temporary space (blocks) */
+	unsigned short opt_flags : 4;
 	short source_line;	/*d Quellcode-Zeile *//*e source line */
 	struct symtab_entry *sym;
 	cfg_node_t *cfg;	/*e control-flow graph (optional) */
@@ -85,7 +96,8 @@ $$VALUE_UNION$$
 typedef struct {
 	unsigned short type;
 	unsigned short _reserved;
-	short storage;
+	short storage : 12;	/*d Temporaere Speicherstelle (oder Gesamtplatz, fuer Bloecke) *//*e temporary storage offset, or total temporary space (blocks) */
+	unsigned short opt_flags : 4;
 	short source_location;
 	struct symtab_entry *sym;
 	cfg_node_t *cfg;

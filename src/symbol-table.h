@@ -108,6 +108,8 @@ typedef struct symtab_entry {
 extern int symtab_entries_builtin_nr; //e builtin symbol table entries (positive nuber, negate this to get the ID)
 extern int symtab_entries_nr; //e non-builtin symbol table entries
 
+extern int symtab_selector_size; /*e selector number for the `size' selector */
+
 /*d
  * Schlägt einen Eintrag in der Symboltabelle nach.
  */

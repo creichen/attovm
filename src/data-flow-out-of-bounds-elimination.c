@@ -500,21 +500,86 @@ df_free(void *fact)
 	free(fact);
 }
 
+static int type_checks_eliminated;
+static int lower_bounds_checks_eliminated;
+static int upper_bounds_checks_eliminated;
+
 static void
 check_bounds_init(symtab_entry_t *sym, void **data)
 {
+	type_checks_eliminated = 0;
+	lower_bounds_checks_eliminated = 0;
+	upper_bounds_checks_eliminated = 0;
 }
 
 static void
 check_bounds_free(symtab_entry_t *sym, void **data)
 {
+	symtab_entry_name_dump(stderr, sym);
+	fprintf(stderr, ": eliminated checks:  %d bounds, %d lower, %d upper\n",
+		type_checks_eliminated, lower_bounds_checks_eliminated, upper_bounds_checks_eliminated);
+}
+
+/*e
+ * Record out-of-bounds access information
+ */
+static void
+annotate_bounds(symtab_entry_t *sym, classification_t *locals, ast_node_t *node)
+{
+	if (IS_VALUE_NODE(n)) {
+		//e we only annotate array operations
+		return;
+	}
+	for (int i = 0; i < node->children_nr; i++) {
+		//e recurse
+		annotate_bounds(sym, locals_classifications, node->children[i]);
+	}
+
+	switch (NODE_TY(node)) {
+	case AST_NODE_ARRAYSUB: {
+		const int array_var = data_flow_is_local_var(sym, node->children[0]);
+		classification_t array_info = cla_expression(sym, locals, node->children[0]);
+		classification_t index_info = cla_expression(sym, locals, node->children[1]);
+		if (array_info.vartype == VARTYPE_ARRAY) {
+			//e We can skip the `is-this-an-array' type check
+			node->opt_flags |= OPT_FLAG_NO_TYPECHECK1;
+			++type_checks_eliminated;
+		}
+		if (array_info.vartype == VARTYPE_INT) {
+			if (cla_int_bound_less_than_or_equal(cla_int_bound_literal(0),
+							     array_info.p.int_bounds.min)) {
+				node->opt_flags |= OPT_FLAG_NO_LOWER;
+				++lower_bounds_checks_eliminated;
+			}
+
+			if (array_var < 0) {
+				return;
+			}
+
+			//e The upper bound for array size, size(array_var)
+			int_bound_t upper_bound = cla_int_bound_sizeof(array_var);
+
+			//e FIXME: I have disabled this branch (by precedigint by `false &&').
+			//e The condition below is not strong enough; the index variable bound
+			//e must be STRICTLY LESS THAN the array size.
+			if (false &&
+			    cla_int_bound_less_than_or_equal(array_info.p.int_bounds.max,
+							     upper_bound)) {
+				node->opt_flags |= OPT_FLAG_NO_UPPER;
+				++upper_bounds_checks_eliminated;
+			}
+
+		}
+	}
+	}
 }
 
 static void
 check_bounds(symtab_entry_t *sym, void *pfact, void **context, ast_node_t *node)
 {
-	const int locals_nr = data_flow_number_of_locals(sym);
+	//const int locals_nr = data_flow_number_of_locals(sym);
 	classification_t *classifiations = (classification_t *) pfact;
+	annotate_bounds(sym, classifications, node);
 }
 
 static data_flow_postprocessor_t postprocessor = {

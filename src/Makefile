@@ -19,7 +19,8 @@ FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c ast.h parser.h
 FRONTEND_SRC = parser.template.c parser.template.h ast.template.h lexer.template.l unparser.template.c \
 		mk-codegen.py mk-parser.py lexer-support.c ast.c chash.c cstack.c bitvector.c symbol-table.c \
 		name-analysis.c type-analysis.c atl.c backend-test.c data-flow.c control-flow-graph.c \
-		data-flow-reaching-definitions.c data-flow-definite-assignments.c
+		data-flow-reaching-definitions.c data-flow-definite-assignments.c \
+		data-flow-out-of-bounds-elimination.c symint.c
 FRONTEND_OBJS = parser.o lexer.o lexer-support.o ast.o unparser.o chash.o cstack.o bitvector.o symbol-table.o \
 		name-analysis.o type-analysis.o data-flow.o control-flow-graph.o \
 		data-flow-reaching-definitions.o data-flow-definite-assignments.o \

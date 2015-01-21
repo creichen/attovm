@@ -47,7 +47,7 @@ struct compiler_options compiler_options = {
 	.array_storage_type		= TYPE_OBJ,
 	.method_call_param_type		= TYPE_OBJ,
 	.method_call_return_type	= TYPE_OBJ,
-	.heap_size			= 0x100000
+	.heap_size			= 0x1000000 /* 10 MiB default */
 };
 
 static runtime_image_t *last = NULL;

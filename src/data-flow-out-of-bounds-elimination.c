@@ -500,25 +500,12 @@ df_free(void *fact)
 	free(fact);
 }
 
+// --------------------------------------------------------------------------------
+// actually removing nodes
+
 static int type_checks_eliminated;
 static int lower_bounds_checks_eliminated;
 static int upper_bounds_checks_eliminated;
-
-static void
-check_bounds_init(symtab_entry_t *sym, void **data)
-{
-	type_checks_eliminated = 0;
-	lower_bounds_checks_eliminated = 0;
-	upper_bounds_checks_eliminated = 0;
-}
-
-static void
-check_bounds_free(symtab_entry_t *sym, void **data)
-{
-	symtab_entry_name_dump(stderr, sym);
-	fprintf(stderr, ": eliminated checks:  %d bounds, %d lower, %d upper\n",
-		type_checks_eliminated, lower_bounds_checks_eliminated, upper_bounds_checks_eliminated);
-}
 
 /*e
  * Record out-of-bounds access information
@@ -526,13 +513,29 @@ check_bounds_free(symtab_entry_t *sym, void **data)
 static void
 annotate_bounds(symtab_entry_t *sym, classification_t *locals, ast_node_t *node)
 {
-	if (IS_VALUE_NODE(n)) {
+	if (!node || IS_VALUE_NODE(node)) {
 		//e we only annotate array operations
 		return;
 	}
+
+	//e CFG split magic:  The CFG splits up the AST into multiple CFG nodes.  Thus, we can't
+	//e just iterate over the entire AST fragment that we get-- we might run into CFG sub-nodes.
+	int *cfg_subnodes_indices;
+	int cfg_subnodes_indices_nr = cfg_subnodes(node, &cfg_subnodes_indices);
+	if (cfg_subnodes_indices_nr < 0) {
+		return; //e This node is fully split up into multiple CFG nodes; we do nothing here
+	}
+	int cfg_subnodes_index_counter = 0;
+
 	for (int i = 0; i < node->children_nr; i++) {
-		//e recurse
-		annotate_bounds(sym, locals_classifications, node->children[i]);
+		if (cfg_subnodes_index_counter < cfg_subnodes_indices_nr
+		    && i == cfg_subnodes_indices[cfg_subnodes_index_counter]) {
+			//e Skip this one; it's the root of another CFG node
+			++cfg_subnodes_index_counter;
+		} else {
+			//e recurse
+			annotate_bounds(sym, locals, node->children[i]);
+		}
 	}
 
 	switch (NODE_TY(node)) {
@@ -543,30 +546,50 @@ annotate_bounds(symtab_entry_t *sym, classification_t *locals, ast_node_t *node)
 		if (array_info.vartype == VARTYPE_ARRAY) {
 			//e We can skip the `is-this-an-array' type check
 			node->opt_flags |= OPT_FLAG_NO_TYPECHECK1;
+			//fprintf(stderr, "type check eliminated on: "); AST_DUMP(node);
 			++type_checks_eliminated;
 		}
-		if (array_info.vartype == VARTYPE_INT) {
+		if (index_info.vartype == VARTYPE_INT) {
 			if (cla_int_bound_less_than_or_equal(cla_int_bound_literal(0),
-							     array_info.p.int_bounds.min)) {
+							     index_info.p.int_bounds.min)) {
 				node->opt_flags |= OPT_FLAG_NO_LOWER;
 				++lower_bounds_checks_eliminated;
+				//fprintf(stderr, "lower bound check eliminated on: "); AST_DUMP(node);
 			}
 
-			if (array_var < 0) {
-				return;
+			bool eliminate_upper = false;
+
+			//e There are two ways to eliminate the upper bound:
+			//e (a) explicitly known array size
+			//e (b) reference to array.size()
+
+			//e Case (a):
+			if (array_info.vartype == VARTYPE_ARRAY
+			    && array_info.p.array_size != INT_TOP) {
+				//e Know explicit array size!
+				if (cla_int_bound_less_than_or_equal(index_info.p.int_bounds.max,
+								     cla_int_bound_literal(array_info.p.array_size - 1))) {
+					eliminate_upper = true;
+				}
 			}
 
-			//e The upper bound for array size, size(array_var)
-			int_bound_t upper_bound = cla_int_bound_sizeof(array_var);
+			//e Case (b):
+			if (array_var > 0) {
+				//e The upper bound for array size, size(array_var)
+				int_bound_t upper_bound = cla_int_bound_sizeof(array_var);
 
-			//e FIXME: I have disabled this branch (by precedigint by `false &&').
-			//e The condition below is not strong enough; the index variable bound
-			//e must be STRICTLY LESS THAN the array size.
-			if (false &&
-			    cla_int_bound_less_than_or_equal(array_info.p.int_bounds.max,
-							     upper_bound)) {
+				// FIXME:
+				if (cla_int_bound_less_than_or_equal(index_info.p.int_bounds.max,
+								     upper_bound)) {
+					// FIXME: disabled:
+					// eliminate_upper = true;
+				}
+			}
+
+			if (eliminate_upper) {
 				node->opt_flags |= OPT_FLAG_NO_UPPER;
 				++upper_bounds_checks_eliminated;
+				//fprintf(stderr, "upper bound check eliminated on: "); AST_DUMP(node);
 			}
 
 		}
@@ -575,11 +598,27 @@ annotate_bounds(symtab_entry_t *sym, classification_t *locals, ast_node_t *node)
 }
 
 static void
+check_bounds_init(symtab_entry_t *sym, void **data)
+{
+	type_checks_eliminated = 0;
+	lower_bounds_checks_eliminated = 0;
+	upper_bounds_checks_eliminated = 0;
+}
+
+static void
 check_bounds(symtab_entry_t *sym, void *pfact, void **context, ast_node_t *node)
 {
 	//const int locals_nr = data_flow_number_of_locals(sym);
-	classification_t *classifiations = (classification_t *) pfact;
+	classification_t *classifications = (classification_t *) pfact;
 	annotate_bounds(sym, classifications, node);
+}
+
+static void
+check_bounds_free(symtab_entry_t *sym, void **data)
+{
+	symtab_entry_name_dump(stderr, sym);
+	fprintf(stderr, ": eliminated checks:  %d bounds, %d lower, %d upper\n",
+		type_checks_eliminated, lower_bounds_checks_eliminated, upper_bounds_checks_eliminated);
 }
 
 static data_flow_postprocessor_t postprocessor = {

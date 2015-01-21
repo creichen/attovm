@@ -29,119 +29,28 @@
 #include <string.h>
 
 #include "ast.h"
-#include "symbol-table.h"
+#include "symint.h"
 #include "data-flow.h"
 #include "bitvector.h"
 
-#ifndef MIN
-#  define MIN(a, b) (((a) < (b))? (a) : (b))
-#endif
-#ifndef MAX
-#  define MAX(a, b) (((a) > (b))? (a) : (b))
-#endif
 //e negative `abs()':  guaranteed to avoid overflow
 #define NABS(x) (((x) > 0) ? -(x) : (x))
 
 //================================================================================
-//e Classification data type and operations
-
-#define INT_BOUND_VARIABLE_MIN	0	/*e Lowest index used for var_nr */
-#define INT_BOUND_ABSOLUTE	-1	/*e Absolute bound */
-#define INT_BOUND_NONE		-2	/*e TOP element: unknown bound */
-typedef struct {
-	long int nr;	/*e Numeric bound; only used if var_nr == INT_BOUND_ABSOLUTE */
-	short kind;	/*e INT_BOUND_ABSOLUTE, INT_BOUND_NONE, or otherwise number of the local variable whose size we're describing */
-} int_bound_t;
-
-/*e
- * This int_bound_t describes the size of an array, notation `sizeof(a)', for some array variable `a'
- */
-static bool
-cla_int_bound_is_sizeof(int_bound_t bound)
-{
-	return bound.kind >= INT_BOUND_ABSOLUTE;
-}
-
-/*e
- * This int_bound_t is not a bound (top element, unbounded)
- */
-static bool
-cla_int_bound_is_unbounded(int_bound_t bound)
-{
-	return bound.kind == INT_BOUND_NONE;
-}
-
-static void
-cla_int_bound_print(FILE *file, symtab_entry_t **var_symbols, int_bound_t bound)
-{
-	if (cla_int_bound_is_sizeof(bound)) {
-		fprintf(file, "size(%s)", var_symbols[bound.kind]->name);
-	} else if (bound.kind == INT_BOUND_NONE) {
-		fprintf(file, "T");
-	} else {
-		fprintf(file, "%ld", bound.nr);
-	}
-}
-
-static bool
-cla_int_bound_less_than_or_equal(int_bound_t lhs, int_bound_t rhs)
-{
-	if (lhs.kind == INT_BOUND_NONE || rhs.kind == INT_BOUND_NONE) {
-		return false;
-	}
-	if (lhs.kind == INT_BOUND_ABSOLUTE && rhs.kind == INT_BOUND_ABSOLUTE) {
-		return lhs.nr <= rhs.nr;
-	}
-	return lhs.kind == rhs.kind;
-}
-
-static int_bound_t
-cla_int_bound_literal(int v)
-{
-	return (int_bound_t) { .kind = INT_BOUND_ABSOLUTE, .nr = v };
-}
-
-static int_bound_t
-cla_int_bound_sizeof(int varnr)
-{
-	return (int_bound_t) { .kind = varnr, .nr = 0 };
-}
-
-static int_bound_t
-cla_int_bound_none()
-{
-	return (int_bound_t) { .kind = INT_BOUND_NONE, .nr = 0 };
-}
-
-#define INT_BOUND_JOIN_MIN true
-#define INT_BOUND_JOIN_MAX false
-
-static int_bound_t
-cla_int_bound_join(int_bound_t lhs, int_bound_t rhs, bool min)
-{
-	if (lhs.kind != rhs.kind) {
-		return cla_int_bound_none();
-	}
-	if (lhs.kind == INT_BOUND_ABSOLUTE) {
-		if (min) {
-			lhs.nr = MIN(lhs.nr, rhs.nr);
-		} else {
-			lhs.nr = MAX(lhs.nr, rhs.nr);
-		}
-	}
-	return lhs;
-}
+//e Classification lattice implementation
 
 //e Classification
+//e `vartype' designates the coarse type
 typedef struct {
-	union { /*e union: use EITHER int_bounds OR array_info */
+	union { /*e union: use EITHER interval OR array_info */
 		struct { /*e with VARTYPE_INT only */
-			int_bound_t min, max;
-		} int_bounds;
+			symint_t min, max;
+		} interval;
 
 		int array_size; /*e with VARTYPE_ARRAY only */
 	} p;
 	unsigned char vartype; /*e One of VARTYPE_* */
+	bool synthetic;
 } classification_t;
 
 #define VARTYPE_BOT	0
@@ -151,7 +60,21 @@ typedef struct {
 
 #define INT_TOP 0x80000000	/*e unknown array size */
 
-
+static bool
+cla_is_synthetic(symint_t arg1, symint_t arg2, symint_t result, bool synthetic1, bool synthetic2)
+{
+	if (symint_is_top(result)) {
+		return false;
+	}
+	if (symint_equals(result, arg1) && !synthetic1) {
+		return false;
+	}
+	if (symint_equals(result, arg2) && !synthetic2) {
+		return false;
+	}
+	return synthetic1 | synthetic2;
+}
+			
 static void
 cla_array_bound_print(FILE *file, int bound)
 {
@@ -163,9 +86,9 @@ cla_array_bound_print(FILE *file, int bound)
 }
 
 static void
-cla_print(FILE *file, symtab_entry_t **var_symbols, classification_t *classification)
+cla_print(FILE *file, symtab_entry_t **var_symbols, classification_t classification)
 {
-	switch (classification->vartype) {
+	switch (classification.vartype) {
 	case VARTYPE_BOT:
 		fprintf(file, "_");
 		break;
@@ -174,81 +97,110 @@ cla_print(FILE *file, symtab_entry_t **var_symbols, classification_t *classifica
 		break;
 	case VARTYPE_ARRAY:
 		fprintf(file, "a[/");
-		cla_array_bound_print(file, classification->p.array_size);
+		cla_array_bound_print(file, classification.p.array_size);
 		fprintf(file, "]");
 		break;
 	case VARTYPE_INT:
 		fprintf(file, "{");
-		cla_int_bound_print(file, var_symbols, classification->p.int_bounds.min);
+		symint_print(file, var_symbols, "sizeof(%s)", classification.p.interval.min);
 		fprintf(file, "..");
-		cla_int_bound_print(file, var_symbols, classification->p.int_bounds.max);
+		symint_print(file, var_symbols, "sizeof(%s)", classification.p.interval.max);
 		fprintf(file, "}");
+		if (classification.synthetic) {
+			fprintf(file, ".s");
+		}
 		break;
 	default:
-		fprintf(file, "?(%d)ERROR\n", classification->vartype);
+		fprintf(file, "?(%d)ERROR\n", classification.vartype);
 	}
 }
 
+/*e
+ * Determines whether lhs <= rhs in the lattice, i.e., whether `lhs' describes a more precise element of the lattice
+ *
+ * @param lhs, rhs: The two classification lattice elements to compare
+ * @return true iff lhs <= rhs
+ */
 static bool
-cla_less_than_or_equal(classification_t *lhs, classification_t *rhs)
+cla_less_than_or_equal(classification_t lhs, classification_t rhs)
 {
 	//e trivial top/bottom element occurrence?
-	if (lhs->vartype == VARTYPE_BOT
-	    || rhs->vartype == VARTYPE_TOP) {
+	if (lhs.vartype == VARTYPE_BOT
+	    || rhs.vartype == VARTYPE_TOP) {
 		return true;
 	}
 
 	//e not comparable?
-	if (lhs->vartype != rhs->vartype) {
+	if (lhs.vartype != rhs.vartype) {
 		return false;
 	}
 
-	switch (lhs->vartype) {
+	switch (lhs.vartype) {
 
 	case VARTYPE_ARRAY:
-		if (lhs->p.array_size == INT_TOP) {
+		if (lhs.p.array_size == INT_TOP) {
 			return true; //e unknown array size is less concrete than known
 		}
-		return lhs->p.array_size == rhs->p.array_size;
+		return lhs.p.array_size == rhs.p.array_size;
 
 	case VARTYPE_INT:
 		//e more precise if lhs interval is contained in rhs interval
-		return cla_int_bound_less_than_or_equal(rhs->p.int_bounds.min, lhs->p.int_bounds.min)
-		    && cla_int_bound_less_than_or_equal(lhs->p.int_bounds.max, rhs->p.int_bounds.max);
+		return (symint_less_than_or_equal_numerically(rhs.p.interval.min, lhs.p.interval.min)
+			|| symint_is_top(lhs.p.interval.min))
+			&& ((symint_less_than_or_equal_numerically(lhs.p.interval.max, rhs.p.interval.max)
+			     || symint_is_top(rhs.p.interval.max)));
 
 	default:
-		fprintf(stderr, "%s: ?(%d)ERROR\n", __func__, lhs->vartype);
+		fprintf(stderr, "%s: ?(%d)ERROR\n", __func__, lhs.vartype);
 		exit(1);
 	}
 }
 
+/*e
+ * Constructs a classification, given only its type.  May need further initialisation (for ARRAY and INT)
+ */
 static classification_t
 cla_init(int type)
 {
-	return (classification_t) { .vartype = VARTYPE_TOP };
+	return (classification_t) { .vartype = type, .synthetic = false };
 }
 
+/*e
+ * Constructs a lattice TOP element
+ */
 static classification_t
 cla_top()
 {
 	return cla_init(VARTYPE_TOP);
 }
 
+/*e
+ * Constructs a lattice BOTTOM element
+ */
 static classification_t
 cla_bottom()
 {
 	return cla_init(VARTYPE_BOT);
 }
 
+/*e
+ * Constructs a literal integer element of the lattice
+ */
 static classification_t
 cla_int(int i)
 {
 	classification_t classification = cla_init(VARTYPE_INT);
-	classification.p.int_bounds.max = cla_int_bound_literal(i);
-	classification.p.int_bounds.min = classification.p.int_bounds.max;
+	classification.p.interval.max = symint_literal(i);
+	classification.p.interval.min = classification.p.interval.max;
 	return classification;
 }
 
+/*e
+ * Constructs an array of given size for the lattice
+ *
+ * @param Array size, if known; otherwise INT_TOP
+ * @return A suitable array classification
+ */
 static classification_t
 cla_array(int size)
 {
@@ -257,101 +209,157 @@ cla_array(int size)
 	return classification;
 }
 
+/*e
+ * Constructs an integer representing `sizeof(v)' for some local variable `v'
+ *
+ * @param var_nr Local variable index (>= 0) to represent
+ * @return A suitable classification representation
+ */
 static classification_t
 cla_sizeof(int var_nr)
 {
 	classification_t classification = cla_init(VARTYPE_INT);
-	classification.p.int_bounds.max = cla_int_bound_sizeof(var_nr);
-	classification.p.int_bounds.min = classification.p.int_bounds.max;
+	classification.p.interval.max = symint_var(var_nr);
+	classification.p.interval.min = classification.p.interval.max;
 	return classification;
 }
 
-static long int
-int_add(long int a, long int b)
-{
-	return a + b;
-}
-
-static long int
-int_sub(long int a, long int b)
-{
-	return a - b;
-}
-
-static long int
-int_mul(long int a, long int b)
-{
-	return a * b;
-}
-
+/*e
+ * Negates a classification (computes -classification) arithmetically
+ */
 static classification_t
-cla_arithmetic(long int (*f)(long int a, long int b), classification_t lhs, classification_t rhs, long int safety_bound)
+cla_negate(classification_t classification)
 {
+	if (classification.vartype == VARTYPE_INT) {
+		symint_t min_backup = classification.p.interval.min;
+		classification.p.interval.min = symint_negate(classification.p.interval.max);
+		classification.p.interval.max = symint_negate(min_backup);
+		return classification;
+	}
+	return cla_top();
+}
+
+/*e
+ * Symbolically adds two classifications
+ *
+ * @param arg1, arg2: The two classifications to sum up
+ * @return The sum of the two classifications
+ */
+static classification_t
+cla_add(classification_t arg1, classification_t arg2)
+{
+	const long int safety_bound = 0x4000000000000000l;
 	//e integer arithmetic only makes sense with literal ints:
-	if (lhs.vartype != VARTYPE_INT
-	    || rhs.vartype != VARTYPE_INT
-	    || cla_int_bound_is_sizeof(lhs.p.int_bounds.min)
-	    || cla_int_bound_is_sizeof(lhs.p.int_bounds.max)
-	    || cla_int_bound_is_sizeof(rhs.p.int_bounds.min)
-	    || cla_int_bound_is_sizeof(rhs.p.int_bounds.max)
+	if (arg1.vartype != VARTYPE_INT
+	    || arg2.vartype != VARTYPE_INT
+	    || symint_is_var(arg1.p.interval.min)
+	    || symint_is_var(arg1.p.interval.max)
+	    || symint_is_var(arg2.p.interval.min)
+	    || symint_is_var(arg2.p.interval.max)
 	    //e also guard against overflow:
 	    //e We compute the negative abs because two's complement permits one more negative
 	    //e value than positive values
-	    || (NABS(lhs.p.int_bounds.min.nr) < -safety_bound)
-	    || (NABS(lhs.p.int_bounds.max.nr) < -safety_bound)
-	    || (NABS(rhs.p.int_bounds.min.nr) < -safety_bound)
-	    || (NABS(rhs.p.int_bounds.max.nr) < -safety_bound)) {
+	    || (NABS(symint_literal_value(arg1.p.interval.min)) < -safety_bound)
+	    || (NABS(symint_literal_value(arg1.p.interval.max)) < -safety_bound)
+	    || (NABS(symint_literal_value(arg2.p.interval.min)) < -safety_bound)
+	    || (NABS(symint_literal_value(arg2.p.interval.max)) < -safety_bound)) {
 		return cla_top();
 	}
-	//e compute all combinations
-	long int extreme0 = f(lhs.p.int_bounds.min.nr, rhs.p.int_bounds.min.nr);
-	long int extreme1 = f(lhs.p.int_bounds.max.nr, rhs.p.int_bounds.min.nr);
-	long int extreme2 = f(lhs.p.int_bounds.min.nr, rhs.p.int_bounds.max.nr);
-	long int extreme3 = f(lhs.p.int_bounds.max.nr, rhs.p.int_bounds.max.nr);
-	lhs.p.int_bounds.min.nr = MIN(MIN(extreme0, extreme1), MIN(extreme2, extreme3));
-	lhs.p.int_bounds.max.nr = MAX(MAX(extreme0, extreme1), MAX(extreme2, extreme3));
-	return lhs;
+	classification_t result = cla_init(VARTYPE_INT);
+	result.synthetic = true;
+	if (symint_is_top(arg1.p.interval.min)
+	    || symint_is_top(arg2.p.interval.min)) {
+		//e if either is unbounded, the result is unbounded:
+		result.p.interval.min = symint_top();
+	} else {
+		result.p.interval.min = symint_literal(symint_literal_value(arg1.p.interval.min) + symint_literal_value(arg2.p.interval.min));
+	}
+	if (symint_is_top(arg1.p.interval.max)
+	    || symint_is_top(arg2.p.interval.max)) {
+		//e if either is unbounded, the result is unbounded:
+		result.p.interval.max = symint_top();
+	} else {
+		result.p.interval.max = symint_literal(symint_literal_value(arg1.p.interval.max) + symint_literal_value(arg2.p.interval.max));
+	}
+	return result;
 }
 
+/*e
+ * Lattice-join for two classifications
+ */
 static classification_t
-cla_join(classification_t lhs, classification_t rhs)
+cla_join(classification_t arg1, classification_t arg2)
 {
-	if (lhs.vartype == VARTYPE_BOT) {
-		return rhs;
+	if (arg1.vartype == VARTYPE_BOT) {
+		return arg2;
 	}
-	if (rhs.vartype == VARTYPE_BOT) {
-		return lhs;
+	if (arg2.vartype == VARTYPE_BOT) {
+		return arg1;
 	}
-	if (lhs.vartype != VARTYPE_TOP
-	    && rhs.vartype != VARTYPE_TOP
-	    && lhs.vartype == rhs.vartype) {
-		switch (lhs.vartype) {
+	if (arg1.vartype != VARTYPE_TOP
+	    && arg2.vartype != VARTYPE_TOP
+	    && arg1.vartype == arg2.vartype) {
+		switch (arg1.vartype) {
 		case VARTYPE_ARRAY:
-			if (lhs.p.array_size == rhs.p.array_size) {
-				return lhs;
+			if (arg1.p.array_size == arg2.p.array_size) {
+				return arg1;
 			}
 			//e unknown or inconsistent array size
-			lhs.p.array_size = INT_TOP;
-			return lhs;
+			arg1.p.array_size = INT_TOP;
+			return arg1;
 
-		case VARTYPE_INT:
-			lhs.p.int_bounds.min = cla_int_bound_join(lhs.p.int_bounds.min,
-								  rhs.p.int_bounds.min,
-								  INT_BOUND_JOIN_MIN);
-			lhs.p.int_bounds.max = cla_int_bound_join(lhs.p.int_bounds.max,
-								  rhs.p.int_bounds.max,
-								  INT_BOUND_JOIN_MAX);
+		case VARTYPE_INT: {
+			classification_t result = cla_init(VARTYPE_INT);
+			result.p.interval.min = symint_min(arg1.p.interval.min,
+							     arg2.p.interval.min);
+			result.p.interval.max = symint_max(arg1.p.interval.max,
+							     arg2.p.interval.max);
+
+			result.synthetic = false;
+
+			//e We now bound the analysis lattice height.
+			//e The easiest solution would be to immediately discard arithmetic results, but this
+			//e is very imprecise.  An alternative is to depth-bound joins with arithmetic results,
+			//e which we here do, with a depth of 1 (indicated by `synthetic').
+
+			//e If we're merging a synthetic result that extends our min bound, then
+			//e assume that the min bound can grow infinitely low:
+			if ((arg1.synthetic
+			     && !symint_less_than_or_equal_numerically(arg2.p.interval.min, arg1.p.interval.min))
+			    || (arg2.synthetic
+				&& !symint_less_than_or_equal_numerically(arg1.p.interval.min, arg2.p.interval.min))) {
+
+				result.p.interval.min = symint_top();
+			}
+			//e analogously for the max bound:
+			if ((arg1.synthetic
+			     && !symint_less_than_or_equal_numerically(arg1.p.interval.max, arg2.p.interval.max))
+			    || (arg2.synthetic
+				&& !symint_less_than_or_equal_numerically(arg2.p.interval.max, arg1.p.interval.max))) {
+
+				result.p.interval.max = symint_top();
+			}
+
+			result.synthetic = cla_is_synthetic(arg1.p.interval.min,
+							    arg2.p.interval.min,
+							    result.p.interval.min,
+							    arg1.synthetic, arg2.synthetic);
+			result.synthetic |= cla_is_synthetic(arg1.p.interval.max,
+							     arg2.p.interval.max,
+							     result.p.interval.max,
+							     arg1.synthetic, arg2.synthetic);
 
 			//e Replace {T..T} by T for simplicity
-			if (cla_int_bound_is_unbounded(lhs.p.int_bounds.min)
-			    && cla_int_bound_is_unbounded(lhs.p.int_bounds.max)) {
+			if (symint_is_top(result.p.interval.min)
+			    && symint_is_top(result.p.interval.max)) {
 				return cla_top();
 			}
-			return lhs;
+			return result;
+		}
 
 
 		default:
-		fprintf(stderr, "%s: ?(%d)ERROR\n", __func__, lhs.vartype);
+		fprintf(stderr, "%s: ?(%d)ERROR\n", __func__, arg1.vartype);
 		exit(1);
 		}
 	}
@@ -362,7 +370,8 @@ cla_join(classification_t lhs, classification_t rhs)
 /*e
  * Computes the classification for an expression
  *
- * This function effectively performs abstract interpretation over the expression.
+ * This function effectively performs abstract interpretation over the expression.  It serves
+ * as transfer function interpreter.
  *
  * @param sym The function within which we perform the analysis (needed to detect local variables)
  * @param locals Bindings for all local variables
@@ -421,14 +430,9 @@ cla_expression(symtab_entry_t *sym, classification_t *locals, ast_node_t *node)
 			case BUILTIN_OP_CONVERT:
 				return args[0];
 			case BUILTIN_OP_ADD:
-				return cla_arithmetic(int_add, args[0], args[1],
-						      /*e safety bound*/ 0x4000000000000000l);
+				return cla_add(args[0], args[1]);
 			case BUILTIN_OP_SUB:
-				return cla_arithmetic(int_sub, args[0], args[1],
-						      /*e safety bound*/ 0x4000000000000000l);
-			case BUILTIN_OP_MUL:
-				return cla_arithmetic(int_mul, args[0], args[1],
-						      0x40000000l);
+				return cla_add(args[0], cla_negate(args[1]));
 			//e we don't support the others and fall through
 			}
 		}
@@ -477,7 +481,7 @@ print(FILE *file, symtab_entry_t *sym, void *pfact)
 					printed_before = true;
 				}
 				fprintf(file, "%s:", var_symbols[i]->name);
-				cla_print(file, var_symbols, classifications + i);
+				cla_print(file, var_symbols, classifications[i]);
 			}
 		}
 	}
@@ -502,6 +506,17 @@ join(symtab_entry_t *sym, void *pin1, void *pin2)
 	classification_t *result = malloc(sizeof(classification_t) * locals_nr);
 	for (int i = 0; i < locals_nr; i++) {
 		result[i] = cla_join(lhs[i], rhs[i]);
+		/*
+		if (result[i].vartype) {
+			fprintf(stderr, "[> JOIN <] ");
+			cla_print(stderr, NULL, lhs[i]);
+			fprintf(stderr, " \\/ ");
+			cla_print(stderr, NULL, rhs[i]);
+			fprintf(stderr, " => ");
+			cla_print(stderr, NULL, result[i]);
+			fprintf(stderr, "\n");
+		}
+		*/
 	}
 	return result;
 }
@@ -538,7 +553,7 @@ is_less_than_or_equal(symtab_entry_t *sym, void *plhs, void *prhs)
 	classification_t *rhs = (classification_t *) prhs;
 
 	for (int var = 0; var < locals_nr; var++) {
-		if (!cla_less_than_or_equal(lhs + var, rhs + var)) {
+		if (!cla_less_than_or_equal(lhs[var], rhs[var])) {
 			return false;
 		}
 	}
@@ -557,6 +572,7 @@ df_free(void *fact)
 static int type_checks_eliminated;
 static int lower_bounds_checks_eliminated;
 static int upper_bounds_checks_eliminated;
+static int array_ops_count;
 
 /*e
  * Record out-of-bounds access information
@@ -591,6 +607,7 @@ annotate_bounds(symtab_entry_t *sym, classification_t *locals, ast_node_t *node)
 
 	switch (NODE_TY(node)) {
 	case AST_NODE_ARRAYSUB: {
+		++array_ops_count;
 		const int array_var = data_flow_is_local_var(sym, node->children[0]);
 		classification_t array_info = cla_expression(sym, locals, node->children[0]);
 		classification_t index_info = cla_expression(sym, locals, node->children[1]);
@@ -601,8 +618,8 @@ annotate_bounds(symtab_entry_t *sym, classification_t *locals, ast_node_t *node)
 			++type_checks_eliminated;
 		}
 		if (index_info.vartype == VARTYPE_INT) {
-			if (cla_int_bound_less_than_or_equal(cla_int_bound_literal(0),
-							     index_info.p.int_bounds.min)) {
+			if (symint_less_than_or_equal_numerically(symint_literal(0),
+								  index_info.p.interval.min)) {
 				node->opt_flags |= OPT_FLAG_NO_LOWER;
 				++lower_bounds_checks_eliminated;
 				//fprintf(stderr, "lower bound check eliminated on: "); AST_DUMP(node);
@@ -618,8 +635,8 @@ annotate_bounds(symtab_entry_t *sym, classification_t *locals, ast_node_t *node)
 			if (array_info.vartype == VARTYPE_ARRAY
 			    && array_info.p.array_size != INT_TOP) {
 				//e Know explicit array size!
-				if (cla_int_bound_less_than_or_equal(index_info.p.int_bounds.max,
-								     cla_int_bound_literal(array_info.p.array_size - 1))) {
+				if (symint_less_than_or_equal_numerically(index_info.p.interval.max,
+									  symint_literal(array_info.p.array_size - 1))) {
 					eliminate_upper = true;
 				}
 			}
@@ -627,11 +644,11 @@ annotate_bounds(symtab_entry_t *sym, classification_t *locals, ast_node_t *node)
 			//e Case (b):
 			if (array_var > 0) {
 				//e The upper bound for array size, size(array_var)
-				int_bound_t upper_bound = cla_int_bound_sizeof(array_var);
+				symint_t upper_bound = symint_var(array_var);
 
 				// FIXME:
-				if (cla_int_bound_less_than_or_equal(index_info.p.int_bounds.max,
-								     upper_bound)) {
+				if (symint_less_than_or_equal_numerically(index_info.p.interval.max,
+									  upper_bound)) {
 					// FIXME: disabled:
 					// eliminate_upper = true;
 				}
@@ -654,6 +671,7 @@ check_bounds_init(symtab_entry_t *sym, void **data)
 	type_checks_eliminated = 0;
 	lower_bounds_checks_eliminated = 0;
 	upper_bounds_checks_eliminated = 0;
+	array_ops_count = 0;
 }
 
 static void
@@ -668,8 +686,8 @@ static void
 check_bounds_free(symtab_entry_t *sym, void **data)
 {
 	symtab_entry_name_dump(stderr, sym);
-	fprintf(stderr, ": eliminated checks:  %d bounds, %d lower, %d upper\n",
-		type_checks_eliminated, lower_bounds_checks_eliminated, upper_bounds_checks_eliminated);
+	fprintf(stderr, ": eliminated checks:  %d array-type, %d lower, %d upper  (out of %d)\n",
+		type_checks_eliminated, lower_bounds_checks_eliminated, upper_bounds_checks_eliminated, array_ops_count);
 }
 
 static data_flow_postprocessor_t postprocessor = {

@@ -14,7 +14,7 @@ ASM_OBJS = 2opm/asm-lexer.o 2opm/assembler.o 2opm/asm.o chash.o address-store.o 
 # --------------------
 # ATL frontend
 FRONTEND_HEADERS = chash.h symbol-table.h analysis.h lexer-support.h errors.h compiler-options.h version.h \
-		cstack.h bitvector.h control-flow-graph.h data-flow.h
+		cstack.h bitvector.h control-flow-graph.h data-flow.h symint.h
 FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c ast.h parser.h
 FRONTEND_SRC = parser.template.c parser.template.h ast.template.h lexer.template.l unparser.template.c \
 		mk-codegen.py mk-parser.py lexer-support.c ast.c chash.c cstack.c bitvector.c symbol-table.c \
@@ -23,7 +23,7 @@ FRONTEND_SRC = parser.template.c parser.template.h ast.template.h lexer.template
 FRONTEND_OBJS = parser.o lexer.o lexer-support.o ast.o unparser.o chash.o cstack.o bitvector.o symbol-table.o \
 		name-analysis.o type-analysis.o data-flow.o control-flow-graph.o \
 		data-flow-reaching-definitions.o data-flow-definite-assignments.o \
-		data-flow-out-of-bounds-elimination.o
+		data-flow-out-of-bounds-elimination.o symint.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
 # --------------------

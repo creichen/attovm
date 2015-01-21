@@ -930,13 +930,15 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		baseline_compile_expr(buf, ast->children[0], REGISTER_V0, context);
 		//e Array is now in REGISTER_V0
 
-		//e Type check
-		emit_la(buf, REGISTER_T1, &class_array);
-		emit_ld(buf, REGISTER_T0, 0, REGISTER_V0);
-		//e array type is now in REGISTER_T0
-		emit_beq(buf, REGISTER_T0, REGISTER_T1, &jl);
-		emit_fail_at_node(buf, ast, "Attempted to index non-array");
-		buffer_setlabel2(&jl, buf);
+		if (!(ast->opt_flags & OPT_FLAG_NO_TYPECHECK1)) {
+			//e Type check
+			emit_la(buf, REGISTER_T1, &class_array);
+			emit_ld(buf, REGISTER_T0, 0, REGISTER_V0);
+			//e array type is now in REGISTER_T0
+			emit_beq(buf, REGISTER_T0, REGISTER_T1, &jl);
+			emit_fail_at_node(buf, ast, "Attempted to index non-array");
+			buffer_setlabel2(&jl, buf);
+		}
 
 		if (!is_simple(ast->children[1])) {
 			baseline_store_temp(buf, REGISTER_V0, ast->children[0], context);
@@ -949,18 +951,23 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		if (!compiler_options.no_bounds_checks) {
 			//d Arraygrenzenpruefung
 			//e array bounds checking
-			emit_ld(buf, REGISTER_T1, WORD_SIZE, REGISTER_V0);
+			
 			// v0: Array
 			// t0: offset
-			// t1: size
-		
-			emit_bgez(buf, REGISTER_T0, &jl);
-			emit_fail_at_node(buf, ast, "Negative index into array");
-			buffer_setlabel2(&jl, buf);
 
-			emit_blt(buf, REGISTER_T0, REGISTER_T1, &jl);
-			emit_fail_at_node(buf, ast, "Index into array out of bounds");
-			buffer_setlabel2(&jl, buf);
+			if (!(ast->opt_flags & OPT_FLAG_NO_LOWER)) {
+				emit_bgez(buf, REGISTER_T0, &jl);
+				emit_fail_at_node(buf, ast, "Negative index into array");
+				buffer_setlabel2(&jl, buf);
+			}
+
+			if (!(ast->opt_flags & OPT_FLAG_NO_UPPER)) {
+				emit_ld(buf, REGISTER_T1, WORD_SIZE, REGISTER_V0);
+				// t1: size
+				emit_blt(buf, REGISTER_T0, REGISTER_T1, &jl);
+				emit_fail_at_node(buf, ast, "Index into array out of bounds");
+				buffer_setlabel2(&jl, buf);
+			}
 		}
 
 		emit_slli(buf, REGISTER_T0, REGISTER_T0, 3);

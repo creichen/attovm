@@ -223,21 +223,27 @@ cla_less_than_or_equal(classification_t *lhs, classification_t *rhs)
 }
 
 static classification_t
-cla_top()
+cla_init(int type)
 {
 	return (classification_t) { .vartype = VARTYPE_TOP };
 }
 
 static classification_t
+cla_top()
+{
+	return cla_init(VARTYPE_TOP);
+}
+
+static classification_t
 cla_bottom()
 {
-	return (classification_t) { .vartype = VARTYPE_BOT };
+	return cla_init(VARTYPE_BOT);
 }
 
 static classification_t
 cla_int(int i)
 {
-	classification_t classification = { .vartype = VARTYPE_INT };
+	classification_t classification = cla_init(VARTYPE_INT);
 	classification.p.int_bounds.max = cla_int_bound_literal(i);
 	classification.p.int_bounds.min = classification.p.int_bounds.max;
 	return classification;
@@ -246,13 +252,15 @@ cla_int(int i)
 static classification_t
 cla_array(int size)
 {
-	return (classification_t) { .vartype = VARTYPE_ARRAY, .p.array_size = size };
+	classification_t classification = cla_init(VARTYPE_ARRAY);
+	classification.p.array_size = size;
+	return classification;
 }
 
 static classification_t
 cla_sizeof(int var_nr)
 {
-	classification_t classification = { .vartype = VARTYPE_INT };
+	classification_t classification = cla_init(VARTYPE_INT);
 	classification.p.int_bounds.max = cla_int_bound_sizeof(var_nr);
 	classification.p.int_bounds.min = classification.p.int_bounds.max;
 	return classification;

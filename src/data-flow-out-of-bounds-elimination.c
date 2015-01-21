@@ -45,10 +45,12 @@
 //================================================================================
 //e Classification data type and operations
 
-#define INT_BOUND_NOVAR	-1	//e absolute bound
+#define INT_BOUND_VARIABLE_MIN	0	/*e Lowest index used for var_nr */
+#define INT_BOUND_ABSOLUTE	-1	/*e Absolute bound */
+#define INT_BOUND_NONE		-2	/*e TOP element: unknown bound */
 typedef struct {
-	long int nr;		/*e Numeric bound; only used if var_nr == INT_BOUND_NOVAR */
-	short var_nr;	/*e INT_BOUND_NOVAR or otherwise number of the local variable whose size we're describing */
+	long int nr;	/*e Numeric bound; only used if var_nr == INT_BOUND_ABSOLUTE */
+	short kind;	/*e INT_BOUND_ABSOLUTE, INT_BOUND_NONE, or otherwise number of the local variable whose size we're describing */
 } int_bound_t;
 
 /*e
@@ -57,14 +59,25 @@ typedef struct {
 static bool
 cla_int_bound_is_sizeof(int_bound_t bound)
 {
-	return bound.var_nr != INT_BOUND_NOVAR;
+	return bound.kind >= INT_BOUND_ABSOLUTE;
+}
+
+/*e
+ * This int_bound_t is not a bound (top element, unbounded)
+ */
+static bool
+cla_int_bound_is_unbounded(int_bound_t bound)
+{
+	return bound.kind == INT_BOUND_NONE;
 }
 
 static void
 cla_int_bound_print(FILE *file, symtab_entry_t **var_symbols, int_bound_t bound)
 {
 	if (cla_int_bound_is_sizeof(bound)) {
-		fprintf(file, "size(%s)", var_symbols[bound.var_nr]->name);
+		fprintf(file, "size(%s)", var_symbols[bound.kind]->name);
+	} else if (bound.kind == INT_BOUND_NONE) {
+		fprintf(file, "T");
 	} else {
 		fprintf(file, "%ld", bound.nr);
 	}
@@ -73,22 +86,50 @@ cla_int_bound_print(FILE *file, symtab_entry_t **var_symbols, int_bound_t bound)
 static bool
 cla_int_bound_less_than_or_equal(int_bound_t lhs, int_bound_t rhs)
 {
-	if (lhs.var_nr == INT_BOUND_NOVAR && rhs.var_nr == INT_BOUND_NOVAR) {
+	if (lhs.kind == INT_BOUND_NONE || rhs.kind == INT_BOUND_NONE) {
+		return false;
+	}
+	if (lhs.kind == INT_BOUND_ABSOLUTE && rhs.kind == INT_BOUND_ABSOLUTE) {
 		return lhs.nr <= rhs.nr;
 	}
-	return lhs.var_nr == rhs.var_nr;
+	return lhs.kind == rhs.kind;
 }
 
 static int_bound_t
 cla_int_bound_literal(int v)
 {
-	return (int_bound_t) { .var_nr = INT_BOUND_NOVAR, .nr = v };
+	return (int_bound_t) { .kind = INT_BOUND_ABSOLUTE, .nr = v };
 }
 
 static int_bound_t
 cla_int_bound_sizeof(int varnr)
 {
-	return (int_bound_t) { .var_nr = varnr, .nr = 0 };
+	return (int_bound_t) { .kind = varnr, .nr = 0 };
+}
+
+static int_bound_t
+cla_int_bound_none()
+{
+	return (int_bound_t) { .kind = INT_BOUND_NONE, .nr = 0 };
+}
+
+#define INT_BOUND_JOIN_MIN true
+#define INT_BOUND_JOIN_MAX false
+
+static int_bound_t
+cla_int_bound_join(int_bound_t lhs, int_bound_t rhs, bool min)
+{
+	if (lhs.kind != rhs.kind) {
+		return cla_int_bound_none();
+	}
+	if (lhs.kind == INT_BOUND_ABSOLUTE) {
+		if (min) {
+			lhs.nr = MIN(lhs.nr, rhs.nr);
+		} else {
+			lhs.nr = MAX(lhs.nr, rhs.nr);
+		}
+	}
+	return lhs;
 }
 
 //e Classification
@@ -286,18 +327,18 @@ cla_join(classification_t lhs, classification_t rhs)
 			return lhs;
 
 		case VARTYPE_INT:
-			if (lhs.p.int_bounds.min.var_nr != rhs.p.int_bounds.min.var_nr
-			    || lhs.p.int_bounds.max.var_nr != rhs.p.int_bounds.max.var_nr) {
-				//e  {size(a)..X} vs. {size(b)..Y} or {X..size(a)} vs. {Y..size(b)}
-				//e Can't merge sizes of two different variables
+			lhs.p.int_bounds.min = cla_int_bound_join(lhs.p.int_bounds.min,
+								  rhs.p.int_bounds.min,
+								  INT_BOUND_JOIN_MIN);
+			lhs.p.int_bounds.max = cla_int_bound_join(lhs.p.int_bounds.max,
+								  rhs.p.int_bounds.max,
+								  INT_BOUND_JOIN_MAX);
+
+			//e Replace {T..T} by T for simplicity
+			if (cla_int_bound_is_unbounded(lhs.p.int_bounds.min)
+			    && cla_int_bound_is_unbounded(lhs.p.int_bounds.max)) {
 				return cla_top();
 			}
-			//e If we are using variables, then the above is sufficient.
-			//e If we aren't using variables, we need to update minimum and maximum:
-			lhs.p.int_bounds.min.nr = MIN(lhs.p.int_bounds.min.nr,
-						      rhs.p.int_bounds.min.nr);
-			lhs.p.int_bounds.max.nr = MAX(lhs.p.int_bounds.max.nr,
-						      rhs.p.int_bounds.max.nr);
 			return lhs;
 
 
@@ -312,6 +353,8 @@ cla_join(classification_t lhs, classification_t rhs)
 
 /*e
  * Computes the classification for an expression
+ *
+ * This function effectively performs abstract interpretation over the expression.
  *
  * @param sym The function within which we perform the analysis (needed to detect local variables)
  * @param locals Bindings for all local variables

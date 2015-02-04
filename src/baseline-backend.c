@@ -1395,7 +1395,7 @@ baseline_optimisation_hook(buffer_t *buf, symtab_entry_t *sym, int args_offset_0
 
 		for (int i = 0; i < sym->parameters_nr; i++) {
 			int parameter_nr = i + first_regular_parameter;
-			class_t *type = sym->dynamic_parameter_types[i - first_regular_parameter];
+			class_t *type = sym->dynamic_parameter_types[i];
 
 			if (type && type != &class_top && type != &class_bottom) {
 				//e we believe that we know the exact parameter type

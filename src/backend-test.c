@@ -192,6 +192,8 @@ test_run(char *source, char *expected_result, int line)
 	builtin_print_redirection = NULL;
 
 	fflush(NULL); // Outputs might not be written until we flush
+	fclose(writefile);
+
 	if (strcmp(expected_result, output_buf)) {
 		signal_failure();
 		fprintf(stderr, "[L%d] Result mismatch:\n----- Expected:\n%s\n----- Actual:\n%s\n-----\n", line, expected_result, output_buf);
@@ -218,7 +220,6 @@ test_run(char *source, char *expected_result, int line)
 		signal_success();
 	}
 	runtime_image = image;
-	fclose(writefile);
 }
 
 static void

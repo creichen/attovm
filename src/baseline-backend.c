@@ -1076,8 +1076,8 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 
 		//e we _might_ know the exact jump target
 		void *known_call_target = NULL;
-		if (context->symtab_entry->symtab_flags & SYMTAB_OPT) {
-			//e but we only trust the target if the function is tagged as `opt'
+		if (context->symtab_entry && context->symtab_entry->symtab_flags & SYMTAB_OPT) {
+			//e but we only trust the target if the current function is tagged as `opt'
 			known_call_target = ast->children[1]->sym->r_mem;
 		}
 

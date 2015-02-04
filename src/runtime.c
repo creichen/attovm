@@ -44,6 +44,8 @@ struct compiler_options compiler_options = {
 	.no_bounds_checks		= false,
 	.debug_dynamic_compilation	= false,
 	.debug_assembly			= false,
+	.debug_adaptive			= false,
+	.no_adaptive_compilation	= false,
 	.array_storage_type		= TYPE_OBJ,
 	.method_call_param_type		= TYPE_OBJ,
 	.method_call_return_type	= TYPE_OBJ,
@@ -118,12 +120,6 @@ runtime_prepare(ast_node_t *ast, unsigned int action)
 		free(image);
 		return NULL;
 	}
-	//e Optimisations
-	//e FIXME: run individually, on demand, in dyncomp_compile_function()
-	//e (We're only doing this here to simplify debugging...)
-	runtime_foreach_callable(image, data_flow_analyses_run,
-				 data_flow_analyses_optimisation);
-
 	if (action == RUNTIME_ACTION_SEMANTIC_ANALYSIS) {
 		return image;
 	}

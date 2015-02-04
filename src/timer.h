@@ -1,5 +1,5 @@
 /***************************************************************************
-  Copyright (C) 2014 Christoph Reichenbach
+  Copyright (C) 2015 Christoph Reichenbach
 
 
  This program may be modified and copied freely according to the terms of
@@ -25,25 +25,37 @@
 
 ***************************************************************************/
 
-#ifndef _ATTOL_COMPILER_OPTIONS_H
-#define _ATTOL_COMPILER_OPTIONS_H
+#ifndef _ATTOL_TIMER_H
+#define _ATTOL_TIMER_H
 
 #include <stdbool.h>
-#include "ast.h"
+#include <stdio.h>
+#include <time.h>
 
-struct compiler_options {
-	bool no_bounds_checks; /*d Keine Arrayschrankenpruefung */ /*e no array-out-of-bounds checks */
-	bool debug_dynamic_compilation; /*d Drucke Ausgaben aus, waehrend dynamische Uebersetzung aktiv ist */
-	bool debug_assembly;
-	bool debug_adaptive;
-	bool no_adaptive_compilation;
+typedef struct {
+	unsigned long seconds;
+	unsigned long nanoseconds;
+} time_delta_t;
 
-	int array_storage_type;
-	int method_call_param_type;
-	int method_call_return_type;
-	size_t heap_size; /*e available heap memory size */
-};
+typedef struct timer {
+	struct timespec start_time;
+	bool running;
+	time_delta_t aggregate;
+} wallclock_timer_t;
 
-extern struct compiler_options compiler_options;
+void
+timer_reset(wallclock_timer_t *timer);
 
-#endif // !defined(_ATTOL_COMPILER_OPTIONS_H)
+void
+timer_start(wallclock_timer_t *timer);
+
+/*e
+ * Pauses the timer; can be resumed with timer_start
+ */
+void
+timer_stop(wallclock_timer_t *timer);
+
+void
+timer_print(FILE *file, wallclock_timer_t *timer);
+
+#endif // !defined(_ATTOL_TIMER_H)

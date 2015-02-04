@@ -685,9 +685,11 @@ check_bounds(symtab_entry_t *sym, void *pfact, void **context, ast_node_t *node)
 static void
 check_bounds_free(symtab_entry_t *sym, void **data)
 {
+	/*
 	symtab_entry_name_dump(stderr, sym);
 	fprintf(stderr, ": eliminated checks:  %d array-type, %d lower, %d upper  (out of %d)\n",
 		type_checks_eliminated, lower_bounds_checks_eliminated, upper_bounds_checks_eliminated, array_ops_count);
+	*/
 }
 
 static data_flow_postprocessor_t postprocessor = {

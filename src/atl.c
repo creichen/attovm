@@ -37,6 +37,7 @@
 #include "parser.h"
 #include "runtime.h"
 #include "symbol-table.h"
+#include "timer.h"
 #include "version.h"
 
 #define ACTION_RUN	1
@@ -61,6 +62,8 @@
 #define COMPOPT_DEBUG_DYNAMIC_COMPILER	3
 #define COMPOPT_DEBUG_ASSEMBLY		4
 #define COMPOPT_DEBUG_DATA_FLOW		5
+#define COMPOPT_DEBUG_ADAPTIVE		6
+#define COMPOPT_NO_ADAPTIVE		7
 
 typedef struct {
 	char *name;
@@ -85,9 +88,11 @@ static const option_rec_t options_printing[] = {
 
 static const option_rec_t options_compiler[] = {
 	{ "no-bounds-checks",		COMPOPT_NO_BOUNDS_CHECKS,	"Do not generate bounds-checking code for array accesses" },
+	{ "no-adaptive",		COMPOPT_NO_ADAPTIVE,		"Do not perform adaptive compilation" },
 	{ "int-arrays",			COMPOPT_INT_ARRAYS,		"Change the type of array elements to 'int'" },
 	{ "debug-dynamic-compiler",	COMPOPT_DEBUG_DYNAMIC_COMPILER,	"Print out informative messages and disassembly during runtime compilation" },
 	{ "debug-asm",			COMPOPT_DEBUG_ASSEMBLY,		"Use interactive assembly debugger to run" },
+	{ "debug-adaptive",		COMPOPT_DEBUG_ADAPTIVE,		"Debug adaptive compilation" },
 	{ "debug-data-flow",		COMPOPT_DEBUG_DATA_FLOW,	"Debug the selected data flow analysis" },
 	{ NULL, 0, NULL }
 };
@@ -134,6 +139,7 @@ print_help(char *fn)
 	       "\t-v\tPrint version information\n"
 	       "\t-h\tPrint this help information\n"
 	       "\t-x\tExecute program (default action)\n"
+	       "\t-t\tTime program execution\n"
 	       "\t-f <n>\tActivate various compiler options, with <n> from:\n");
 	print_options(options_compiler, "\t\t\t");
 	printf("\t-p <n>\tPrint intermediate representation, with <n> from:\n");
@@ -208,8 +214,12 @@ main(int argc, char **argv)
 	int print_mode = PRINT_ASM;
 	int opt;
 	bool debug_data_flow = false;
+	bool time = false;
+	wallclock_timer_t timer;
+	timer_reset(&timer);
+	timer_start(&timer);
 
-	while ((opt = getopt(argc, argv, "hvxp:f:a:")) != -1) {
+	while ((opt = getopt(argc, argv, "htvxp:f:a:")) != -1) {
 		switch (opt) {
 
 		case 'v':
@@ -224,6 +234,10 @@ main(int argc, char **argv)
 			action = ACTION_RUN;
 			break;
 			
+		case 't':
+			time = true;
+			break;
+			
 		case 'p':
 			action = ACTION_PRINT;
 			print_mode = pick_option(options_printing, "print option", optarg);
@@ -235,12 +249,20 @@ main(int argc, char **argv)
 				compiler_options.no_bounds_checks = true;
 				break;
 
+			case COMPOPT_NO_ADAPTIVE:
+				compiler_options.no_adaptive_compilation = true;
+				break;
+
 			case COMPOPT_INT_ARRAYS:
 				compiler_options.array_storage_type = TYPE_INT;
 				break;
 
 			case COMPOPT_DEBUG_DYNAMIC_COMPILER:
 				compiler_options.debug_dynamic_compilation = true;
+				break;
+				
+			case COMPOPT_DEBUG_ADAPTIVE:
+				compiler_options.debug_adaptive = true;
 				break;
 				
 			case COMPOPT_DEBUG_ASSEMBLY:
@@ -346,5 +368,10 @@ main(int argc, char **argv)
 		}
 	}
 
+	if (time) {
+		fprintf(stderr, "Total\t");
+		timer_print(stderr, &timer);
+		fprintf(stderr, "\n");
+	}
 	return 0;
 }

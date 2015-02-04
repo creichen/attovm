@@ -567,7 +567,8 @@ main(int argc, char **argv)
 
 	TEST("class C() { obj p() { int x = 0; print(x); x := 1; print(x); int y = 2; print(y); } } obj c = C(); c.p(); print(3); ", "0\n1\n2\n3\n");
 	TEST("class C() { obj x = \"unused\"; { int x = 0; print(x); x := 1; print(x); int y = 2; print(y); } } obj c = C(); print(3); ", "0\n1\n2\n3\n");
-	// builtings
+
+	// builtins
 	TEST("assert(1); print(5); ", "5\n");
 	TEST("print([/5].size()); ", "5\n");
 	TEST("print(\"foo\".size()); ", "3\n");

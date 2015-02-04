@@ -14,17 +14,17 @@ ASM_OBJS = 2opm/asm-lexer.o 2opm/assembler.o 2opm/asm.o chash.o address-store.o 
 # --------------------
 # ATL frontend
 FRONTEND_HEADERS = chash.h symbol-table.h analysis.h lexer-support.h errors.h compiler-options.h version.h \
-		cstack.h bitvector.h control-flow-graph.h data-flow.h symint.h
+		cstack.h bitvector.h control-flow-graph.h data-flow.h symint.h timer.h
 FRONTEND_GENSRC = parser.c lexer.l lexer.c unparser.c ast.h parser.h
 FRONTEND_SRC = parser.template.c parser.template.h ast.template.h lexer.template.l unparser.template.c \
 		mk-codegen.py mk-parser.py lexer-support.c ast.c chash.c cstack.c bitvector.c symbol-table.c \
 		name-analysis.c type-analysis.c atl.c backend-test.c data-flow.c control-flow-graph.c \
-		data-flow-reaching-definitions.c data-flow-definite-assignments.c \
-		data-flow-out-of-bounds-elimination.c symint.c
+		data-flow-reaching-definitions.c data-flow-definite-assignments.c data-flow-precise-types.c \
+		data-flow-out-of-bounds-elimination.c symint.c timer.c
 FRONTEND_OBJS = parser.o lexer.o lexer-support.o ast.o unparser.o chash.o cstack.o bitvector.o symbol-table.o \
 		name-analysis.o type-analysis.o data-flow.o control-flow-graph.o \
-		data-flow-reaching-definitions.o data-flow-definite-assignments.o \
-		data-flow-out-of-bounds-elimination.o symint.o
+		data-flow-reaching-definitions.o data-flow-definite-assignments.o data-flow-precise-types.o \
+		data-flow-out-of-bounds-elimination.o symint.o timer.o
 FRONTEND = $(FRONTEND_HEADERS) $(FRONTEND_OBJS) 
 
 # --------------------
@@ -91,7 +91,7 @@ test: test-containers test-backend
 asm: ${ASM_OBJS}
 	$(CC) $(CFLAGS) $(ASM_OBJS) -o asm
 
-TAGS:
+TAGS: ${FRONTEND_SRC} ${BACKEND_SRC} ${FINAL_SRC}
 	etags -R -f TAGS *.c *.h
 
 # ========================================

@@ -61,6 +61,7 @@
 
 #define SYMTAB_TYPE(s)			(((s)->ast_flags) & TYPE_FLAGS)	/*e TYPE_INT, TYPE_OBJ etc */
 #define SYMTAB_KIND(s)			(((s)->symtab_flags) & SYMTAB_KIND_MASK)
+#define SYMTAB_HAS_SELF(s)		(((s)->symtab_flags) & (SYMTAB_CONSTRUCTOR | SYMTAB_MEMBER))
 #define SYMTAB_IS_STATIC(s)		(!(s)->parent && (SYMTAB_KIND(s) == SYMTAB_KIND_VAR))					/*d static-alloziert */ /*e in static memory */
 #define SYMTAB_IS_STACK_DYNAMIC(s)	(((s)->parent && (!((s)->symtab_flags & SYMTAB_MEMBER))) || s->id == BUILTIN_OP_SELF)	/*d Stapel/Register-Alloziert */ /*e stack or register */
 #define SYMTAB_IS_CONS_ARG(s)		(((s)->parent && ((s)->symtab_flags & SYMTAB_PARAM) && (SYMTAB_KIND((s)->parent) == SYMTAB_KIND_CLASS)))
@@ -73,6 +74,8 @@ typedef struct {
 } storage_record_t;
 
 struct cfg_node;
+struct class_struct;
+struct object;
 
 typedef struct symtab_entry {
 	char *name;
@@ -82,10 +85,13 @@ typedef struct symtab_entry {
 	unsigned short ast_flags;
 	unsigned short symtab_flags;
 	ast_node_t *astref;			/* CLASSDEF, FUNDEF, VARDECL */
-	struct cfg_node *cfg_exit;			/*e control flow graph exit node (for SYMTAB_KIND_FUNCTION) */
+	struct cfg_node *cfg_exit;		/*e control flow graph exit node (for SYMTAB_KIND_FUNCTION) */
 	void *r_trampoline;			/*d Zeiger auf Trampolin-Code, falls vorhanden */ /*e pointer to trampoline code, if present */
 	void *r_mem;				/*d Zeiger auf Funktion / Klassenobjekt */ /*e pointer to function or class object */
 	unsigned short *parameter_types;	/*e for constructors, parameter_types and parameters_nr are 0.  Refer to the class to access them. */
+	struct class_struct **dynamic_parameter_types;	/*e dynamically detected parameter types, using class_top, class_bottom as lattice, and NULL to indicate non-object parameters */
+	long fast_hotness_counter;		/*e outer hotness counter (decreased by generated `cold' code, triggers sampling) */
+	unsigned short slow_hotness_counter;	/*e inner hotness counter (decreased by ) */
 	unsigned short parameters_nr;
 	unsigned short selector;		/*d Globale ID für Felder und Methoden */ /* Global ID for fields and methods */
 	signed short offset;			/*d MEMBER | VAR: Offset in Speicher der Struktur
@@ -109,6 +115,13 @@ extern int symtab_entries_builtin_nr; //e builtin symbol table entries (positive
 extern int symtab_entries_nr; //e non-builtin symbol table entries
 
 extern int symtab_selector_size; /*e selector number for the `size' selector */
+
+//e various built-in classes and operators for easy lookup
+extern int symtab_builtin_class_array;
+extern int symtab_builtin_class_string;
+extern int symtab_builtin_method_array_size;
+extern int symtab_builtin_method_string_size;
+
 
 /*d
  * Schlägt einen Eintrag in der Symboltabelle nach.

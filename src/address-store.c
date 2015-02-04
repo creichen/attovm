@@ -39,7 +39,8 @@ static char *kind_names[] = {
 	[ADDRSTORE_KIND_SPECIAL] = "",
 	[ADDRSTORE_KIND_DATA] = "",
 	[ADDRSTORE_KIND_STRING_LITERAL] = "string ",
-	[ADDRSTORE_KIND_TRAMPOLINE] = ""
+	[ADDRSTORE_KIND_TRAMPOLINE] = "",
+	[ADDRSTORE_KIND_COUNTER] = "counter:"
 };
 
 static hashtable_t *name_table = NULL;;

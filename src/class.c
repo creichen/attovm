@@ -32,6 +32,9 @@
 #include "symbol-table.h"
 #include "address-store.h"
 
+class_t class_top;
+class_t class_bottom;
+
 class_t *
 class_new(symtab_entry_t *entry)
 {
@@ -190,4 +193,62 @@ class_initialise_and_link(class_t *classref, symtab_entry_t *entry)
 		}
 	}
 	return classref;
+}
+
+/*e
+ * Prints out a class (including one of the fake classes)
+ */
+void
+class_print_short(FILE *file, class_t *classref)
+{
+	if (!classref) {
+		fprintf(file, "-");
+	} else if (classref == &class_top) {
+		fprintf(file, "T");
+	} else if (classref == &class_bottom) {
+		fprintf(file, "_");
+	} else {
+		symtab_entry_name_dump(file, classref->id);
+	}
+}
+
+
+symtab_entry_t *
+class_lookup_member(symtab_entry_t *sym, int selector)
+{
+	if (!sym) {
+		//e fake class?
+		return NULL;
+	}
+	if (!sym->astref) {
+		//e broken call or built-in symbol?
+		//e expansions: may want to revise how we record built-in operations internally
+		static int size_selector = 0;
+		if (!size_selector) {
+			//e remains constant throughout run-time:
+			size_selector = symtab_selector("size")->selector;
+		}
+		
+		if (sym->id == symtab_builtin_class_array) {
+			if (selector == size_selector) {
+				return symtab_lookup(symtab_builtin_method_array_size);
+			}
+		} else if (sym->id == symtab_builtin_class_string) {
+			if (selector == size_selector) {
+				return symtab_lookup(symtab_builtin_method_string_size);
+			}
+		}
+		
+		//e migth be built in, but this was not a known method
+		return NULL;
+	}
+	ast_node_t *body = sym->astref->children[2];
+
+	for (int i = 0; i < body->children_nr; i++) {
+		symtab_entry_t *child_sym = body->children[i]->children[0]->sym;
+		if (child_sym && child_sym->selector == selector) {
+			return child_sym;
+		}
+	}
+	return NULL;
 }

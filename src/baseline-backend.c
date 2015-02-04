@@ -116,6 +116,26 @@ save_stackmap(buffer_t *buf, context_t *context)
 	stackmap_put(buffer_target(buf), bitvector_clone(context->stackmap), context->symtab_entry);
 }
 
+/*e
+ * Generic support for emitting short or long distance calls
+ */
+static void
+emit_call(buffer_t *buf, void *target, context_t *context)
+{
+	long long distance = ((unsigned char *) target) - ((unsigned char *) buffer_target(buf));
+	if (llabs(distance) < 0x7ffffff0) {
+		label_t lab;
+		emit_jal(buf, &lab);
+		save_stackmap(buf, context);
+		buffer_setlabel(&lab, target);
+	} else {
+		emit_la(buf, REGISTER_V0, target);
+		emit_jalr(buf, REGISTER_V0);
+		save_stackmap(buf, context);
+	}
+}
+
+
 static void
 baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context_t *context);
 
@@ -1054,24 +1074,34 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 			baseline_store_temp(buf, REGISTER_A0, ast->children[0], context);
 		}
 
-		//d Berechne Sprungadresse
-		//e compute jump address
-		ast_node_t *selector_node = ast->children[1];
-		const int selector = selector_node->sym->selector;
-		emit_la(buf, REGISTER_A1, selector_node);
-		emit_li(buf, REGISTER_A2, selector);
-		emit_li(buf, REGISTER_A3, ast->children[2]->children_nr);
-		emit_la(buf, REGISTER_V0, object_get_member_method);
+		//e we _might_ know the exact jump target
+		void *known_call_target = NULL;
+		if (context->symtab_entry->symtab_flags & SYMTAB_OPT) {
+			//e but we only trust the target if the function is tagged as `opt'
+			known_call_target = ast->children[1]->sym->r_mem;
+		}
 
-		assert(0 == baseline_prepare_arguments(buf, 0, NULL, context,
-						       PREPARE_ARGUMENTS_MUSTALIGN));
-		emit_jalr(buf, REGISTER_V0);
-		save_stackmap(buf, context);
+		if (!known_call_target) {
+			//d Berechne Sprungadresse
+			//e compute jump address
+			ast_node_t *selector_node = ast->children[1];
+			const int selector = selector_node->sym->selector;
+			emit_la(buf, REGISTER_A1, selector_node);
+			emit_li(buf, REGISTER_A2, selector);
+			emit_li(buf, REGISTER_A3, ast->children[2]->children_nr);
+			emit_la(buf, REGISTER_V0, object_get_member_method);
+
+			assert(0 == baseline_prepare_arguments(buf, 0, NULL, context,
+							       PREPARE_ARGUMENTS_MUSTALIGN));
+			emit_jalr(buf, REGISTER_V0);
+			save_stackmap(buf, context);
 		
-		//d Speichere Sprungadresse
-		//e save jump address
-		baseline_store_temp(buf, REGISTER_V0, ast, context);
-		baseline_free_temp(ast, context);
+			//d Speichere Sprungadresse
+			//e save jump address
+			baseline_store_temp(buf, REGISTER_V0, ast, context);
+			baseline_free_temp(ast, context);
+		}
+
 		int stack_frame_size =
 			baseline_prepare_arguments(buf,
 						   ast->children[2]->children_nr,
@@ -1085,9 +1115,26 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 		} else {
 			baseline_load_temp(buf, REGISTER_A0, ast->children[0], context);
 		}
-		baseline_load_temp(buf, REGISTER_V0, ast, context);
-		emit_jalr(buf, REGISTER_V0);
-		save_stackmap(buf, context);
+		if (!known_call_target) {
+			baseline_load_temp(buf, REGISTER_V0, ast, context);
+			emit_jalr(buf, REGISTER_V0);
+			save_stackmap(buf, context);
+#if 0
+			fprintf(stderr, "Using UNKNOWN jump location\n");
+#endif
+		} else {
+			//e load target address from jump table.  This is slower than a direct jump
+			//e but necessary, as the target method might get replaced again later.
+			emit_la(buf, REGISTER_V0, &(ast->children[1]->sym->r_mem));
+			emit_ld(buf, REGISTER_V0, 0, REGISTER_V0);
+			emit_jalr(buf, REGISTER_V0);
+			save_stackmap(buf, context);
+#if 0			
+			fprintf(stderr, "Using KNOWN jump location:");
+			symtab_entry_name_dump(stderr, ast->children[1]->sym);
+			fprintf(stderr, "\n");
+#endif
+		}
 
 		STACK_DEALLOCATE(stack_frame_size);
 
@@ -1149,16 +1196,10 @@ baseline_compile_expr(buffer_t *buf, ast_node_t *ast, int dest_register, context
 				symtab_entry_dump(stderr, sym);
 				fail_at_node(ast, "No call target address for function");
 			}
-			long long distance = ((unsigned char *) sym->r_mem) - ((unsigned char *) buffer_target(buf));
-			if (llabs(distance) < 0x7ffffff0) {
-				label_t lab;
-				emit_jal(buf, &lab);
-				save_stackmap(buf, context);
-				buffer_setlabel(&lab, sym->r_mem);
+			if (compiler_options.no_adaptive_compilation || !sym->r_trampoline /*e happens for builtins */) {
+				emit_call(buf, sym->r_mem, context);
 			} else {
-				emit_la(buf, REGISTER_V0, sym->r_mem);
-				emit_jalr(buf, REGISTER_V0);
-				save_stackmap(buf, context);
+				emit_call(buf, sym->r_trampoline, context);
 			}
 
 			// Stapelrahmen nachbereiten, soweit noetig
@@ -1332,6 +1373,107 @@ baseline_compile_entrypoint(ast_node_t *root,
 	return mbuf;
 }
 
+/*e
+ * Generate code to trigger dynamic/adaptive optimisation/deoptimisation
+ */
+static void
+baseline_optimisation_hook(buffer_t *buf, symtab_entry_t *sym, int args_offset_0, int args_offset_6, context_t *context)
+{
+	if (compiler_options.no_adaptive_compilation) {
+		//e No need to do any bookkeeping if adaptive compilation is disabled
+		return;
+	}
+	
+	if (sym->symtab_flags & SYMTAB_OPT) {
+		//e code is already optimised:
+		//e check preconditions, otherwise deoptimise
+		
+		const bool has_self_parameter = sym->symtab_flags & (SYMTAB_CONSTRUCTOR | SYMTAB_MEMBER);
+		//e methods and constructors take a self parameter in a0
+		const int first_regular_parameter = has_self_parameter? 1 : 0;
+		label_t jump_labels[sym->parameters_nr]; 
+
+		for (int i = 0; i < sym->parameters_nr; i++) {
+			int parameter_nr = i + first_regular_parameter;
+			class_t *type = sym->dynamic_parameter_types[i - first_regular_parameter];
+
+			if (type && type != &class_top && type != &class_bottom) {
+				//e we believe that we know the exact parameter type
+				int offset;
+				if (parameter_nr < REGISTERS_ARGUMENT_NR) {
+					offset = args_offset_0 - (parameter_nr * WORD_SIZE);
+				} else {
+					offset = args_offset_6 + (parameter_nr * WORD_SIZE);
+				}
+				emit_ld(buf, REGISTER_T0, offset, REGISTER_FP);
+				emit_la(buf, REGISTER_T1, type);
+				//e load dynamic type descriptor
+				emit_ld(buf, REGISTER_T0, 0, REGISTER_T0);
+				emit_bne(buf, REGISTER_T0, REGISTER_T1, &jump_labels[i]);
+			} else {
+				jump_labels[i] = buffer_label_empty();
+			}
+		}
+
+		label_t skip_label;
+		emit_j(buf, &skip_label);
+
+		//e deoptimise
+		for (int i = 0; i < sym->parameters_nr; i++) {
+			if (!buffer_label_is_empty(&jump_labels[i])) {
+				buffer_setlabel2(&jump_labels[i], buf);
+			}
+		}
+		emit_la(buf, REGISTER_A0, sym);
+		emit_call(buf, &dyncomp_deoptimise, context);
+
+		//e load $a0 through $a5 in preparation for continuing on to deoptimised subroutine
+		int param_reg_count = sym->parameters_nr + first_regular_parameter;
+		if (param_reg_count > REGISTERS_ARGUMENT_NR) {
+			param_reg_count = REGISTERS_ARGUMENT_NR;
+		}
+		for (int i = 0; i < param_reg_count; i++) {
+			emit_ld(buf, registers_argument[i], args_offset_0 - (i * WORD_SIZE), REGISTER_FP);
+		}
+		//e continue on to deoptimised subroutine
+		emit_move(buf, REGISTER_SP, REGISTER_FP);
+		emit_pop(buf, REGISTER_FP);
+		emit_jr(buf, REGISTER_V0);
+
+		buffer_setlabel2(&skip_label, buf);
+		
+	} else {
+		//e code is not optimised yet:
+		//e check hotness!
+
+		dyncomp_init_unoptimised(sym);
+
+		/*e generate code to decrement hotness counter, invoke dyncomp_runtime_sample() when it hits zero */
+		emit_la(buf, REGISTER_T1, &sym->fast_hotness_counter);
+		addrstore_put(&sym->fast_hotness_counter, ADDRSTORE_KIND_COUNTER, sym->name);
+		emit_ld(buf, REGISTER_T0, 0, REGISTER_T1);
+		emit_subi(buf, REGISTER_T0, 1);
+		emit_sd(buf, REGISTER_T0, 0, REGISTER_T1);
+		label_t sample_label;
+		label_t end_label;
+		emit_bltz(buf, REGISTER_T0, &sample_label);
+		emit_j(buf, &end_label);
+
+		//e invoke dyncomp_runtime_sample()
+		buffer_setlabel2(&sample_label, buf);
+		emit_la(buf, REGISTER_A0, sym);
+		emit_move(buf, REGISTER_A1, REGISTER_FP);
+		emit_move(buf, REGISTER_A2, REGISTER_FP);
+		emit_subi(buf, REGISTER_A1, -args_offset_0);
+		emit_addi(buf, REGISTER_A2, args_offset_6);
+		addrstore_put(&dyncomp_runtime_sample, ADDRSTORE_KIND_BUILTIN, "dyncomp_runtime_sample");
+		emit_la(buf, REGISTER_V0, &dyncomp_runtime_sample);
+		emit_jalr(buf, REGISTER_V0);
+
+		buffer_setlabel2(&end_label, buf);
+	}
+}
+
 buffer_t
 baseline_compile_static_callable(symtab_entry_t *sym)
 {
@@ -1414,6 +1556,9 @@ baseline_compile_static_callable(symtab_entry_t *sym)
 		stackmap_mark(context, context->self_stack_location, true);
 	}
 
+	if (!is_constructor) {
+		baseline_optimisation_hook(buf, sym, context->stack_offset_args, 2 * WORD_SIZE, context);
+	}
 	baseline_compile_expr(buf, body, REGISTER_V0, context);
 
 	emit_move(buf, REGISTER_SP, REGISTER_FP);
@@ -1464,6 +1609,7 @@ baseline_compile_method(symtab_entry_t *sym)
 		args[i - 1]->sym->symtab_flags |= SYMTAB_EXCESS_PARAM;
 	}
 
+	baseline_optimisation_hook(buf, sym, context->stack_offset_args, 2 * WORD_SIZE, context);
 	baseline_compile_expr(buf, body, REGISTER_V0, context);
 
 	emit_move(buf, REGISTER_SP, REGISTER_FP);

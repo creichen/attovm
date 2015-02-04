@@ -79,14 +79,22 @@ symtab_free(void);
 static void
 classes_init();
 
-// Tabelle der eingebauten Operationen
-// Einige dieser Operationen sind fest eingebaut (mit zur Parse-Zeit bekannten IDs),
-// die anderen erhalten IDs bei ihrer Zuweisung.
-//
-// Feste IDs:
-//  - Symboltabelleneintrag gegeben durch BUILTIN_OP_*
-// Allozierte IDs:
-//  - Symboltabelleneintrag gegeben durch BUILTIN_PRELINKED
+//d Tabelle der eingebauten Operationen
+//d Einige dieser Operationen sind fest eingebaut (mit zur Parse-Zeit bekannten IDs),
+//d die anderen erhalten IDs bei ihrer Zuweisung.
+//d
+//d Feste IDs:
+//d  - Symboltabelleneintrag gegeben durch BUILTIN_OP_*
+//d Allozierte IDs:
+//d  - Symboltabelleneintrag gegeben durch BUILTIN_PRELINKED
+//e Built-in operator table
+//e Several of these operators are built in (with IDs known at parse time),
+//e others have their IDs allocated when assigned.
+//e
+//e Fixed IDs:
+//e  - Symbol table entry defined by BUILTIN_OP_*
+//e Allocated IDs:
+//e  - BUILTIN_PRELINKED
 
 #define BUILTIN_PRELINKED_THRESHOLD 0x100
 #define BUILTIN_PRELINKED(x) ((x) + BUILTIN_PRELINKED_THRESHOLD)
@@ -100,7 +108,8 @@ classes_init();
 
 #define BUILTIN_PRELINKED_MAX			BUILTIN_PRELINKED_METHOD_ARRAY_SIZE
 
-// Tabelle der Indizes für BUILTIN_PRELINKED (wird von symtab_add_builtins gefuellt)
+//d Tabelle der Indizes für BUILTIN_PRELINKED (wird von symtab_add_builtins gefuellt)
+//e Index table for BUILTIN_PRELINKED (filled by symtab_add_builtins)
 static int
 prelinked_index_table[BUILTIN_PRELINKED_MAX - BUILTIN_PRELINKED_THRESHOLD + 1];
 
@@ -238,6 +247,11 @@ builtins_init()
 
 int symtab_selector_size; /*e global: used by program analyses */
 
+int symtab_builtin_class_array;
+int symtab_builtin_class_string;
+int symtab_builtin_method_array_size;
+int symtab_builtin_method_string_size;
+
 static void
 classes_init()
 {
@@ -254,6 +268,11 @@ classes_init()
 	CLASS_VTABLE(&class_string)[0] = builtin_op_string_size;
 	class_add_selector(&class_array, symtab_lookup(RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_ARRAY_SIZE)));
 	CLASS_VTABLE(&class_array)[0] = builtin_op_array_size;
+
+	symtab_builtin_class_array = RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_CLASS_ARRAY);
+	symtab_builtin_class_string = RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_CLASS_STRING);
+	symtab_builtin_method_string_size = RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_STRING_SIZE);
+	symtab_builtin_method_array_size = RESOLVE_BUILTIN_PRELINKED_ID(BUILTIN_PRELINKED_METHOD_ARRAY_SIZE);
 }
 
 

@@ -32,7 +32,7 @@
 
 #include <stdbool.h>
 
-#define DATA_FLOW_ANALYSES_NR 3	/*e max number of permitted data flow analyses */
+#define DATA_FLOW_ANALYSES_NR 4	/*e max number of permitted data flow analyses */
 
 struct ast_node;
 typedef struct ast_node ast_node_t;

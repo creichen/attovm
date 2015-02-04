@@ -386,3 +386,16 @@ buffer_pseudobuffer(pseudobuffer_t *buf, void *dest)
 	buf->b = 0;
 	return (buffer_t) buf;
 }
+
+label_t
+buffer_label_empty()
+{
+	label_t rv = { .label_position = 0, .base_position = 0 };
+	return rv;
+}
+
+bool
+buffer_label_is_empty(label_t *label)
+{
+	return !(label->label_position || label->base_position);
+}

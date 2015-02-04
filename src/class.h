@@ -113,7 +113,7 @@ typedef struct {
 //e Note wrt encoding:  All members are re-written by type analysis to take parameters of type
 //e compiler_options.method_call_param_type and to return values of type
 //e compiler_options.method_call_return_type.  (Usually both are TYPE_OBJ, corresponding to object_t *)
-typedef struct {
+typedef struct class_struct {
 	//e WARNING: class_string and class_array have SPECIAL layouts:
 	//e - class_array does not use object_map.
 	//e   - fields[0] contains the number of array elements (int).
@@ -130,10 +130,19 @@ typedef struct {
 	//e vtable (virtual function table) resides behind members
 } class_t;
 
-extern class_t class_boxed_int;	// Ein Eintrag: int_v
-extern class_t class_boxed_real;// Ein Eintrag: real_v
-extern class_t class_string;	// Zeichenkette beginnt ab member[0]
-extern class_t class_array;	// len+1 Eintraege, mit member[0].int_v=len
+extern class_t class_boxed_int;	/*d Ein Eintrag: int_v */
+extern class_t class_boxed_real;/*d Ein Eintrag: real_v */
+extern class_t class_string;	/*d Zeichenkette beginnt ab member[0] */
+extern class_t class_array;	/*d len+1 Eintraege, mit member[0].int_v=len */
+
+extern class_t class_top;	/*e `top' fake class to aid analysis; lacks symbol table entry */
+extern class_t class_bottom;	/*e `bottom' fake class to aid analysis; lacks symbol table entry */
+
+/*e
+ * Prints out a class (including one of the fake classes)
+ */
+void
+class_print_short(FILE *file, class_t *classref);
 
 /**
  * Erzeugt und bindet eine Klassenstruktur aus bzw. and einen Symboltabelleneintrag
@@ -150,7 +159,7 @@ class_new(symtab_entry_t *entry);
 void
 class_print(FILE *file, class_t *classref);
 
-/**
+/*d
  * Berechnet die Groesse der Selektortabelle fuer eine Klasse
  *
  * @param methods_nr Anzahl der Methoden der Klasse
@@ -160,7 +169,13 @@ class_print(FILE *file, class_t *classref);
 int
 class_selector_table_size(int methods_nr, int fields_nr);
 
-/**
+/*e
+ * Looks up a selector in the class by its ID
+ */
+symtab_entry_t *
+class_lookup_member(symtab_entry_t *sym, int selector_nr);
+
+/*d
  * Verbindet Klassenstruktur mit ihrem Symboltabelleneintrag und umgekehrt
  *
  * Nur für statisch allozierte Klassen nötig, wird implizit von class_new verwendet.
@@ -168,7 +183,7 @@ class_selector_table_size(int methods_nr, int fields_nr);
 class_t*
 class_initialise_and_link(class_t *classref, symtab_entry_t *entry);
 
-/**
+/*d
  * Fuegt einen Selektor zu einer Klassenbeschreibung hinzu
  */
 void

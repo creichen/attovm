@@ -28,6 +28,7 @@
 #ifndef ASSEMBLER_BUFFER_H_
 #define ASSEMBLER_BUFFER_H_
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #define ASSEMBLER_BIN_PAGES_START 0xb000000000 // Startadresse des Binaercodes im Speicher
@@ -105,6 +106,18 @@ buffer_terminate(buffer_t buf);
  */
 void
 buffer_disassemble(buffer_t buf);
+
+/*e
+ * Unused/empty jump label
+ */
+label_t
+buffer_label_empty();
+
+/*e
+ * Is this an unused/empty jump label?
+ */
+bool
+buffer_label_is_empty(label_t *label);
 
 // Load Address
 #define emit_la(buf, reg, p) emit_li(buf, reg, (long long) p)

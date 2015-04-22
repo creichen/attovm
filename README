@@ -1,0 +1,122 @@
+AttoVM is a small virtual machine that we use for teaching concepts of
+compilers, adaptive compilation, automatic memory management, and
+other aspects of modern language runtimes.  To make it easily
+accessible to students, the system is written almost completely in C,
+with small bits of assembly and two Python-based conde generators.
+
+
+PLATFORM SUPPORT
+================
+AttoVM targets x86-64 machines exclusively.  We have tested it
+extensively on Linux and have confirmed partial OS X support-- the
+AttoVM itself works well on OS X, but the 2OPM debugger (see below)
+does not.
+
+
+CONTENTS AND FEATURES
+=====================
+- 2OPM: A custom, simplified version of x86-64 assembly language (see
+  below) with assembler and debugger (no separate assembly/linkage
+  supported at this time).
+  
+  This assembly language makes interacting with the x86-64 CPU easier
+  for students familiar with MIPS or other RISC assembly languages, at
+  a small performance cost compared to directly writing x86-64
+  assembly.
+
+- AttoL:  a small high-level language with support for dynamic array
+  allocation, functions, classes, dynamic object creation, dynamic
+  dispatch, dynamic typing, and simple static typing as input language.
+
+- Automatic Memory Management: A Cheney Copying Garbage Collector.
+
+- Dataflow analysis:  a framework for local dataflow analysis and
+  optimisation.
+
+- Adaptive compilation:  support for dynamic recompilation and
+  sampling (not very generic yet).
+
+- Simple AST representation: the IR is an annotated AST, with a
+  handful of special nodes introduced during analysis.  Students don't
+  have to learn an additional IR.  (Naturally, this also limits the
+  opimisations that we can do.)
+
+
+WHAT THIS IS GOOD FOR
+=====================
+This is a teaching tool.  We have found it useful to have students
+understand how to implement garbage collectors, dataflow analyses, and
+adaptive compilation.  We've also used it to demonstrate
+Hindley-Milner type inference, though AttoL isn't the ideal language
+to teach this.  We use it to teach
+
+- basic compilation
+- automatic memory management
+- data flow analysis
+- implementing dynamic dispatch
+- boxing and unboxing
+- adaptive compilation
+- performance aspects of dynamic compilation
+
+
+WHAT THIS IS NOT GOOD FOR
+=========================
+This is not a production-quality VM nor a full-fledged programming
+language.  There's no register allocation or inlining support, and the
+input language is desigend towards exposing interesting language
+concepts rather than towards building scaleable programs.
+
+
+2OPM
+====
+Our target assembly language is 2OPM (`two-operand pseudo-MIPS').  The
+language looks very similar to MIPS but uses only 16 registers, and
+most operations are two-operand ones.  This allows us to translate
+2OPM into x86-64 machine code, often with little or no execution
+overhead.  Check doc/asm-docs.tex for a full description; a (possibly
+outdated) version is cached below:
+
+  http://sepl.cs.uni-frankfurt.de/teaching/asm-docs.pdf
+
+We've found 2OPM to be more palatable than Intel assembly, especially
+to students brought up on MIPS.
+
+
+ENGLISH vs GERMAN
+=================
+We use AttoVM both in English and in German-language classes.  For
+that reason, comments can appear in either or both languages.  The
+correct way of commenting is to use
+
+  //e english comment
+  //d german comment
+
+  or
+
+  /*e english comment */
+  /*d german comment */
+
+When you run `make dist', the system generates two tar packages, one
+with the German comments removed, and one with the English comments
+removed.  If you find stray comments that don't follow the above
+rules, please feel free to adjust them (excluding copyright notices
+and multi-lingual comments).  Some parts are commented only in German
+or only in English; such is life.
+
+
+BUILDING
+========
+Run `make'.
+
+docs/overview.pdf has a description of the relevant files.  Note that
+this file does not yet discuss some of the newer additions (such as
+data flow analysis and automatic memory management) but does
+accurately portray the files that it does explain.
+
+
+CONTACT
+=======
+The current maintainer is Christoph Reichenbach, creichen at gmail.com
+Please let us know if you found this tool to be useful for your own
+teaching, or if you have made any extensions that might be useful to
+others.

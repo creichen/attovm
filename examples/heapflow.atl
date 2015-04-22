@@ -1,0 +1,86 @@
+class Cons(int v, obj a) {
+	obj next = a;
+	int value = v;
+
+	int
+	contains(int k) {
+		if (value == k) return 1;
+		if (next == NULL) return 0;
+		return next.contains(k);
+	}
+
+	obj
+	clone() {
+		obj tail = NULL;
+		if (next != NULL) {
+			tail := next.clone();
+		}
+		return Cons(value, tail);
+	}
+
+	obj // clones as needed
+	append(obj other) {
+		if (other == NULL) {
+			return clone();
+		}
+		return Cons(other.value, append(other.next));
+	}
+
+	int
+	size() {
+		if (next == NULL) return 1;
+		return (next.size()) + 1;
+	}
+
+	int
+	get(int k) {
+		if (k == 0) {
+			return value;
+		} else {
+			return next.get(k - 1);
+		}
+	}
+}
+
+
+obj range(int start, int end) {
+	obj o = NULL;
+	while (start <= end) {
+		o := Cons(start, o);
+		start := start + 1;
+	}
+	return o;
+}
+
+obj from_array(obj arr) {
+	int i = arr.size();
+	obj o = NULL;
+	while (i > 0) {
+		i := i - 1;
+		o := Cons(arr[i], o);
+	}
+	return o;
+}
+
+
+int z = 1;
+while (z < 1000) {
+	assert(z == range(1, z).size());
+
+	obj a = [/z];
+	int i = 0;
+	while (i < z){
+		a[i] := i*i;
+		i := i + 1;
+	}
+	obj alt = from_array(a);
+	assert(z == alt.size());
+	i := 1;
+	while (i < z){
+		assert(alt.get(i) == a[i]);
+		i := i + 1;
+	}
+	assert(alt.append(range(1, z)).size() == z * 2);
+
+	z := z + 1;
+}

@@ -1,0 +1,16 @@
+int size = 1000;
+int max = 0;
+obj sieve = [/size]; // alllocate array
+int x = 2;
+while (x < size) {
+    if (NULL == sieve[x]) {
+        max := x;
+	int fill = x + x;
+        while (fill < size) {
+            sieve[fill] := x;
+            fill := fill + x;
+        }
+    }
+    x := x + 1;
+}
+print(max);

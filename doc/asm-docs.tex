@@ -1,0 +1,400 @@
+\documentclass{article}
+\usepackage{color}
+\usepackage{listings}
+\usepackage{2opm}
+\definecolor{dblue}{rgb}{0,0,0.5}
+
+\newcommand{\textdbf}[1]{\texttt{\textcolor{dblue}{\textbf{#1}}}}
+ 
+\lstset{ %
+  language=[2opm]Assembler,       % the language of the code
+  basicstyle=\small\tt,       % the size of the fonts that are used for the code
+%  numbers=left,                   % where to put the line-numbers
+  numberstyle=\small\color{grey},  % the style that is used for the line-numbers
+  stepnumber=1,                   % the step between two line-numbers. If it's 1, each line 
+                                  % will be numbered
+  numbersep=5pt,                  % how far the line-numbers are from the code
+  backgroundcolor=\color{white},  % choose the background color. You must add \usepackage{color}
+  showspaces=false,               % show spaces adding particular underscores
+  showstringspaces=false,         % underline spaces within strings
+  showtabs=false,                 % show tabs within strings adding particular underscores
+%  frame=single,                   % adds a frame around the code
+  rulecolor=\color{black},        % if not set, the frame-color may be changed on line-breaks within not-black text (e.g. commens (green here))
+  tabsize=4,                      % sets default tabsize to 2 spaces
+  captionpos=b,                   % sets the caption-position to bottom
+  breaklines=true,                % sets automatic line breaking
+  breakatwhitespace=false,        % sets if automatic breaks should only happen at whitespace
+  title=\lstname,                 % show the filename of files included with \lstinputlisting;
+                                  % also try caption instead of title
+  keywordstyle=\textdbf,           % keyword style
+  commentstyle=\color{dgreen},       % comment style
+  stringstyle=\color{mauve},         % string literal style
+  escapeinside={\%*}{*)},            % if you want to add a comment within your code
+  morekeywords={*,eingabe,ausgabe,...},               % if you want to add more keywords to the set
+  belowskip=-1em
+}
+
+\newcommand{\insn}[1]{\texttt{\textbf{\textcolor{dblue}{#1}}}}
+\title{2OPM assembly instruction list\\ \normalsize v0.1.1}
+
+\begin{document}
+\maketitle
+
+2OPM is an assembly language intended for immediate execution on
+x86-64 CPUs. It is not interpreted but rather translated directly into
+native machine code.
+
+\section{Registers}
+2OPM Assembly uses the following general-purpose registers:
+
+
+  \begin{tabular}{|p{6cm}|l|}
+    \hline
+    \textbf{Name} & \textbf{Purpose} \\
+    \hline
+    \hline
+    \texttt{\$v0} & Return \textbf{V}alue\\
+    \texttt{\$a0}, \texttt{\$a1}, \texttt{\$a2}, \texttt{\$a3}, \texttt{\$a4}, \texttt{\$a5} & \textbf{A}rguments\\
+    \texttt{\$s0}, \texttt{\$s1}, \texttt{\$s2}, \texttt{\$s3} & \textbf{S}aved registers \\
+    \texttt{\$t0}, \texttt{\$t1} & \textbf{T}emporary registers \\
+    \texttt{\$sp} & \textbf{S}tack \textbf{P}ointer\\
+    \texttt{\$fp} & \textbf{F}rame \textbf{P}ointer\\
+    \texttt{\$gp} & \textbf{G}lobal \textbf{P}ointer\\
+    \hline
+  \end{tabular}
+
+
+Furthermore, it uses the special-purpose \texttt{\$pc} (\emph{program counter} register to indicate
+the address of the next instruction to execute.  Regular instructions cannot access this register directly,
+though jump and branch operations can modify it.
+
+When loading an assembly program, the loader ensures that the following registers are set to reasonable
+addresses before program start:
+\begin{itemize}
+  \item \texttt{\$sp} is a viable stack address, and initially \texttt{\$sp} modulo 16 is 0 (as after a subroutine call).
+  \item \texttt{\$gp} points to a special static memory region for the program.
+\end{itemize}
+Furthermore, when entering an assembly program, the loader places a viable return address on the stack,
+so that assembly programs can terminate with \texttt{jreturn}.
+
+\section{Memory}
+The loader provides two special memory segments to the loaded assembly program:
+\begin{itemize}
+\item A custom code region (used implicitly by the program counter)
+\item A custom static memory region (referenced by \texttt{\$gp}).
+\end{itemize}
+The assembly program re-uses the loader's stack.  At present, direct heap access via assembly is not intended.
+
+\section{Instructions}
+
+Assembly programs consist of sequences of assembly instructions.  The instructions are listed below, along with brief explanations.
+Each register may take a number of arguments.  We distinguish between the following kinds of arguments:
+\begin{itemize}
+  \item \texttt{addr}: A memory address (usually passed in by a label)
+  \item \texttt{u8}: An 8-bit unsigned number
+  \item \texttt{u32}: A 32-bit unsigned number
+  \item \texttt{s32}: A 32-bit signed number
+  \item \texttt{u64}: A 64-bit unsigned number
+  \item \texttt{\$r0}, \texttt{\$r1}, \texttt{\$r2}: Any general-purpose register
+\end{itemize}
+
+\pagenumbering{gobble}
+\begin{tabular}{llp{8cm}}
+\small
+\textcolor{dblue}{\textbf{\texttt{move}}}&      \texttt{\$r0}, \texttt{\$r1}&   $\texttt{\$r}_{0}$ := $\texttt{\$r}_{1}$\\
+\textcolor{dblue}{\textbf{\texttt{li}}}&        \texttt{\$r0}, s64&     $\texttt{\$r}_{0}$ := \texttt{s64}\\
+\textcolor{dblue}{\textbf{\texttt{add}}}&       \texttt{\$r0}, \texttt{\$r1}&   $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ + $\texttt{\$r}_{1}$\\
+\textcolor{dblue}{\textbf{\texttt{addi}}}&      \texttt{\$r0}, u32&     $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ + \texttt{u32}\\
+\textcolor{dblue}{\textbf{\texttt{sub}}}&       \texttt{\$r0}, \texttt{\$r1}&   $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ - $\texttt{\$r}_{1}$\\
+\textcolor{dblue}{\textbf{\texttt{subi}}}&      \texttt{\$r0}, u32&     $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ $-$ \texttt{u32}\\
+\textcolor{dblue}{\textbf{\texttt{mul}}}&       \texttt{\$r0}, \texttt{\$r1}&   $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ * $\texttt{\$r}_{1}$\\
+\textcolor{dblue}{\textbf{\texttt{div\_a2v0}}}& \texttt{\$r0}&  \texttt{\$v0} := \texttt{\$a2}:\texttt{\$v0} / $\texttt{\$r}_{0}$, \texttt{\$a2} := remainder\\
+\textcolor{dblue}{\textbf{\texttt{not}}}&       \texttt{\$r0}, \texttt{\$r1}&   if $\texttt{\$r}_{1}$ = 0 then $\texttt{\$r}_{1}$ := 1 else $\texttt{\$r}_{1}$ := 0\\
+\textcolor{dblue}{\textbf{\texttt{and}}}&       \texttt{\$r0}, \texttt{\$r1}&   $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ bitwise-and $\texttt{\$r}_{1}$\\
+\textcolor{dblue}{\textbf{\texttt{andi}}}&      \texttt{\$r0}, u32&     $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ bitwise-and \texttt{u32}\\
+\textcolor{dblue}{\textbf{\texttt{or}}}&        \texttt{\$r0}, \texttt{\$r1}&   $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ bitwise-or $\texttt{\$r}_{1}$\\
+\textcolor{dblue}{\textbf{\texttt{ori}}}&       \texttt{\$r0}, u32&     $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ bitwise-or \texttt{u32}\\
+\textcolor{dblue}{\textbf{\texttt{xor}}}&       \texttt{\$r0}, \texttt{\$r1}&   $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ bitwise-exclusive-or $\texttt{\$r}_{1}$\\
+\textcolor{dblue}{\textbf{\texttt{xori}}}&      \texttt{\$r0}, u32&     $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ bitwise-exclusive-or \texttt{u32}\\
+\textcolor{dblue}{\textbf{\texttt{sll}}}&       \texttt{\$r0}, \texttt{\$r1}&   $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ ${<}{<}$ $\texttt{\$r}_{1}$[0:7]\\
+\textcolor{dblue}{\textbf{\texttt{slli}}}&      \texttt{\$r0}, \texttt{\$r1}, u8&       $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ bit-shifted left by \texttt{u8}\\
+\textcolor{dblue}{\textbf{\texttt{srl}}}&       \texttt{\$r0}, \texttt{\$r1}&   $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ ${>}{>}$ $\texttt{\$r}_{1}$[0:7]\\
+\textcolor{dblue}{\textbf{\texttt{srli}}}&      \texttt{\$r0}, \texttt{\$r1}, u8&       $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ bit-shifted right by \texttt{u8}\\
+\textcolor{dblue}{\textbf{\texttt{sra}}}&       \texttt{\$r0}, \texttt{\$r1}&   $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ ${>}{>}$ $\texttt{\$r}_{1}$[0:7], sign-extended\\
+\textcolor{dblue}{\textbf{\texttt{srai}}}&      \texttt{\$r0}, u8&      $\texttt{\$r}_{0}$ := $\texttt{\$r}_{0}$ bit-shifted right by \texttt{u8}, sign extension\\
+\textcolor{dblue}{\textbf{\texttt{slt}}}&       \texttt{\$r0}, \texttt{\$r1}, \texttt{\$r2}&    if $\texttt{\$r}_{1}$ < $\texttt{\$r}_{2}$ then $\texttt{\$r}_{1}$ := 1 else $\texttt{\$r}_{1}$ := 0\\
+\textcolor{dblue}{\textbf{\texttt{sle}}}&       \texttt{\$r0}, \texttt{\$r1}, \texttt{\$r2}&    if $\texttt{\$r}_{1}$ $\le$ $\texttt{\$r}_{2}$ then $\texttt{\$r}_{1}$ := 1 else $\texttt{\$r}_{1}$ := 0\\
+\textcolor{dblue}{\textbf{\texttt{seq}}}&       \texttt{\$r0}, \texttt{\$r1}, \texttt{\$r2}&    if $\texttt{\$r}_{1}$ = $\texttt{\$r}_{2}$ then $\texttt{\$r}_{1}$ := 1 else $\texttt{\$r}_{1}$ := 0\\
+\textcolor{dblue}{\textbf{\texttt{sne}}}&       \texttt{\$r0}, \texttt{\$r1}, \texttt{\$r2}&    if $\texttt{\$r}_{1}$ $\ne$ $\texttt{\$r}_{2}$ then $\texttt{\$r}_{1}$ := 1 else $\texttt{\$r}_{1}$ := 0\\
+\textcolor{dblue}{\textbf{\texttt{bgt}}}&       \texttt{\$r0}, \texttt{\$r1}, addr&     if $\texttt{\$r}_{0}$ $>$ $\texttt{\$r}_{1}$, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{bge}}}&       \texttt{\$r0}, \texttt{\$r1}, addr&     if $\texttt{\$r}_{0}$ $\ge$ $\texttt{\$r}_{1}$, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{blt}}}&       \texttt{\$r0}, \texttt{\$r1}, addr&     if $\texttt{\$r}_{0}$ $<$ $\texttt{\$r}_{1}$, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{ble}}}&       \texttt{\$r0}, \texttt{\$r1}, addr&     if $\texttt{\$r}_{0}$ $\le$ $\texttt{\$r}_{1}$, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{beq}}}&       \texttt{\$r0}, \texttt{\$r1}, addr&     if $\texttt{\$r}_{0}$ = $\texttt{\$r}_{1}$, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{bne}}}&       \texttt{\$r0}, \texttt{\$r1}, addr&     if $\texttt{\$r}_{0}$ $\ne$ $\texttt{\$r}_{1}$, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{bgtz}}}&      \texttt{\$r0}, addr&    if $\texttt{\$r}_{0}$ $>$ 0, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{bgez}}}&      \texttt{\$r0}, addr&    if $\texttt{\$r}_{0}$ $\ge$ 0, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{bltz}}}&      \texttt{\$r0}, addr&    if $\texttt{\$r}_{0}$ $<$ 0, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{blez}}}&      \texttt{\$r0}, addr&    if $\texttt{\$r}_{0}$ $\le$ 0, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{bnez}}}&      \texttt{\$r0}, addr&    if $\texttt{\$r}_{0}$ $\ne$ 0, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{beqz}}}&      \texttt{\$r0}, addr&    if $\texttt{\$r}_{0}$ = 0, then jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{j}}}& addr&   jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{jr}}}&        \texttt{\$r0}&  jump to \texttt{\$r0}\\
+\textcolor{dblue}{\textbf{\texttt{jal}}}&       addr&   push next instruction address, jump to \texttt{addr}\\
+\textcolor{dblue}{\textbf{\texttt{jalr}}}&      \texttt{\$r0}&  push next instruction address, jump to $\texttt{\$r}_{0}$\\
+\textcolor{dblue}{\textbf{\texttt{jreturn}}}&   &       jump to mem64[\texttt{\$sp}]; \texttt{\$sp} := \texttt{\$sp} + 8\\
+\textcolor{dblue}{\textbf{\texttt{sb}}}&        \texttt{\$r0}, s32, \texttt{\$r1}&      mem8[$\texttt{\$r}_{1}$ + \texttt{s32}] := $\texttt{\$r}_{0}$[7:0]\\
+\textcolor{dblue}{\textbf{\texttt{lb}}}&        \texttt{\$r0}, s32, \texttt{\$r1}&      mem8[$\texttt{\$r}_{1}$ + \texttt{s32}] := $\texttt{\$r}_{0}$[7:0]\\
+\textcolor{dblue}{\textbf{\texttt{sd}}}&        \texttt{\$r0}, s32, \texttt{\$r1}&      mem64[$\texttt{\$r}_{1}$ + \texttt{s32}] := $\texttt{\$r}_{0}$\\
+\textcolor{dblue}{\textbf{\texttt{ld}}}&        \texttt{\$r0}, s32, \texttt{\$r1}&      $\texttt{\$r}_{0}$ := mem64[$\texttt{\$r}_{1}$ + \texttt{s32}]\\
+\textcolor{dblue}{\textbf{\texttt{syscall}}}&   &       system call\\
+\textcolor{dblue}{\textbf{\texttt{push}}}&      \texttt{\$r0}&  \texttt{\$sp} := \texttt{\$sp} - 8; mem64[\texttt{\$sp}] = $\texttt{\$r}_{0}$\\
+\textcolor{dblue}{\textbf{\texttt{pop}}}&       \texttt{\$r0}&  $\texttt{\$r}_{0}$ = mem64[\texttt{\$sp}]; \texttt{\$sp} := \texttt{\$sp} + 8\\
+\end{tabular}
+\newpage
+\pagenumbering{arabic}
+
+\section{Calling conventions}
+
+2OPM follows the x86-64/Linux ABI (Application Binary Interface), translated to 2OPM's register names.
+
+\subsection{Preparations before subroutine call}
+  \begin{itemize}
+    \item First six parameters in \texttt{\$a0}\ldots\texttt{\$a5}
+    \item Additional parameters in memory:
+      \begin{itemize}
+        \item Argument 6 (7th): in memory at \texttt{\$sp}
+        \item Argument 7 (8th): in memory at $\texttt{\$sp} + 8$\\
+          \ldots
+      \end{itemize}
+    \item $\texttt{\$sp} + 8$ is \emph{$128$ bit aligned} (divisible by $16$)
+  \end{itemize}
+
+\subsection{When entering a subroutine}
+    \begin{itemize}
+    \item $\texttt{\$sp}$ is \emph{$128$ bit aligned}
+    \item Memory at \texttt{\$sp} contains return address
+    \end{itemize}
+
+    The \insn{jal} instruction ensures these properties implicitly if the assembly
+    program makes the correct assumptions prior to the subroutine call.
+
+\subsection{During subroutine execution}
+    \begin{itemize}
+    \item $\texttt{\$fp} + 8$ is \emph{$128$ bit aligned}
+    \item Function has \emph{stack frame}:
+      \begin{itemize}
+        \item Argument 7 (8th): at \texttt{\$fp} + 24 (etc.)
+        \item Argument 6 (7th): at \texttt{\$fp} + 16
+        \item Return address at \texttt{\$fp} + 8
+        \item Caller's \texttt{\$fp} at \texttt{\$fp}
+        \item Local variables: start at \texttt{\$fp} - 8
+      \end{itemize}
+    \end{itemize}
+
+    The ABI permits not storing \texttt{\$fp} as an optional
+    optimisation, where feasible.  In that case, the otherwise alter
+    program behaviour.  In that case, local variables start directly
+    at the memory address indicated by \texttt{\$fp}.
+
+\subsection{After return from a subroutine}
+  \begin{itemize}
+    \item The following \emph{callee-saved registers} have the same contents as before the call:
+      \begin{itemize}
+        \item \texttt{\$sp}
+        \item \texttt{\$fp}
+        \item \texttt{\$gp}
+        \item \texttt{\$s0}--\texttt{\$s3}
+      \end{itemize}
+    \item All other registers \emph{may be modified}
+    \item Register \texttt{\$v0} contains the return value, if any
+  \end{itemize}
+
+\section{Command-line Assembler Tool}
+
+The 2OPM command line assembler (\texttt{asm}) can load, link, and run assembly files
+(using the suffix \texttt{.s}, by convention).  It also includes a debugger that can step
+through code, print out registers, stack contents, and static memory, and execute until it hits a breakpoint\footnote{
+Only one breakpoint is supported at present.}
+
+\subsection{Installing the Assembler}
+Download the assembler from the specified location.  If you unpack it
+on a UNIX command line and run `\texttt{make}', it should compile
+and link a program `\texttt{asm}'.  This program is a stand-alone executable
+and can be run from any location.
+
+\subsection{Using the Assembler}
+To start the assembler, write a small assembly program, store it in the file \texttt{myprogram.s} in the same
+directory that contains your \texttt{asm} executable, and run
+\[
+\texttt{./asm myprogram.s}
+\]
+
+on the command shell in that directory (see below for some sample programs).
+
+\subsubsection{Using the Debugger}
+To activate the debugger, start the assembler with the command line option \texttt{-d}.
+The debugger has a built-in help facility that can be activated by writing \texttt{help} as
+soon as the debugger command prompt appears.
+
+\subsection{Assembler Programs}
+
+The assembler takes four kinds of input:
+\begin{itemize}
+  \item \emph{assembly instructions},
+  \item \emph{labels},
+  \item \emph{directives}, which control the meaning of subsequent input, and
+  \item \emph{data}.
+\end{itemize}
+
+A functional program must provide at least the first three; providing
+data is optional.
+
+As an example, consider this program:
+
+\begin{lstlisting}
+.text
+main:
+        push $t0        ; align stack for subroutine call
+        li   $a0, 42
+        jal  print_int  ; call built-in function to print
+        pop  $t0
+        jreturn
+\end{lstlisting}
+(Note the comment syntax.)
+
+This program consists of five assembly instructions, one of which
+calls a built-in function (see below).  The first two lines, however,
+are not assembly instructions.  Here, \texttt{.text} indicates that
+the following output should go into the text segment.  The assembler
+will permit assembly instructions if and only if the text segment has
+been selected.  The label \texttt{main} marks the main entry point.
+Each executable assembly program MUST define a \texttt{main} entry
+point.  Any further labels are optional.
+
+\subsection{Directives}
+
+2OPM supports five directives.  The two most important ones are \texttt{.text} and \texttt{.data}.
+
+\paragraph{\texttt{.text}} indicates that any following information goes into the text segment, 
+i.e., is intended for execution.  The following information must be assembly instructions
+and may include label definitions and label references (for suitable instructions).
+
+\paragraph{\texttt{.data}} indicates  that any following information is pure data.  No 
+assembly instructions are permitted (this is for simplicity; in principle, the
+computer could represent assembly instructions in static memory).  The data section 
+permits label definitions, and
+freely
+mixes all forms of data; however, introducing data requires selecting a \emph{data mode}.
+
+\subsection{Data modes}
+
+The following data modes are permitted:
+
+\paragraph{\texttt{.byte}} allows inserting single bytes, separated by commas.
+
+\paragraph{\texttt{.word}} allows inserting 64-bit words, separated by commas.  This section
+also permits label references: the labels' memory address are included verbatim.
+
+\paragraph{\texttt{.asciiz}} allows ASCII character strings.  All strings are automatically
+zero-terminated.
+
+As an example for using the data segment, consider the following:
+
+\begin{lstlisting}
+.text
+main:
+        push $fp      ; align stack
+        move $fp, $sp
+
+        la   $a0, hello
+        jal  print_string  ; print out
+        ld   $a0, number($gp)
+        jal  print_int
+        la   $t0, more_numbers
+        ld   $v0, 0($t0)
+        ld   $a0, 8($t0)
+        add  $a0, $v0
+        jal  print_int     ; print sum
+
+        pop  $fp
+        jreturn
+.data
+hello:
+.asciiz "Hello, World!"
+.word
+number:
+	23
+more_numbers:
+	3,4
+\end{lstlisting}
+
+\subsection{Labels}
+
+Labels are defined by writing the label's name, followed by a colon, as in \texttt{label:}.
+References to labels are written by omitting the colon.  Each label may be defined only once,
+but may be referenced arbitrarily many times.
+
+Label references are permitted in \texttt{.data} sections in \texttt{.word} mode, and in
+assembly instructions such as \texttt{\textcolor{dblue}{j}} or \texttt{\textcolor{dblue}{blt}}.  The
+assembler automatically figures out whether the references are relative or absolute and relocates suitably.
+
+To load a memory address of any label directly, the assembler provides a pseudo-instruction:
+
+\[
+\texttt{\textcolor{dblue}{la} \texttt{\$r}, \texttt{\textit{addr}}}
+\]
+
+This instruction loads the absolute memory address of the specified label into register \texttt{\$r},
+no matter whether the address is in text or (static) data memory.
+
+
+\subsubsection{Built-in Operations}
+The 2OPM runtime comes with a small number of built-in subroutines to facilitate
+input and output.  Each of them can be called using
+\texttt{\textcolor{dblue}{jal}}:
+
+\begin{tabular}{ll}
+\texttt{print\_int} & Print parameter as signed integer \\
+\texttt{print\_string} & Print parameter as null-terminated ascii string \\
+\texttt{read\_int} & Read and return a single 64 bit integer \\
+\texttt{exit} & Stop the program \\
+\end{tabular}
+
+These functions use system calls (cf. the
+\texttt{\textcolor{dblue}{syscall}} operation) to achieve special
+effects that require interaction with the operating system; they are
+abstracted for convenience.
+
+
+For example, the following program will read two numbers, add them,
+and print the resultant output:
+
+\begin{lstlisting}
+.text
+main:
+        push $fp
+        move $fp, $sp ; align stack
+        jal  read_int
+        move $s0, $v0
+        jal  read_int
+        move $a0, $s0
+        add  $a0, $v0
+        jal  print_int
+        pop  $fp
+        jreturn
+\end{lstlisting}
+
+
+\section{Implementation Notes}
+
+Most 2OPM instructions correspond directly to x86-64 instructions.
+However, some of the instruction choices are not optimal: for example,
+2OPM always uses 64 bit load operations, even if the number loaded can
+be represented in 32 or fewer bits.  Some other operations are
+emulated: x86-64 only permits bit shifting by register \texttt{cl}
+(\texttt{\$a2}[7:0]), so the 2OPM implementation of this instruction
+introduces additional register-swap operations, if needed.  This may
+result in less-than-optimal performance.
+
+\end{document}

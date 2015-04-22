@@ -5,6 +5,11 @@ accessible to students, the system is written almost completely in C,
 with small bits of assembly and two Python-based conde generators.
 
 
+HOMEPAGE
+========
+http://sepl.cs.uni-frankfurt.de/teaching/attovm.en.html
+
+
 PLATFORM SUPPORT
 ================
 AttoVM targets x86-64 machines exclusively.  We have tested it

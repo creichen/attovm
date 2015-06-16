@@ -1391,25 +1391,28 @@ baseline_optimisation_hook(buffer_t *buf, symtab_entry_t *sym, int args_offset_0
 		const bool has_self_parameter = sym->symtab_flags & (SYMTAB_CONSTRUCTOR | SYMTAB_MEMBER);
 		//e methods and constructors take a self parameter in a0
 		const int first_regular_parameter = has_self_parameter? 1 : 0;
-		label_t jump_labels[sym->parameters_nr]; 
+		label_t jump_labels[sym->parameters_nr];
+
+		ast_node_t **args = sym->astref->children[1]->children;
 
 		for (int i = 0; i < sym->parameters_nr; i++) {
 			int parameter_nr = i + first_regular_parameter;
 			class_t *type = sym->dynamic_parameter_types[i];
 
 			if (type && type != &class_top && type != &class_bottom) {
+				label_t is_null_label;
 				//e we believe that we know the exact parameter type
 				int offset;
-				if (parameter_nr < REGISTERS_ARGUMENT_NR) {
-					offset = args_offset_0 - (parameter_nr * WORD_SIZE);
-				} else {
-					offset = args_offset_6 + (parameter_nr * WORD_SIZE);
-				}
-				emit_ld(buf, REGISTER_T0, offset, REGISTER_FP);
+				int base_reg;
+				baseline_id_get_location(buf, args[i]->sym, &base_reg, &offset, context);
+				emit_ld(buf, REGISTER_T0, offset, base_reg);//REGISTER_FP);
+				emit_beqz(buf, REGISTER_T0, &is_null_label);
 				emit_la(buf, REGISTER_T1, type);
+				//e introduce guard
 				//e load dynamic type descriptor
 				emit_ld(buf, REGISTER_T0, 0, REGISTER_T0);
 				emit_bne(buf, REGISTER_T0, REGISTER_T1, &jump_labels[i]);
+				buffer_setlabel2(&is_null_label, buf);
 			} else {
 				jump_labels[i] = buffer_label_empty();
 			}

@@ -65,6 +65,7 @@ obj from_array(obj arr) {
 
 int z = 1;
 while (z < 1000) {
+	print(z);
 	assert(z == range(1, z).size());
 
 	obj a = [/z];

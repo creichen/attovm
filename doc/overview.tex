@@ -293,7 +293,7 @@ arr1[0] := arr1[1];
 \end{slisting}
 
 \subsubsection{Boolean Expressions and Truth}\label{sec:truth}
-AttoL does not have a dedicated booelan type, and in AttoL, a value is \emph{true} whenever
+AttoL does not have a dedicated boolean type, and in AttoL, a value is \emph{true} whenever
 it is neither 0 nor \Ckw{NULL}.  Truth values can arise specifically from comparisons:
 \begin{itemize}
 \item Equality comparisons, using the \texttt{==} (is-equal) and \texttt{!=} (is-not-equal) operators
@@ -651,7 +651,7 @@ allocated to allow reading, writing, and execution.
 Once you have access to such a buffer, you can e.g. write the following to increment
  register  \texttt{\$v0} by $3$:
 
-\texttt{emit\_addi(buf, REGISTER\_T0, 3);}
+\texttt{emit\_addi(buf, REGISTER\_V0, 3);}
 
 To load a known pointer \texttt{addr} into  register \texttt{\$t1}, you can write:
 

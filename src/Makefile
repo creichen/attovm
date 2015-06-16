@@ -60,7 +60,7 @@ tidy: clean
 	rm -f $(FRONTEND_GENSRC) $(BACKEND_GENSRC)
 
 atl: ${FRONTEND_GENSRC} $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) atl.o
-	$(CC) $(CFLAGS) $(FRONTEND_OBJS) ${BACKEND_OBJS} atl.o -o atl
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) ${BACKEND_OBJS} atl.o -o atl -lrt
 
 test-frontend: all
 	(cd ../test ; ./test.sh)
@@ -69,13 +69,13 @@ test-containers: containers-test
 	./containers-test
 
 backend-test: $(FRONTEND_GENSRC) $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) backend-test.o
-	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) backend-test.o -o backend-test
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) backend-test.o -o backend-test -lrt
 
 containers-test: $(FRONTEND_GENSRC) $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) containers-test.o
-	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) containers-test.o -o containers-test
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) containers-test.o -o containers-test -lrt
 
 assembler-buffer-test: $(FRONTEND_GENSRC) $(BACKEND_GENSRC) $(BACKEND) $(FRONTEND) assembler-buffer-test.o
-	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) assembler-buffer-test.o -o assembler-buffer-test
+	$(CC) $(CFLAGS) $(FRONTEND_OBJS) $(BACKEND_OBJS) assembler-buffer-test.o -o assembler-buffer-test -lrt
 
 test-backend: backend-test
 	./backend-test

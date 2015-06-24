@@ -419,8 +419,8 @@ baseline_compile_builtin_convert(buffer_t *buf, ast_node_t *arg, int to_ty, int 
 			label_t jump_label;
 			//d Falls Integer-Objekt: Springe zur Dekodierung
 			//e if integer object: jump to decoding
-			buffer_setlabel2(&null_label, buf);
 			emit_beq(buf, REGISTER_T0, REGISTER_V0, &jump_label);
+			buffer_setlabel2(&null_label, buf);
 			emit_fail_at_node(buf, arg, "attempted to convert non-int object to int value");
 			//e successfully decoded:
 			//d Erfolgreiche Dekodierung:
@@ -1396,7 +1396,6 @@ baseline_optimisation_hook(buffer_t *buf, symtab_entry_t *sym, int args_offset_0
 		ast_node_t **args = sym->astref->children[1]->children;
 
 		for (int i = 0; i < sym->parameters_nr; i++) {
-			int parameter_nr = i + first_regular_parameter;
 			class_t *type = sym->dynamic_parameter_types[i];
 
 			if (type && type != &class_top && type != &class_bottom) {

@@ -125,22 +125,22 @@ prelinked_index_table[BUILTIN_PRELINKED_MAX - BUILTIN_PRELINKED_THRESHOLD + 1];
 
 
 struct builtin_ops {
-	int index; // filled in with selector ID for selectors ONLY
-	char *name;
-	int symtab_flags;
-	int ast_flags;
-	int args_nr;
-	unsigned short *args;
-	void *function_pointer;
+	int index; /*e filled in with selector ID for selectors ONLY */ /*d Entweder 0 oder mit festem Index für eingebaute Operatoren */
+	char *name;		/*d Name der Funktion/Operation */
+	int symtab_flags;	/*d Attribut-Flags für die Symboltabelle, z.B. SYMTAB_KIND_FUNCTION für Funktionsdefinitionen */
+	int ast_flags;		/*d Attribut-Flags für die Typanalyse, z.B. TYPE_OBJ für Operationen, die ein Objekt zurückliefern */
+	int args_nr;		/*d Anzahl der formalen Parameter */
+	unsigned short *args;	/*d Typen der formalen Parameter (Zeiger auf ein Array mit `args_nr' Einträgen) */
+	void *function_pointer;	/*d Zeiger auf die Funktion, die aufgerufen werden soll */
 };
 
 static unsigned short args_int_int[] = { TYPE_INT, TYPE_INT };
 static unsigned short args_int[] = { TYPE_INT };
-static unsigned short args_obj[] = { TYPE_OBJ };
+static unsigned short args_obj[] = { TYPE_OBJ }; /*d nimmt ein Objekt als Parameter */
 static unsigned short args_any[] = { TYPE_ANY };
 static unsigned short args_any_any[] = { TYPE_ANY, TYPE_ANY };
 
-void *builtin_op_print(object_t *arg);  // Nicht statisch: Wird vom Test-Code verwendet
+void *builtin_op_print(object_t *arg);  /*d Nicht statisch: Wird vom Test-Code verwendet */
 static object_t *builtin_op_magic(object_t *arg);
 static object_t *builtin_op_assert(long long int arg);
 static object_t *builtin_op_string_size(object_t *arg); 
@@ -151,17 +151,19 @@ static struct builtin_ops builtin_ops[] = {
 	{ BUILTIN_OP_MUL, "*", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
 	{ BUILTIN_OP_SUB, "-", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
 	{ BUILTIN_OP_DIV, "/", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
-	{ BUILTIN_OP_TEST_EQ, "==", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_any_any, NULL }, // but see object.c
+	{ BUILTIN_OP_TEST_EQ, "==", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_any_any, NULL }, /*e but see object.c */
 	{ BUILTIN_OP_TEST_LE, "<=", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
 	{ BUILTIN_OP_TEST_LT, "<", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 2, args_int_int, NULL },
 	{ BUILTIN_OP_CONVERT, "*convert", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), 0, 1, args_any, NULL },
 	{ BUILTIN_OP_NOT, "not", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 1, args_int, NULL },
 	{ BUILTIN_OP_ALLOCATE, "*allocate", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_OBJ, 1, args_int, NULL },
 	{ BUILTIN_OP_SELF, "*self", (SYMTAB_KIND_VAR | SYMTAB_HIDDEN | SYMTAB_PARAM), TYPE_OBJ, 0, NULL, NULL },
-	// not with a fixed position
+	//e not with a fixed position
+	//d keine feste Position; diese Funktionen können an beliebigen Stellen stehen und sind erweiterbar.
+	//d Funktion `magic' ist ein 
 	{ 0, "print", SYMTAB_KIND_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_print },
 	{ 0, "assert", SYMTAB_KIND_FUNCTION, TYPE_OBJ, 1, args_int, &builtin_op_assert },
-	{ 0, "magic", SYMTAB_KIND_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_magic }
+	{ .index=0, .name="magic", .symtab_flags=SYMTAB_KIND_FUNCTION, .ast_flags=TYPE_OBJ, .args_nr=1, .args=args_obj, .function_pointer=&builtin_op_magic }
 };
 
 static struct builtin_ops builtin_selectors[] = {

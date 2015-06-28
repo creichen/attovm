@@ -88,7 +88,7 @@ The assembly program re-uses the loader's stack.  At present, direct heap access
 \section{Instructions}
 
 Assembly programs consist of sequences of assembly instructions.  The instructions are listed below, along with brief explanations.
-Each register may take a number of arguments.  We distinguish between the following kinds of arguments:
+Each instruction may take a number of arguments.  We distinguish between the following kinds of arguments:
 \begin{itemize}
   \item \texttt{addr}: A memory address (usually passed in by a label)
   \item \texttt{u8}: An 8-bit unsigned number
@@ -193,8 +193,8 @@ Each register may take a number of arguments.  We distinguish between the follow
     \end{itemize}
 
     The ABI permits not storing \texttt{\$fp} as an optional
-    optimisation, where feasible.  In that case, the otherwise alter
-    program behaviour.  In that case, local variables start directly
+    optimisation, where feasible.  
+    In that case, local variables start directly
     at the memory address indicated by \texttt{\$fp}.
 
 \subsection{After return from a subroutine}

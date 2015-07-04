@@ -551,7 +551,8 @@ main(int argc, char **argv)
 	TEST("class C(int k) { int z = k; obj inc() { z := z + 1; return z; } obj dec() {z := z - 1; return z; } } obj a = C(5); print(a.inc()); print(a.inc()); print(a.dec()); ", "6\n7\n6\n");
 
 	post_builtins_init = init_selectors;
-	init_selectors(); //e will be re-generated equivalently
+	//e will be re-generated equivalently
+	init_selectors();
 	sprintf(conflict_str, "class C() { int %s() {print(1);}; int %s() {print(2);}; int %s() {print(3);}; } obj a = C(); a.%s(); a.%s(); a.%s(); ",
 		sym0->name, sym1->name, sym2->name,
 		sym0->name, sym1->name, sym2->name);

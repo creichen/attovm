@@ -131,7 +131,7 @@ recursive_check_definite_assignment(symtab_entry_t *sym, bitvector_t assigned_va
 	}
 	int var = data_flow_is_local_var(sym, node);
 	if (var >= 0 && !BITVECTOR_IS_SET(assigned_vars, var)
-	    && !BITVECTOR_IS_SET(*reported_vars, var)) { //e skip previously reported ones
+	    && !BITVECTOR_IS_SET(*reported_vars, var)) { /*e skip previously reported ones */
 		int entries_nr = data_flow_number_of_locals(sym);
 		symtab_entry_t *var_symbols[entries_nr];
 		data_flow_get_all_locals(sym, var_symbols);

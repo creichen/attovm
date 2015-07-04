@@ -139,7 +139,8 @@ cla_less_than_or_equal(classification_t lhs, classification_t rhs)
 
 	case VARTYPE_ARRAY:
 		if (lhs.p.array_size == INT_TOP) {
-			return true; //e unknown array size is less concrete than known
+			//e unknown array size is less concrete than known
+			return true;
 		}
 		return lhs.p.array_size == rhs.p.array_size;
 
@@ -590,7 +591,8 @@ annotate_bounds(symtab_entry_t *sym, classification_t *locals, ast_node_t *node)
 	int *cfg_subnodes_indices;
 	int cfg_subnodes_indices_nr = cfg_subnodes(node, &cfg_subnodes_indices);
 	if (cfg_subnodes_indices_nr < 0) {
-		return; //e This node is fully split up into multiple CFG nodes; we do nothing here
+		//e This node is fully split up into multiple CFG nodes; we do nothing here
+		return;
 	}
 	int cfg_subnodes_index_counter = 0;
 

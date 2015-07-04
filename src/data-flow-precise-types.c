@@ -283,7 +283,8 @@ mark_types_recursively(symtab_entry_t *sym, symtab_entry_t **locals, ast_node_t 
 	int *cfg_subnodes_indices;
 	int cfg_subnodes_indices_nr = cfg_subnodes(node, &cfg_subnodes_indices);
 	if (cfg_subnodes_indices_nr < 0) {
-		return; //e This node is fully split up into multiple CFG nodes; we do nothing here
+		//e This node is fully split up into multiple CFG nodes; we do nothing here
+		return;
 	}
 	int cfg_subnodes_index_counter = 0;
 

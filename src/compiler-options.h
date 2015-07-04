@@ -36,6 +36,7 @@ struct compiler_options {
 	bool debug_dynamic_compilation; /*d Drucke Ausgaben aus, waehrend dynamische Uebersetzung aktiv ist */
 	bool debug_assembly;
 	bool debug_adaptive;
+	bool debug_gc;
 	bool no_adaptive_compilation;
 
 	int array_storage_type;

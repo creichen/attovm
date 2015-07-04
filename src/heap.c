@@ -40,6 +40,7 @@
 
 #include "bitvector.h"
 #include "cstack.h"
+#include "compiler-options.h"
 #include "heap.h"
 #include "runtime.h"
 #include "stackmap.h"
@@ -349,9 +350,8 @@ handle_out_of_memory(void *frame_pointer)
 		exit(1);
 	}
 
-#if defined(INFO) || defined(DEBUG)
 	size_t before = heap_available();
-#endif
+
 	gc_init();
 	gc_rootset_static();
 	gc_rootset_stack(frame_pointer);
@@ -360,8 +360,12 @@ handle_out_of_memory(void *frame_pointer)
 	memset(heap_free_pointer, 0, to_space.end - heap_free_pointer);
 
 #if defined(INFO) || defined(DEBUG)
-	size_t after = heap_available();
-	fflush(NULL);
-	fprintf(stderr, "[GC: Reclaimed %zu bytes]\n", after - before);
+	{
+#else
+	if (compiler_options.debug_gc) {
 #endif
+		size_t after = heap_available();
+		fflush(NULL);
+		fprintf(stderr, "[GC: Reclaimed %zu bytes]\n", after - before);
+	}
 }

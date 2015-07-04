@@ -25,9 +25,10 @@
 
 ***************************************************************************/
 
+#include <errno.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "analysis.h"
 #include "ast.h"
@@ -63,7 +64,8 @@
 #define COMPOPT_DEBUG_ASSEMBLY		4
 #define COMPOPT_DEBUG_DATA_FLOW		5
 #define COMPOPT_DEBUG_ADAPTIVE		6
-#define COMPOPT_NO_ADAPTIVE		7
+#define COMPOPT_DEBUG_GC		7
+#define COMPOPT_NO_ADAPTIVE		8
 
 typedef struct {
 	char *name;
@@ -93,6 +95,7 @@ static const option_rec_t options_compiler[] = {
 	{ "debug-dynamic-compiler",	COMPOPT_DEBUG_DYNAMIC_COMPILER,	"Print out informative messages and disassembly during runtime compilation" },
 	{ "debug-asm",			COMPOPT_DEBUG_ASSEMBLY,		"Use interactive assembly debugger to run" },
 	{ "debug-adaptive",		COMPOPT_DEBUG_ADAPTIVE,		"Debug adaptive compilation" },
+	{ "debug-gc",			COMPOPT_DEBUG_GC,		"Debug automatic memory management" },
 	{ "debug-data-flow",		COMPOPT_DEBUG_DATA_FLOW,	"Debug the selected data flow analysis" },
 	{ NULL, 0, NULL }
 };
@@ -140,6 +143,7 @@ print_help(char *fn)
 	       "\t-h\tPrint this help information\n"
 	       "\t-x\tExecute program (default action)\n"
 	       "\t-t\tTime program execution\n"
+	       "\t-m <n>\tSet heap size to <n> kiB\n"
 	       "\t-f <n>\tActivate various compiler options, with <n> from:\n");
 	print_options(options_compiler, "\t\t\t");
 	printf("\t-p <n>\tPrint intermediate representation, with <n> from:\n");
@@ -219,7 +223,7 @@ main(int argc, char **argv)
 	timer_reset(&timer);
 	timer_start(&timer);
 
-	while ((opt = getopt(argc, argv, "htvxp:f:a:")) != -1) {
+	while ((opt = getopt(argc, argv, "htvxm:p:f:a:")) != -1) {
 		switch (opt) {
 
 		case 'v':
@@ -243,6 +247,15 @@ main(int argc, char **argv)
 			print_mode = pick_option(options_printing, "print option", optarg);
 			break;
 
+		case 'm':
+			errno = 0;
+			compiler_options.heap_size = 1024 * strtol(optarg, NULL, 0);
+			if (errno) {
+				perror("-m");
+				exit(1);
+			}
+			break;
+
 		case 'f':
 			switch (pick_option(options_compiler, "compiler option", optarg)) {
 			case COMPOPT_NO_BOUNDS_CHECKS:
@@ -263,6 +276,10 @@ main(int argc, char **argv)
 				
 			case COMPOPT_DEBUG_ADAPTIVE:
 				compiler_options.debug_adaptive = true;
+				break;
+				
+			case COMPOPT_DEBUG_GC:
+				compiler_options.debug_gc = true;
 				break;
 				
 			case COMPOPT_DEBUG_ASSEMBLY:

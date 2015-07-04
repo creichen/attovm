@@ -45,6 +45,7 @@ struct compiler_options compiler_options = {
 	.debug_dynamic_compilation	= false,
 	.debug_assembly			= false,
 	.debug_adaptive			= false,
+	.debug_gc			= false,
 	.no_adaptive_compilation	= false,
 	.array_storage_type		= TYPE_OBJ,
 	.method_call_param_type		= TYPE_OBJ,

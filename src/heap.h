@@ -60,6 +60,17 @@ heap_free(void);
  * @param fields_nr number of 8-byte fields to allocate
  * @return A heap object
  */
+/*d
+ * Alloziert ein Objekt auf dem Ablagespeicher
+ *
+ * Diese Funktion ist wird immer erfolgreich zurückkehren oder das
+ * Programm abbrechen, wenn nicht genug Speicher gefunden werden kann.  Sie loesst
+ * die automatische Speicherbereinigung aus, soweit noetig.
+ *
+ * @param type Typdeskriptor
+ * @param fields_nr Anzahl der Felder (8-Byte-Einträge), die zu allozieren sind
+ * @return Ein Objekt im Ablagespeicher, das insgesamt (sizeof(class_t *) + fields_nr * 8) Bytes Platz belegt.
+ */
 object_t *
 heap_allocate_object(class_t* type, size_t fields_nr);
 

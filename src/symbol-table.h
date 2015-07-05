@@ -78,14 +78,14 @@ struct class_struct;
 struct object;
 
 typedef struct symtab_entry {
-	char *name;
+	char *name;				/*d Zeigt auf C-Speicher (statisch oder Ablage), und NICHT auf den AttoVM-Ablagspeicher */
 	struct symtab_entry *parent;		/*d Struktureller Elterneintrag */ /*e structural parent entry */
 	signed short id;			/*d Symboltabellennummer dieses Eintrags */ /*e symbol table entry number */
-	unsigned short occurrence_count;	/*d Wievielte Elemente mit diesem Namen wurden überschattet? (Nur zur eindeutigen Identifizierung) */ /*e How many elements of this name are shadowed? (used for unambiguous pretty-printing) */
+	unsigned short occurrence_count;	/*d Namensanalyse: Wievielte Elemente mit diesem Namen wurden überschattet? (Nur zur eindeutigen Identifizierung) */ /*e Name analysis: How many elements of this name are shadowed? (used for unambiguous pretty-printing) */
 	unsigned short ast_flags;
 	unsigned short symtab_flags;
 	ast_node_t *astref;			/* CLASSDEF, FUNDEF, VARDECL */
-	struct cfg_node *cfg_exit;		/*e control flow graph exit node (for SYMTAB_KIND_FUNCTION) */
+	struct cfg_node *cfg_exit;		/*d Endknoten des Kontrollflussgraphen (fuer SYMTAB_KIND_FUNCTION*/ /*e control flow graph exit node (for SYMTAB_KIND_FUNCTION) */
 	void *r_trampoline;			/*d Zeiger auf Trampolin-Code, falls vorhanden */ /*e pointer to trampoline code, if present */
 	void *r_mem;				/*d Zeiger auf Funktion / Klassenobjekt */ /*e pointer to function or class object */
 	unsigned short *parameter_types;	/*e for constructors, parameter_types and parameters_nr are 0.  Refer to the class to access them. */

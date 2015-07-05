@@ -50,6 +50,7 @@ typedef struct object {
 } object_t;
 
 //e gets the string pointer from a string object (performs no type check)
+//d Berechnet den Zeiger auf die C-Zeichenkette aus einem AttoVM-Objekt (führt keine Typprüfung durch!)
 #define OBJECT_STRING(obj) ((char *)(&((obj)->fields[1])))
 
 /*d
@@ -107,6 +108,27 @@ new_real(double value);
  */
 object_t *
 new_string(char *value, size_t len);
+
+/*d
+ * Alloziert ein Zeichenketten-Objekt im AttoVM-Ablagespeicher, ohne den
+ * Speicherinhalt zu initialisieren
+ *
+ * @param string_p Zeiger auf eine Zeichenkettenvariable, die auf den Inhalt
+ * der allozierten Zeichenkette zeigt
+ * @param len Länge der Zeichenkette (ohne abschließende Null)
+ * @return Ein Zeiger auf das allozierte Objekt
+ */
+/*e
+ * Allocates a character string on the AttoVM heap, without initialising
+ * its memory
+ *
+ * @param string_p Pointer to a character string variable pointint to the
+ * raw memory contained in the heap object
+ * @param len Length of the character string (minus terminator byte)
+ * @return Pointer to the allocated object
+ */
+object_t *
+new_empty_string(char **value_p, size_t len);
 
 /*d
  * Alloziert ein Array-Objekt

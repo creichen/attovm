@@ -359,13 +359,16 @@ handle_out_of_memory(void *frame_pointer)
 	//e clear memory at end of stack frame
 	memset(heap_free_pointer, 0, to_space.end - heap_free_pointer);
 
+	size_t after = heap_available();
 #if defined(INFO) || defined(DEBUG)
 	{
 #else
 	if (compiler_options.debug_gc) {
 #endif
-		size_t after = heap_available();
-		fflush(NULL);
 		fprintf(stderr, "[GC: Reclaimed %zu bytes]\n", after - before);
+	}
+	if (after - before == 0) {
+		fprintf(stderr, "Error: out of memory\n");
+		exit(1);
 	}
 }

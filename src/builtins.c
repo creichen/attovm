@@ -142,6 +142,7 @@ static unsigned short args_any_any[] = { TYPE_ANY, TYPE_ANY };
 
 void *builtin_op_print(object_t *arg);  /*d Nicht statisch: Wird vom Test-Code verwendet */
 static object_t *builtin_op_magic(object_t *arg);
+static object_t *builtin_op_concat(object_t *arg1, object_t *arg2);
 static object_t *builtin_op_assert(long long int arg);
 static object_t *builtin_op_string_size(object_t *arg); 
 static object_t *builtin_op_array_size(object_t *arg); 
@@ -158,12 +159,25 @@ static struct builtin_ops builtin_ops[] = {
 	{ BUILTIN_OP_NOT, "not", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_INT, 1, args_int, NULL },
 	{ BUILTIN_OP_ALLOCATE, "*allocate", (SYMTAB_KIND_FUNCTION | SYMTAB_HIDDEN), TYPE_OBJ, 1, args_int, NULL },
 	{ BUILTIN_OP_SELF, "*self", (SYMTAB_KIND_VAR | SYMTAB_HIDDEN | SYMTAB_PARAM), TYPE_OBJ, 0, NULL, NULL },
+
 	//e not with a fixed position
-	//d keine feste Position; diese Funktionen können an beliebigen Stellen stehen und sind erweiterbar.
-	//d Funktion `magic' ist ein 
-	{ 0, "print", SYMTAB_KIND_FUNCTION, TYPE_OBJ, 1, args_obj, &builtin_op_print },
-	{ 0, "assert", SYMTAB_KIND_FUNCTION, TYPE_OBJ, 1, args_int, &builtin_op_assert },
-	{ .index=0, .name="magic", .symtab_flags=SYMTAB_KIND_FUNCTION, .ast_flags=TYPE_OBJ, .args_nr=1, .args=args_obj, .function_pointer=&builtin_op_magic }
+	//d keine feste Position; die folgenden Funktionen können an beliebigen Stellen stehen; die Liste ist erweiterbar.
+	//d   index:		immer 0.
+	//d   symtab_flags:	immer SYMTAB_KIND_FUNCTION
+	//d   ast_flags:	Rueckgabetyp (TYPE_INT oder TYPE_OBJ)
+	//d Die restlichen Parameter entsprechend den Beduerfnissen der Funktion (siehe struct builtin_ops).
+
+	{ .index=0, .name="print",	.symtab_flags=SYMTAB_KIND_FUNCTION,
+	  .ast_flags=TYPE_OBJ, .args_nr=1, .args=args_obj,
+	  .function_pointer=&builtin_op_print },
+
+	{ .index=0, .name="assert",	.symtab_flags=SYMTAB_KIND_FUNCTION,
+	  .ast_flags=TYPE_OBJ, .args_nr=1, .args=args_int,
+	  .function_pointer=&builtin_op_assert },
+
+	{ .index=0, .name="magic",	.symtab_flags=SYMTAB_KIND_FUNCTION,
+	  .ast_flags=TYPE_OBJ, .args_nr=1, .args=args_obj,
+	  .function_pointer=&builtin_op_magic }
 };
 
 static struct builtin_ops builtin_selectors[] = {
@@ -324,6 +338,9 @@ builtin_op_array_size(object_t *arg)
 static object_t *
 builtin_op_magic(object_t *arg)
 {
+	printf("%s\n", arg->classref->id->name);
+	bitvector_print(stdout, arg->classref->object_map);
 	// ?
 	return NULL;
 }
+

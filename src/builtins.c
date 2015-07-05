@@ -338,8 +338,6 @@ builtin_op_array_size(object_t *arg)
 static object_t *
 builtin_op_magic(object_t *arg)
 {
-	printf("%s\n", arg->classref->id->name);
-	bitvector_print(stdout, arg->classref->object_map);
 	// ?
 	return NULL;
 }

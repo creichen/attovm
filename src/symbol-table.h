@@ -111,8 +111,8 @@ typedef struct symtab_entry {
 //e Symbol IDs:
 //e Symbol table entry 0 is always illegal, so regular entries start at 1 and builtin entries start at -1.
 
-extern int symtab_entries_builtin_nr; //e builtin symbol table entries (positive nuber, negate this to get the ID)
-extern int symtab_entries_nr; //e non-builtin symbol table entries
+extern int symtab_entries_builtin_nr; /*e builtin symbol table entries (positive nuber, negate this to get the ID) */
+extern int symtab_entries_nr; /*e non-builtin symbol table entries */
 
 extern int symtab_selector_size; /*e selector number for the `size' selector */
 

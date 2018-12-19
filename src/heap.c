@@ -76,6 +76,7 @@ static unsigned char *heap_free_pointer = NULL;
 static semispace_t to_space = { NULL, NULL };
 static semispace_t from_space = { NULL, NULL };
 
+
 void
 heap_init(size_t requested_heap_size)
 {
@@ -104,9 +105,6 @@ heap_init(size_t requested_heap_size)
 		fprintf(stderr, "Cannot allocate heap; out of memory\n");
 		exit(1);
 	}
-
-	//e clear heap memory (set all bytes to zero)
-	memset(heap_base, 0, heap_size_total);
 
 	//e Copying GC: split heap into two semispaces
 	to_space.start = heap_base;

@@ -175,7 +175,7 @@ void
 do_print(runtime_image_t *img, int mode)
 {
 	int dump_flags = AST_NODE_DUMP_FORMATTED | AST_NODE_DUMP_FLAGS | AST_NODE_DUMP_STORAGE;
-	
+
 	switch (mode) {
 
 	case PRINT_ASM:
@@ -237,11 +237,11 @@ main(int argc, char **argv)
 		case 'x':
 			action = ACTION_RUN;
 			break;
-			
+
 		case 't':
 			time = true;
 			break;
-			
+
 		case 'p':
 			action = ACTION_PRINT;
 			print_mode = pick_option(options_printing, "print option", optarg);
@@ -273,15 +273,15 @@ main(int argc, char **argv)
 			case COMPOPT_DEBUG_DYNAMIC_COMPILER:
 				compiler_options.debug_dynamic_compilation = true;
 				break;
-				
+
 			case COMPOPT_DEBUG_ADAPTIVE:
 				compiler_options.debug_adaptive = true;
 				break;
-				
+
 			case COMPOPT_DEBUG_GC:
 				compiler_options.debug_gc = true;
 				break;
-				
+
 			case COMPOPT_DEBUG_ASSEMBLY:
 				compiler_options.debug_assembly = true;
 				break;
@@ -299,11 +299,11 @@ main(int argc, char **argv)
 				return 1;
 			}
 			break;
-			
+
 		default:;
 		}
 	}
-	
+
 	if (debug_data_flow) {
 		if (data_flow_analysis) {
 			data_flow_analysis->debug = true;
@@ -378,7 +378,6 @@ main(int argc, char **argv)
 			break;
 
 		}
-		
 
 		if (input != stdin) {
 			fclose(input);
